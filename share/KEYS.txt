@@ -34,8 +34,8 @@
     SUPER + ALT + S         Send window to the scratchpad
 
   OTHER
-    Print                   Screenshot a region
-    SHIFT + Print           Screenshot the whole screen
+    SUPER + SHIFT + S       Screenshot a region      (or Print)
+    SUPER + SHIFT + P       Screenshot the whole screen  (or SHIFT + Print)
     SUPER + SHIFT + B       Hide / show the top bar
 
   Stuck? SUPER + Escape -> Log out, then pick "Ubuntu" from the gear icon

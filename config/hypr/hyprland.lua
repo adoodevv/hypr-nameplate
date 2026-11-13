@@ -220,6 +220,9 @@ hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 -- Screenshots (saved to ~/Pictures/Screenshots and copied to the clipboard)
 hl.bind("Print",         hl.dsp.exec_cmd(bin .. "screenshot region"))
 hl.bind("SHIFT + Print", hl.dsp.exec_cmd(bin .. "screenshot full"))
+-- Same thing for laptops where Print needs the Fn key
+hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd(bin .. "screenshot region"))
+hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd(bin .. "screenshot full"))
 
 -- Volume, brightness and media keys (these also work on the lock screen)
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })

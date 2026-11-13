@@ -111,7 +111,8 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | Super + 1..0 | Go to workspace |
 | Super + Shift + 1..0 | Send window to workspace |
 | Super + S | Scratchpad |
-| Print / Shift + Print | Screenshot a region / the whole screen |
+| Super + Shift + S (or Print) | Screenshot a region |
+| Super + Shift + P (or Shift + Print) | Screenshot the whole screen |
 
 ## Where things live
 
@@ -156,7 +157,7 @@ For maintainers: the images above live in `docs/screenshots/`.
 
 ```bash
 # anything on the desktop: region, or the whole screen
-Print            /   Shift + Print        # saved to ~/Pictures/Screenshots
+Super + Shift + S   /   Super + Shift + P     # saved to ~/Pictures/Screenshots
 
 # things that close when you press a key (launcher, screensaver): use a delay
 sleep 5 && ~/.config/nameplate/bin/screenshot full
