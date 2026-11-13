@@ -1,0 +1,43 @@
+# Minimal Omarchy-style prompt: folder, git branch, git state, arrow
+add_newline = true
+command_timeout = 300
+format = "$directory$git_branch$git_status$conda$python$character"
+
+[character]
+success_symbol = "[❯](bold cyan)"
+error_symbol = "[✗](bold red)"
+
+[directory]
+truncation_length = 2
+truncation_symbol = "…/"
+style = "bold blue"
+repo_root_style = "bold cyan"
+repo_root_format = "[ $repo_root]($repo_root_style)[$path]($style) "
+
+[git_branch]
+format = "[$branch]($style) "
+style = "italic cyan"
+
+[git_status]
+format = '[$all_status]($style)'
+style = "cyan"
+ahead = "⇡${count} "
+behind = "⇣${count} "
+diverged = "⇕⇡${ahead_count}⇣${behind_count} "
+conflicted = " "
+up_to_date = " "
+untracked = "? "
+modified = " "
+stashed = ""
+staged = ""
+renamed = ""
+deleted = ""
+
+[conda]
+format = "[$environment]($style) "
+style = "dimmed green"
+ignore_base = true
+
+[python]
+format = '[(\($virtualenv\) )]($style)'
+style = "dimmed green"

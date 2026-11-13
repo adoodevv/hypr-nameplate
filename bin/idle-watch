@@ -1,0 +1,46 @@
+#!/bin/bash
+# Starts the screensaver after IDLE_SECONDS without keyboard or mouse input
+# and closes it as soon as you touch either. GNOME only (uses Mutter's idle
+# monitor). Skips while something is inhibiting idle, e.g. a playing video.
+IDLE_SECONDS="${IDLE_SECONDS:-150}"
+
+idle_ms() {
+  gdbus call --session --dest org.gnome.Mutter.IdleMonitor \
+    --object-path /org/gnome/Mutter/IdleMonitor/Core \
+    --method org.gnome.Mutter.IdleMonitor.GetIdletime 2>/dev/null |
+    tr -dc '0-9 ' | awk '{print $NF}'
+}
+
+inhibited() {
+  gdbus call --session --dest org.gnome.SessionManager \
+    --object-path /org/gnome/SessionManager \
+    --method org.gnome.SessionManager.IsInhibited 8 2>/dev/null | grep -q true
+}
+
+saver_pid=""
+trap '[[ -n $saver_pid ]] && kill "$saver_pid" 2>/dev/null; exit 0' INT TERM HUP
+
+while true; do
+  ms=$(idle_ms)
+  if [[ -z $ms ]]; then sleep 10; continue; fi
+
+  if [[ -n $saver_pid ]] && ! kill -0 "$saver_pid" 2>/dev/null; then
+    saver_pid=""          # closed by a key press
+    sleep 5               # give the idle counter time to reset
+    continue
+  fi
+
+  if [[ -z $saver_pid ]]; then
+    if (( ms >= IDLE_SECONDS * 1000 )) && ! inhibited; then
+      bash "$HOME/.config/nameplate/bin/launch-screensaver" &
+      saver_pid=$!
+    fi
+    sleep 5
+  else
+    if (( ms < 1500 )); then
+      kill "$saver_pid" 2>/dev/null
+      saver_pid=""
+    fi
+    sleep 0.5
+  fi
+done

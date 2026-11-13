@@ -1,0 +1,5 @@
+#!/bin/bash
+# Closes the screensaver window if it is open.
+# ([a] keeps pkill from matching the shell that runs this script.)
+pkill -f '[a]lacritty --class nameplate-screensaver' 2>/dev/null
+exit 0

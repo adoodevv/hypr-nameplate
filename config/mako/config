@@ -1,0 +1,18 @@
+# Notifications (mako) - Tokyo Night
+font=JetBrainsMono Nerd Font 11
+background-color=#1a1b26ee
+text-color=#a9b1d6
+border-color=#7aa2f7
+border-size=2
+border-radius=0
+padding=12
+margin=12
+width=380
+height=140
+anchor=top-right
+default-timeout=5000
+max-visible=4
+
+[urgency=critical]
+border-color=#f7768e
+default-timeout=0

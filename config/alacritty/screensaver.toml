@@ -1,0 +1,17 @@
+# Used only by the screensaver window
+[window]
+startup_mode = "Fullscreen"
+decorations = "None"
+opacity = 1.0
+padding = { x = 0, y = 0 }
+
+[font]
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+size = 16.0
+
+[colors.primary]
+background = "#000000"
+foreground = "#7aa2f7"
+
+[cursor]
+style = { shape = "Underline", blinking = "Off" }

@@ -1,0 +1,7 @@
+#!/bin/bash
+# Opens the screensaver fullscreen. Press any key to close it.
+exec alacritty \
+  --class nameplate-screensaver \
+  --title "screensaver" \
+  --config-file "$HOME/.config/alacritty/screensaver.toml" \
+  -e bash "$HOME/.config/nameplate/bin/screensaver"

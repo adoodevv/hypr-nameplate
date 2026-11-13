@@ -1,0 +1,44 @@
+
+  @NAME@ desktop: keyboard cheat sheet            (q closes this window)
+  SUPER is the Windows key.
+
+  APPS
+    SUPER + Return          Terminal
+    SUPER + Space           App launcher (type a name, Enter)
+    SUPER + E               Files
+    SUPER + K               This cheat sheet
+    SUPER + Escape          Power menu (lock, log out, restart, shut down)
+    SUPER + L               Lock the screen
+    SUPER + CTRL + S        Start the screensaver now
+
+  WINDOWS
+    SUPER + W  (or Q)       Close window
+    SUPER + arrows          Move focus
+    SUPER + SHIFT + arrows  Swap window in that direction
+    SUPER + F               Fullscreen
+    SUPER + ALT + F         Maximise (keeps the bar)
+    SUPER + T               Float / tile the window
+    SUPER + J               Flip the split (side-by-side <-> stacked)
+    SUPER + - / =           Narrower / wider
+    SUPER + SHIFT + - / =   Shorter / taller
+    SUPER + left-drag       Move window with the mouse
+    SUPER + right-drag      Resize window with the mouse
+    ALT + Tab               Next window
+
+  WORKSPACES
+    SUPER + 1..0            Go to workspace 1-10
+    SUPER + SHIFT + 1..0    Send window to workspace 1-10
+    SUPER + Tab             Next workspace (SHIFT for previous)
+    3-finger swipe          Switch workspace
+    SUPER + S               Show / hide the scratchpad
+    SUPER + ALT + S         Send window to the scratchpad
+
+  OTHER
+    Print                   Screenshot a region
+    SHIFT + Print           Screenshot the whole screen
+    SUPER + SHIFT + B       Hide / show the top bar
+
+  Stuck? SUPER + Escape -> Log out, then pick "Ubuntu" from the gear icon
+  on the login screen to return to GNOME.
+
+  Edit keys in ~/.config/hypr/hyprland.lua (reloads on save).

@@ -1,0 +1,12 @@
+#!/bin/bash
+# Power menu shown with SUPER + Escape
+choice=$(printf '%s\n' "Lock" "Screensaver" "Suspend" "Log out" "Restart" "Shut down" |
+  fuzzel --dmenu --lines 6 --width 22 --prompt "power  ")
+case "$choice" in
+  "Lock")        loginctl lock-session ;;
+  "Screensaver") "$HOME/.config/nameplate/bin/launch-screensaver" ;;
+  "Suspend")     systemctl suspend ;;
+  "Log out")     hyprctl dispatch 'hl.dsp.exit()' ;;
+  "Restart")     systemctl reboot ;;
+  "Shut down")   systemctl poweroff ;;
+esac

@@ -1,0 +1,3 @@
+#!/bin/bash
+# Shows the keyboard cheat sheet (SUPER + K). Press q to close.
+exec alacritty --class nameplate-float --title "Keys" -e less -R "$HOME/.config/nameplate/KEYS.txt"
