@@ -148,6 +148,8 @@ Ubuntu's own library versions with `ppa-purge`.
   An update can break the Hyprland session until the config is adjusted. GNOME is unaffected.
 - A release upgrade (for example 24.04 to 26.04) disables third-party PPAs. Run the installer
   again afterwards.
+- If Spotify is installed, its launcher entry is copied to `~/.local/share/applications` and set to run natively on
+  Wayland, because under Hyprland it otherwise cuts off its player bar. Re-run the installer if a Spotify update resets it.
 - Dialogs from apps such as RViz or Gazebo get tiled like normal windows; float them with Super + T.
 - The GNOME screensaver is a small script polling the idle time, not a real screensaver API.
   It does not lock the screen; GNOME's own lock still does that.

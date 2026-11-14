@@ -255,6 +255,17 @@ if (( ! TERMINAL_ONLY )); then
   put    "$SRC/config/mako/config"          "$CFG/mako/config"
   put    "$SRC/config/xdg-desktop-portal/hyprland-portals.conf" "$CFG/xdg-desktop-portal/hyprland-portals.conf"
   [[ -e $CFG/waybar/config ]] || ln -s config.jsonc "$CFG/waybar/config"   # older waybar reads "config"
+
+  # Spotify cuts off its player bar under Hyprland unless it runs as a native Wayland app.
+  # A copy of its launcher entry in ~/.local/share/applications takes priority over the system one.
+  for src in /var/lib/snapd/desktop/applications/spotify_spotify.desktop /usr/share/applications/spotify.desktop; do
+    [[ -f $src ]] || continue
+    dst="$HOME/.local/share/applications/$(basename "$src")"
+    mkdir -p "$(dirname "$dst")"
+    [[ -f $dst ]] || cp "$src" "$dst"
+    sed -i '/^Exec=/{ /ozone-platform/! s#\( %[uUfF]\)\{0,1\}$# --enable-features=UseOzonePlatform --ozone-platform=wayland\1# }' "$dst"
+    echo "Spotify set to run natively on Wayland ($dst)"
+  done
 fi
 
 step "Enabling the prompt in ~/.bashrc"

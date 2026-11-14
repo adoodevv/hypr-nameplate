@@ -17,6 +17,7 @@ ask "Continue?" || exit 0
 
 pkill -f "[b]in/idle-watch" 2>/dev/null
 rm -rf "$CFG/nameplate" "$CFG/hypr" "$CFG/waybar" "$CFG/fuzzel" "$CFG/mako" "$CFG/alacritty"
+rm -f "$HOME/.local/share/applications/spotify_spotify.desktop" "$HOME/.local/share/applications/spotify.desktop"
 rm -f "$CFG/starship.toml" "$CFG/autostart/nameplate-screensaver.desktop" "$CFG/xdg-desktop-portal/hyprland-portals.conf"
 
 if grep -q '^# hypr-nameplate prompt$' "$HOME/.bashrc" 2>/dev/null; then
