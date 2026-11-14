@@ -1,0 +1,17 @@
+#!/bin/bash
+# Shared helper: shows a menu under the right end of the top bar and prints the chosen line.
+#   dropdown "prompt" [lines]   (menu entries on stdin)
+# Pass --password as the only argument to ask for a password instead.
+if [[ ${1:-} == --password ]]; then
+  exec fuzzel --dmenu --password --prompt-only "${2:-password  }" \
+    --anchor top-right --x-margin 12 --y-margin 6 --width 34 \
+    --font "JetBrainsMono Nerd Font:size=10" --line-height 20
+fi
+entries="$(cat)"
+count=$(printf '%s\n' "$entries" | grep -c .)
+lines=${2:-$count}
+(( lines > 12 )) && lines=12
+(( lines < 1 )) && lines=1
+printf '%s\n' "$entries" | fuzzel --dmenu --prompt "${1:-}  " --lines "$lines" \
+  --anchor top-right --x-margin 12 --y-margin 6 --width 34 \
+    --font "JetBrainsMono Nerd Font:size=10" --line-height 20

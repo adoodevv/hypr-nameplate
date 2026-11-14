@@ -1,0 +1,128 @@
+#!/bin/bash
+# Wi-Fi dropdown (click the Wi-Fi icon in the bar). Uses NetworkManager (nmcli).
+pkill -x fuzzel && exit 0   # clicking the icon again closes the menu
+bin="$HOME/.config/nameplate/bin"
+
+I_ON='󰖩'; I_OFF='󰖪'; I_LOCK='󰌾'; I_CHECK='󰄬'
+I_SCAN='󰑐'; I_COG='󰒓'; I_UNLINK='󰌸'
+BARS=('󰤯' '󰤟' '󰤢' '󰤥' '󰤨')
+
+notify() { notify-send -a "Wi-Fi" "$@"; }
+wifi_dev=$(nmcli -t -f DEVICE,TYPE dev | awk -F: '$2=="wifi"{print $1; exit}')
+
+# Saved connection for a network name, matched on the network itself rather than the
+# connection's label (Settings may call it "Home 1" or similar)
+# Skips copies locked to a different network card (e.g. an old USB adapter) and hotspot
+# profiles this laptop broadcasts itself; prints the connection's UUID.
+saved_for() {
+  local uuid ifname mode
+  while IFS= read -r uuid; do
+    [[ $(nmcli -g 802-11-wireless.ssid con show uuid "$uuid" 2>/dev/null) == "$1" ]] || continue
+    ifname=$(nmcli -g connection.interface-name con show uuid "$uuid" 2>/dev/null)
+    [[ -n $ifname && -n $wifi_dev && $ifname != "$wifi_dev" ]] && continue
+    mode=$(nmcli -g 802-11-wireless.mode con show uuid "$uuid" 2>/dev/null)
+    [[ $mode == ap ]] && continue
+    printf '%s\n' "$uuid"; return 0
+  done < <(nmcli -t -f UUID,TYPE con show | awk -F: '$2=="802-11-wireless"{print $1}')
+  return 1
+}
+
+if [[ $(nmcli radio wifi) != enabled ]]; then
+  choice=$(printf '%s\n' "$I_ON  Turn Wi-Fi on" "$I_COG  Network settings" | "$bin/dropdown" "wi-fi")
+  case "$choice" in
+    *"Turn Wi-Fi on")    nmcli radio wifi on && notify "Wi-Fi on" ;;
+    *"Network settings") alacritty --class nameplate-float --title Network -e "$bin/wifi" edit ;;
+  esac
+  exit 0
+fi
+
+current=$(nmcli -t -e no -f ACTIVE,SSID dev wifi list --rescan no 2>/dev/null | sed -n 's/^yes://p' | head -1)
+
+# One line per network name, strongest first: SIGNAL|SECURITY|SSID, split on the unit separator
+# (a tab would collapse an empty SECURITY field when read back).
+US=$'\x1f'
+networks=$(nmcli -t -e no -f SIGNAL,SECURITY,SSID dev wifi list --rescan auto 2>/dev/null |
+  sort -t: -k1,1nr |
+  awk -F: -v us="$US" '{ sig=$1; sec=$2; ssid=$0; sub(/^[^:]*:[^:]*:/, "", ssid)
+             if (ssid != "" && !(ssid in seen)) { seen[ssid]=1; print sig us sec us ssid } }')
+
+menu=()
+declare -A pick
+while IFS="$US" read -r sig sec ssid; do
+  [[ -z $ssid ]] && continue
+  level=$(( sig >= 80 ? 4 : sig >= 60 ? 3 : sig >= 40 ? 2 : sig >= 20 ? 1 : 0 ))
+  lock=" "; [[ -n $sec && $sec != "--" ]] && lock="$I_LOCK"
+  mark=" "; [[ $ssid == "$current" ]] && mark="$I_CHECK"
+  line="${BARS[$level]}  $lock  $ssid  $mark"
+  menu+=("$line")
+  pick["$line"]="$sec"$'\t'"$ssid"
+done <<<"$networks"
+
+extras=()
+[[ -n $current ]] && extras+=("$I_UNLINK  Disconnect")
+extras+=("$I_SCAN  Rescan" "$I_OFF  Turn Wi-Fi off" "$I_COG  Network settings")
+
+choice=$(printf '%s\n' "${menu[@]}" "${extras[@]}" | "$bin/dropdown" "wi-fi")
+[[ -z $choice ]] && exit 0
+
+case "$choice" in
+  *"  Disconnect")
+    # Take the connection down rather than the device, so Wi-Fi keeps working normally afterwards
+    active=$(nmcli -t -e no -f NAME,TYPE con show --active | awk -F: '$NF=="802-11-wireless"{ sub(/:[^:]*$/, ""); print; exit }')
+    [[ -n $active ]] && nmcli con down id "$active" >/dev/null && notify "Disconnected from $current"
+    exit 0 ;;
+  *"  Rescan")
+    nmcli dev wifi rescan 2>/dev/null; sleep 2; exec "$0" ;;
+  *"  Turn Wi-Fi off")
+    nmcli radio wifi off && notify "Wi-Fi off"; exit 0 ;;
+  *"  Network settings")
+    exec alacritty --class nameplate-float --title Network -e "$bin/wifi" edit ;;
+esac
+
+entry="${pick[$choice]:-}"
+[[ -z $entry ]] && exit 0
+sec="${entry%%$'\t'*}"; ssid="${entry#*$'\t'}"
+[[ $ssid == "$current" ]] && { notify "Already connected to $ssid"; exit 0; }
+
+# Undo the older version of this menu, which disconnected the device itself
+[[ -n $wifi_dev ]] && nmcli dev set "$wifi_dev" autoconnect yes >/dev/null 2>&1
+
+# A saved connection: bring it up. Some saved networks keep their password in the
+# GNOME keyring, which nothing can read under Hyprland, so ask for it if needed.
+if profile=$(saved_for "$ssid"); then
+  up() { nmcli con up uuid "$profile" ${wifi_dev:+ifname "$wifi_dev"} "$@" 2>&1; }
+  if out=$(up); then notify "Connected to $ssid"; exit 0; fi
+  # The network may have dropped out of the last scan (phone hotspots sleep when
+  # nobody is connected): scan again and retry once before giving up
+  if [[ $out != *ecret* ]]; then
+    notify "Looking for $ssid…"
+    nmcli dev wifi rescan ${wifi_dev:+ifname "$wifi_dev"} >/dev/null 2>&1
+    sleep 4
+    if out=$(up); then notify "Connected to $ssid"; exit 0; fi
+  fi
+  if [[ -n $sec && $sec != "--" && $out == *ecret* ]]; then
+    pass=$("$bin/dropdown" --password "$ssid password  ") || exit 0
+    [[ -z $pass ]] && exit 0
+    if out=$(up passwd-file <(printf '802-11-wireless-security.psk:%s\n' "$pass")); then
+      notify "Connected to $ssid"; exit 0
+    fi
+  fi
+  [[ $out == *"not found"* || $out == *"No suitable device"* ]] && out="$ssid isn't in range right now. If it's a phone hotspot, open the hotspot screen on the phone and try again."
+  notify "Couldn't connect to $ssid" "${out##*Error: }"; exit 1
+fi
+
+if [[ -n $sec && $sec != "--" ]]; then
+  pass=$("$bin/dropdown" --password "$ssid password  ") || exit 0
+  [[ -z $pass ]] && exit 0
+  out=$(nmcli dev wifi connect "$ssid" password "$pass" 2>&1)
+else
+  out=$(nmcli dev wifi connect "$ssid" 2>&1)
+fi
+if [[ $? -eq 0 ]]; then
+  notify "Connected to $ssid"
+else
+  # Don't leave a half-made profile with a wrong password behind
+  nmcli con delete id "$ssid" >/dev/null 2>&1
+  notify "Couldn't connect to $ssid" "${out##*Error: }"
+  exit 1
+fi

@@ -1,0 +1,35 @@
+#!/bin/bash
+# Wi-Fi picker (click the Wi-Fi icon in the bar). Runs NetworkManager's text UI
+# in Tokyo Night colours instead of its default purple.
+#   wifi          list of networks to connect to
+#   wifi edit     full menu (edit connections, hostname, radio on/off)
+export NEWT_COLORS='
+root=white,default
+window=lightgray,default
+border=blue,default
+shadow=default,default
+title=brightblue,default
+textbox=lightgray,default
+acttextbox=black,blue
+label=lightgray,default
+listbox=lightgray,default
+sellistbox=brightblue,default
+actlistbox=black,blue
+actsellistbox=black,blue
+button=black,blue
+actbutton=black,brightcyan
+compactbutton=lightgray,default
+entry=white,default
+disentry=gray,default
+checkbox=lightgray,default
+actcheckbox=black,blue
+emptyscale=,default
+fullscale=,blue
+helpline=lightgray,default
+roottext=lightgray,default
+'
+if [[ ${1:-} == edit ]]; then
+  exec nmtui
+else
+  exec nmtui-connect
+fi

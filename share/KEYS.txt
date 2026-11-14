@@ -37,6 +37,12 @@
     SUPER + SHIFT + S       Screenshot a region      (or Print)
     SUPER + SHIFT + P       Screenshot the whole screen  (or SHIFT + Print)
     SUPER + SHIFT + B       Hide / show the top bar
+  TOP BAR (click the icons)
+    Wi-Fi                   Pick a network      (right-click: full network menu)
+    Bluetooth               Connect devices     (right-click: Bluetooth settings)
+    Volume                  Choose the output   (right-click: mute, middle-click: mixer,
+                                                 scroll: volume)
+    Click the same icon again, or press Escape, to close a menu.
 
   Stuck? SUPER + Escape -> Log out, then pick "Ubuntu" from the gear icon
   on the login screen to return to GNOME.

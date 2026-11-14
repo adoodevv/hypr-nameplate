@@ -266,6 +266,17 @@ if (( ! TERMINAL_ONLY )); then
     sed -i '/^Exec=/{ /ozone-platform/! s#\( %[uUfF]\)\{0,1\}$# --enable-features=UseOzonePlatform --ozone-platform=wayland\1# }' "$dst"
     echo "Spotify set to run natively on Wayland ($dst)"
   done
+
+  # GNOME Settings refuses to open outside GNOME; telling it it is on GNOME makes it work
+  # (Wi-Fi, Bluetooth, sound and most panels do; Displays does not, Hyprland owns the screen).
+  src=/usr/share/applications/org.gnome.Settings.desktop
+  if [[ -f $src ]]; then
+    dst="$HOME/.local/share/applications/org.gnome.Settings.desktop"
+    mkdir -p "$(dirname "$dst")"
+    [[ -f $dst ]] || cp "$src" "$dst"
+    sed -i '/^Exec=/{ /XDG_CURRENT_DESKTOP=GNOME/! s#^Exec=#Exec=env XDG_CURRENT_DESKTOP=GNOME #; }' "$dst"
+    echo "Settings app set to open under Hyprland ($dst)"
+  fi
 fi
 
 step "Enabling the prompt in ~/.bashrc"

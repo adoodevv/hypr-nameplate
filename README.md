@@ -22,7 +22,7 @@ bash install.sh --name yourname
 |---|---|
 | **Screensaver** | Your name in block letters, cycling through random [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) animations after 2.5 minutes idle. Works on GNOME and Hyprland. |
 | **Lock screen** | Your screen blurred behind your name and a password box (hyprlock). |
-| **Top bar** | Your name, workspaces, date and time, Bluetooth, Wi-Fi, volume, battery and a power menu (Waybar). |
+| **Top bar** | Your name, workspaces, date and time, Bluetooth, Wi-Fi, volume, battery and a power menu (Waybar). Clicking Wi-Fi, Bluetooth or volume opens a dropdown under the icon to pick a network, connect a device or switch the audio output. |
 | **Animations** | Omarchy's window open, close and fade timings on Hyprland. |
 | **Terminal** | Alacritty in Tokyo Night with JetBrainsMono Nerd Font and a minimal Starship prompt. |
 | **Launcher and notifications** | fuzzel and mako in matching colours. |

@@ -55,7 +55,8 @@
     "tooltip-format": "Bluetooth: {status}",
     "tooltip-format-connected": "{device_enumerate}",
     "tooltip-format-enumerate-connected": "{device_alias}",
-    "on-click": "XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth"
+    "on-click": "~/.config/nameplate/bin/bluetooth-menu",
+    "on-click-right": "XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth"
   },
   "network": {
     "format-wifi": "󰖩  {essid}",
@@ -66,7 +67,8 @@
     "tooltip-format-disconnected": "No connection",
     "max-length": 22,
     "interval": 5,
-    "on-click": "alacritty --class nameplate-float --title Network -e nmtui"
+    "on-click": "~/.config/nameplate/bin/wifi-menu",
+    "on-click-right": "alacritty --class nameplate-float --title Network -e ~/.config/nameplate/bin/wifi edit"
   },
   "pulseaudio": {
     "format": "{icon}  {volume}%",
@@ -79,9 +81,10 @@
       ]
     },
     "scroll-step": 5,
-    "on-click": "pavucontrol",
+    "on-click": "~/.config/nameplate/bin/audio-menu",
     "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "tooltip-format": "{desc}"
+    "tooltip-format": "{desc}",
+    "on-click-middle": "pavucontrol"
   },
   "battery": {
     "format": "{icon}  {capacity}%",
