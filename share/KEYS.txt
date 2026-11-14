@@ -4,14 +4,16 @@
 
   APPS
     SUPER + Return          Terminal
+    SUPER + ALT + SPACE     Main menu: everything in one place (or click your name in the bar).
+                            Type to search, Enter to pick, Escape or Backspace goes back.
     SUPER + Space           App launcher (type a name, Enter)
     SUPER + E               Files
     SUPER + K               This cheat sheet
-    SUPER + Escape          Power menu (lock, log out, restart, shut down)
+    SUPER + Escape          Power options (lock, log out, restart, shut down)
     SUPER + L               Lock the screen
     SUPER + CTRL + S        Start the screensaver now
-    SUPER + CTRL + SPACE    Next wallpaper (double-click the desktop to pick one;
-                            SUPER + CTRL + SHIFT + SPACE opens the picker too)
+    SUPER + CTRL + SPACE    Next wallpaper (double-click the desktop to pick one)
+    SUPER + CTRL + SHIFT + SPACE   Colour theme (Gruvbox, Nord, Catppuccin... 23 of them)
     SUPER + P               Screens: extend, mirror or one screen (projector)
 
   WINDOWS

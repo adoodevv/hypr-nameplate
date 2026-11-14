@@ -9,9 +9,11 @@ padding = { x = 0, y = 0 }
 normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
 size = 16.0
 
+# theme:begin colors
 [colors.primary]
-background = "#000000"
+background = "#0e0e14"
 foreground = "#7aa2f7"
+# theme:end
 
 [cursor]
 style = { shape = "Underline", blinking = "Off" }

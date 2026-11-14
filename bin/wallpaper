@@ -5,6 +5,7 @@
     wallpaper set IMAGE    switch to an image
     wallpaper next         next image in the collection (SUPER + CTRL + SPACE)
     wallpaper list         print the collection
+    wallpaper lock         refresh the lock screen copy of the current wallpaper
 
 The collection is the default wallpaper plus every image in ~/Pictures/Wallpapers
 (sub-folders included). Double-click the desktop to choose one.
@@ -23,6 +24,8 @@ FOLDERS = [os.path.expanduser("~/Pictures/Wallpapers")]
 EXTS = (".png", ".jpg", ".jpeg", ".webp")
 RUN = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
 PIDFILE = os.path.join(RUN, "nameplate-wallpaper.pid")
+LOCK = os.path.join(CONF, "lock.png")          # what hyprlock shows, blurred
+LOCK_SRC = os.path.join(CONF, "lock-source")   # which wallpaper lock.png came from
 
 
 def collection():
@@ -45,6 +48,35 @@ def current():
     return DEFAULT
 
 
+def lock_image(force=False):
+    """Save the current wallpaper as a screen-sized PNG for the lock screen.
+
+    hyprlock reads one fixed path, so it gets a copy that follows the picker.
+    """
+    path = current()
+    try:
+        with open(LOCK_SRC) as f:
+            if not force and f.read().strip() == path and os.path.exists(LOCK):
+                return
+    except OSError:
+        pass
+    try:
+        import gi
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import GdkPixbuf
+        pix = GdkPixbuf.Pixbuf.new_from_file(path)
+        w, h = pix.get_width(), pix.get_height()
+        if w > 2560:   # plenty for a blurred background, and quick to load
+            pix = pix.scale_simple(2560, round(h * 2560 / w), GdkPixbuf.InterpType.BILINEAR)
+        tmp = LOCK + ".tmp"
+        pix.savev(tmp, "png", [], [])
+        os.replace(tmp, LOCK)
+        with open(LOCK_SRC, "w") as f:
+            f.write(path + "\n")
+    except Exception as e:   # hyprlock falls back to its solid colour
+        print(f"lock image: {e}", file=sys.stderr)
+
+
 def set_wallpaper(path):
     path = os.path.abspath(os.path.expanduser(path))
     if not os.path.exists(path):
@@ -57,6 +89,7 @@ def set_wallpaper(path):
             os.kill(int(f.read().strip()), signal.SIGUSR1)
     except (OSError, ValueError):
         pass
+    lock_image()
 
 
 def next_wallpaper():
@@ -68,9 +101,21 @@ def next_wallpaper():
     set_wallpaper(images[(i + 1) % len(images)])
 
 
+def background_color():
+    """The theme's background (bin/theme writes colors.toml), shown around or instead of an image."""
+    try:
+        with open(os.path.join(CONF, "colors.toml")) as f:
+            for line in f:
+                if line.startswith("background ="):
+                    return line.split('"')[1]
+    except (OSError, IndexError):
+        pass
+    return "#1a1b26"
+
+
 def fallback():
     """No layer-shell support: let swaybg draw it (no double-click picker then)."""
-    os.execvp("swaybg", ["swaybg", "-m", "fill", "-c", "#1a1b26", "-i", current()])
+    os.execvp("swaybg", ["swaybg", "-m", "fill", "-c", background_color(), "-i", current()])
 
 
 def serve():
@@ -97,8 +142,10 @@ def serve():
     with open(PIDFILE, "w") as f:
         f.write(f"{os.getpid()}\n")
 
+    lock_image()   # first login after installing, or wallpaper changed elsewhere
+
     css = Gtk.CssProvider()
-    css.load_from_data(b"window.np-wallpaper { background-color: #1a1b26; }")
+    css.load_from_data(("window.np-wallpaper { background-color: %s; }" % background_color()).encode())
     Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css,
                                              Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
@@ -191,6 +238,8 @@ def main():
         set_wallpaper(sys.argv[2])
     elif cmd == "next":
         next_wallpaper()
+    elif cmd == "lock":
+        lock_image(force=True)
     elif cmd == "list":
         print("\n".join(collection()))
     elif cmd == "":

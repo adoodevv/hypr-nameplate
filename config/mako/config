@@ -1,8 +1,10 @@
-# Notifications (mako) - Tokyo Night
+# Notifications (mako). Colours: the theme blocks, rewritten by 'theme set NAME'
 font=JetBrainsMono Nerd Font 11
+# theme:begin colors
 background-color=#1a1b26ee
 text-color=#a9b1d6
 border-color=#7aa2f7
+# theme:end
 border-size=2
 border-radius=0
 padding=12
@@ -14,7 +16,9 @@ default-timeout=5000
 max-visible=4
 
 [urgency=critical]
+# theme:begin critical
 border-color=#f7768e
+# theme:end
 default-timeout=0
 
 # Volume / brightness level indicator (bin/osd)
@@ -22,9 +26,11 @@ default-timeout=0
 default-timeout=1500
 width=260
 padding=8
+# theme:begin osd
 text-color=#c0caf5
 progress-color=over #7aa2f73a
 border-color=#7aa2f7
+# theme:end
 
 # Do not disturb (SUPER + CTRL + comma): hide everything except critical alerts
 [mode=do-not-disturb]

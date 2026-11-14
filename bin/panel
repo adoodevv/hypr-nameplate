@@ -13,6 +13,7 @@ import datetime
 import math
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -35,7 +36,7 @@ RUN = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
 PIDFILE = os.path.join(RUN, "nameplate-panel.pid")
 BIN = os.path.expanduser("~/.config/nameplate/bin")
 PANELS = ("calendar", "media", "sound", "wifi", "bluetooth", "display", "power", "wallpapers",
-          "clipboard", "emoji")
+          "clipboard", "emoji", "menu", "themes")
 
 
 def g(code):
@@ -57,68 +58,97 @@ I = {
     "folder": g(0xF024B), "image": g(0xF02E9), "clip": g(0xF0147), "trash": g(0xF0A7A),
 }
 
-CSS = b"""
+CSS = """
 window.np-backdrop { background-color: rgba(0, 0, 0, 0); }
 window.np-popup {
-  background-color: #1a1b26;
-  border: 2px solid #7aa2f7;
+  background-color: @bg;
+  border: 2px solid @accent;
 }
 .np-popup * {
   font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace;
   font-size: 10pt;
-  color: #a9b1d6;
+  color: @fg;
 }
-.np-popup .np-title { font-weight: bold; color: #c0caf5; font-size: 11pt; }
-.np-popup .np-big { font-weight: bold; color: #c0caf5; font-size: 12pt; }
-.np-popup .np-dim, .np-popup .np-dim * { color: #565f89; }
-.np-popup .np-accent { color: #7aa2f7; }
-.np-popup .np-error { color: #f7768e; }
+.np-popup .np-title { font-weight: bold; color: @fg_bright; font-size: 11pt; }
+.np-popup .np-big { font-weight: bold; color: @fg_bright; font-size: 12pt; }
+.np-popup .np-dim, .np-popup .np-dim * { color: @fg_dim; }
+.np-popup .np-accent { color: @accent; }
+.np-popup .np-error { color: @red; }
 .np-popup .np-icon { font-size: 13pt; }
 .np-popup button {
   background-image: none; background-color: transparent;
   border: none; border-radius: 0; box-shadow: none; text-shadow: none;
   padding: 5px 8px; min-height: 0; min-width: 0;
 }
-.np-popup button:hover { background-color: #292e42; }
-.np-popup button.np-active label { color: #7aa2f7; }
+.np-popup button:hover { background-color: @selection; }
+.np-popup button.np-active label { color: @accent; }
 .np-popup button.np-round { padding: 6px 10px; }
 .np-popup button.np-round label { font-size: 15pt; }
-.np-popup button.np-round.np-main label { font-size: 20pt; color: #7aa2f7; }
-.np-popup separator { background-color: #292e42; min-height: 1px; margin: 4px 0; }
-.np-popup scale trough { background-color: #414868; min-height: 6px; border: none; border-radius: 3px; }
-.np-popup scale highlight { background-color: #7aa2f7; border: none; border-radius: 3px; }
+.np-popup button.np-round.np-main label { font-size: 20pt; color: @accent; }
+.np-popup separator { background-color: @selection; min-height: 1px; margin: 4px 0; }
+.np-popup scale trough { background-color: @muted; min-height: 6px; border: none; border-radius: 3px; }
+.np-popup scale highlight { background-color: @accent; border: none; border-radius: 3px; }
 .np-popup scale slider {
-  background-image: none; background-color: #c0caf5; border: none; box-shadow: none;
+  background-image: none; background-color: @fg_bright; border: none; box-shadow: none;
   min-width: 14px; min-height: 14px; border-radius: 7px; margin: -5px;
 }
 .np-popup *:focus, .np-popup *:focus-visible { outline: none; outline-width: 0; outline-color: transparent; box-shadow: none; }
-.np-popup switch { background-image: none; background-color: #414868; border: 1px solid transparent; outline: none; box-shadow: none; border-radius: 12px; }
+.np-popup switch { background-image: none; background-color: @muted; border: 1px solid transparent; outline: none; box-shadow: none; border-radius: 12px; }
 .np-popup switch:focus { border-color: transparent; }
-.np-popup switch:checked { background-color: #7aa2f7; }
+.np-popup switch:checked { background-color: @accent; }
 .np-popup switch image { color: transparent; }
-.np-popup switch slider { background-image: none; background-color: #c0caf5; border: none; box-shadow: none; border-radius: 10px; }
+.np-popup switch slider { background-image: none; background-color: @fg_bright; border: none; box-shadow: none; border-radius: 10px; }
 .np-popup entry {
-  background-image: none; background-color: #292e42; color: #c0caf5;
-  border: 1px solid #414868; border-radius: 0; box-shadow: none; padding: 4px 6px;
+  background-image: none; background-color: @selection; color: @fg_bright;
+  border: 1px solid @muted; border-radius: 0; box-shadow: none; padding: 4px 6px;
 }
-.np-popup entry:focus { border-color: #7aa2f7; }
+.np-popup entry:focus { border-color: @accent; }
 .np-popup calendar {
   background-color: transparent; border: none; padding: 2px;
 }
-.np-popup calendar:selected { background-color: #7aa2f7; color: #1a1b26; border-radius: 3px; }
+.np-popup calendar:selected { background-color: @accent; color: @bg; border-radius: 3px; }
 .np-popup calendar.header { border: none; background-color: transparent; }
-.np-popup calendar.button { color: #7aa2f7; }
-.np-popup calendar:indeterminate { color: #414868; }
+.np-popup calendar.button { color: @accent; }
+.np-popup calendar:indeterminate { color: @muted; }
 .np-popup scrolledwindow, .np-popup viewport { background-color: transparent; border: none; }
-.np-popup .np-huge { font-size: 26pt; font-weight: bold; color: #c0caf5; }
+.np-popup .np-huge { font-size: 26pt; font-weight: bold; color: @fg_bright; }
 .np-popup flowbox, .np-popup flowboxchild { background-color: transparent; padding: 0; }
 .np-popup button.np-thumb { padding: 2px; border: 2px solid transparent; }
-.np-popup button.np-thumb:hover { border-color: #414868; background-color: transparent; }
-.np-popup button.np-thumb.np-current { border-color: #7aa2f7; }
+.np-popup button.np-thumb:hover { border-color: @muted; background-color: transparent; }
+.np-popup button.np-thumb.np-current { border-color: @accent; }
 .np-popup button.np-emoji { padding: 2px 4px; }
 .np-popup button.np-emoji label { font-family: "Noto Color Emoji", sans-serif; font-size: 18pt; }
 .np-popup entry.np-search { margin-bottom: 4px; }
+.np-popup button.np-selected { background-color: @selection; }
+.np-popup button.np-selected label { color: @fg_bright; }
+.np-popup button.np-back { padding: 0 6px; }
+.np-popup button.np-back label { font-size: 13pt; color: @accent; }
 """
+
+
+def theme_colors():
+    """The current theme's colours (written by bin/theme), Tokyo Night if there are none."""
+    colors = {"mode": "dark", "background": "#1a1b26", "selection": "#292e42", "muted": "#414868",
+              "dark_foreground": "#565f89", "accent": "#7aa2f7", "foreground": "#a9b1d6",
+              "bright_foreground": "#c0caf5", "red": "#f7768e"}
+    try:
+        with open(os.path.expanduser("~/.config/nameplate/colors.toml")) as f:
+            for line in f:
+                m = re.match(r'\s*(\w+)\s*=\s*"([^"]*)"', line)
+                if m:
+                    colors[m.group(1)] = m.group(2)
+    except OSError:
+        pass
+    return colors
+
+
+def themed_css():
+    c = theme_colors()
+    names = {"bg": "background", "selection": "selection", "muted": "muted", "fg_dim": "dark_foreground",
+             "accent": "accent", "fg": "foreground", "fg_bright": "bright_foreground", "red": "red"}
+    head = "".join("@define-color %s %s;\n" % (k, c[v]) for k, v in names.items())
+    return (head + CSS).encode(), c["mode"] == "light"
+
 
 
 # ----------------------------------------------------------------- helpers --
@@ -1274,29 +1304,438 @@ class EmojiPanel(Panel):
         spawn("notify-send", "-a", "Emoji", "-t", "1500", f"Copied {ch}  Paste with Ctrl+V")
         self.close()
 
+class ThemePanel(Panel):
+    """Colour themes (SUPER + CTRL + SHIFT + SPACE), Omarchy's palettes. Click one to switch."""
+    width = 640
+    anchor = "middle"
+    CARD_W, CARD_H = 146, 86
+
+    def __init__(self, app):
+        super().__init__(app)
+        head = hbox()
+        head.pack_start(label("Themes", "np-title"), True, True, 0)
+        self.box.pack_start(head, False, False, 0)
+        listing = out(f"{BIN}/theme", "list", timeout=10).splitlines()
+        self.names = [n.lstrip("* ").strip() for n in listing if n.strip()]   # "* " marks the current one
+        self.now = next((n.lstrip("* ").strip() for n in listing if n.startswith("*")), None)
+        if not self.names:
+            self.box.pack_start(label("No themes found. Run the installer again.", "np-dim"), False, False, 6)
+            return
+        flow = Gtk.FlowBox()
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_max_children_per_line(4)
+        flow.set_min_children_per_line(4)
+        flow.set_homogeneous(True)
+        flow.set_row_spacing(6)
+        flow.set_column_spacing(6)
+        themes = os.path.expanduser("~/.config/nameplate/themes")
+        for name in self.names:
+            b = Gtk.Button()
+            b.get_style_context().add_class("np-thumb")
+            if name == self.now:
+                b.get_style_context().add_class("np-current")
+            path = os.path.join(themes, name + ".toml")
+            if not os.path.exists(path):
+                path = os.path.join(os.path.dirname(themes), "user-themes", name + ".toml")
+            b.add(self.card(name, self.palette(path)))
+            b.connect("clicked", lambda *_, n=name: self.choose(n))
+            flow.add(b)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_min_content_height(min(470, 96 * math.ceil(len(self.names) / 4)))
+        scroll.add(flow)
+        self.box.pack_start(scroll, True, True, 0)
+        self.status = label("Click to apply. Wallpapers change too if you downloaded Omarchy's collection.",
+                            "np-dim", xalign=0.5)
+        self.box.pack_start(self.status, False, False, 0)
+
+    @staticmethod
+    def palette(path):
+        c = {}
+        try:
+            with open(path) as f:
+                for line in f:
+                    m = re.match(r'\s*(\w+)\s*=\s*"(#[0-9a-fA-F]{6})"', line)
+                    if m:
+                        c[m.group(1)] = m.group(2)
+        except OSError:
+            pass
+        return c
+
+    @staticmethod
+    def pretty(name):
+        special = {"rose-pine": "Rosé Pine", "retro-82": "Retro 82"}
+        return special.get(name, name.replace("-", " ").title())
+
+    DOTS = ("red", "yellow", "green", "cyan", "blue", "magenta")
+
+    def card(self, name, c):
+        """A small preview in the theme's own colours: its name and six colour dots."""
+        wid = "np-theme-" + re.sub(r"\W", "-", name)
+        rules = ["#%s { background-color: %s; border-top: 4px solid %s; padding: 10px 10px 8px 10px; }"
+                 % (wid, c.get("background", "#808080"), c.get("accent", "#808080")),
+                 "#%s label { color: %s; font-weight: bold; }" % (wid, c.get("foreground", "#808080"))]
+        rules += ["#%s label.np-dot%d { color: %s; font-size: 15pt; font-weight: normal; }"
+                  % (wid, i, c.get(key, "#808080")) for i, key in enumerate(self.DOTS)]
+        css = Gtk.CssProvider()
+        css.load_from_data("\n".join(rules).encode())
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css,
+                                                 Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
+        box = vbox(10)
+        box.set_name(wid)
+        box.set_size_request(self.CARD_W, self.CARD_H)
+        box.pack_start(label(self.pretty(name), ellipsize=True, width=16), False, False, 0)
+        dots = hbox(4)
+        for i in range(len(self.DOTS)):
+            dots.pack_start(label(g(0xF0765), "np-dot%d" % i), False, False, 0)   # filled circle
+        box.pack_end(dots, False, False, 0)
+        return box
+
+    def choose(self, name):
+        self.status.set_text("Applying %s..." % self.pretty(name))
+
+        def done(_result):
+            self.close()                      # reopen, so the panel itself wears the new colours
+            spawn(f"{BIN}/panel", "themes")
+        in_background(lambda: run(f"{BIN}/theme", "set", name, timeout=30), done)
+
+
+# -------------------------------------------------------------- main menu --
+
+def info_rows():
+    """About: a few facts about this machine, read on the spot."""
+    def first(path, key=None):
+        try:
+            with open(path) as f:
+                for line in f:
+                    if key is None:
+                        return line.strip()
+                    if line.startswith(key):
+                        return line.split("=" if "=" in line else ":", 1)[1].strip().strip('"')
+        except OSError:
+            pass
+        return ""
+
+    mem_kb = first("/proc/meminfo", "MemTotal").split()
+    try:
+        up = int(float(first("/proc/uptime").split()[0]))
+    except (IndexError, ValueError):
+        up = 0
+    du = shutil.disk_usage("/")
+    hypr = out("hyprctl", "version", timeout=3).splitlines()
+    hypr = re.sub(r"^Hyprland\s*", "", hypr[0]).split(" built")[0] if hypr else ""
+    facts = [
+        ("System", first("/etc/os-release", "PRETTY_NAME")),
+        ("Computer", first("/sys/class/dmi/id/product_name")),
+        ("Processor", re.sub(r"\s+", " ", first("/proc/cpuinfo", "model name"))
+            .replace("(R)", "").replace("(TM)", "").replace(" CPU", "")),
+        ("Memory", "%.0f GB" % (int(mem_kb[0]) / 1048576) if mem_kb else ""),
+        ("Disk", "%.0f of %.0f GB free" % (du.free / 1e9, du.total / 1e9)),
+        ("Kernel", os.uname().release),
+        ("Hyprland", hypr),
+        ("Up for", "%dh %02dm" % (up // 3600, up % 3600 // 60)),
+    ]
+    return [{"icon": "", "label": k, "right": v, "info": True} for k, v in facts if v]
+
+
+def edit(path):
+    """Open a config file in the first editor found."""
+    for editor in ("code", "gnome-text-editor", "gedit"):
+        if shutil.which(editor):
+            return [editor, path]
+    return ["alacritty", "-e", os.environ.get("EDITOR", "nano"), path]
+
+
+def in_terminal(title, command):
+    """Run a command in a floating terminal and wait for a key before closing."""
+    script = command + '; echo; read -n 1 -s -r -p "Done. Press any key to close."'
+    return ["alacritty", "--class", "nameplate-float", "--title", title, "-e", "bash", "-c", script]
+
+
+class MenuPanel(Panel):
+    """Everything in one place (SUPER + ALT + SPACE): type to search, Enter to pick,
+    arrows to move, Escape or Backspace to go back."""
+    width = 340
+    anchor = "middle"
+    MAX_RESULTS = 12
+
+    def __init__(self, app, route=None):
+        super().__init__(app)
+        self.stack = []            # [(title, items)]
+        self.buttons = []          # [(button, item)] currently shown
+        self.selected = 0
+        head = hbox(6)
+        self.back = Gtk.Button(label=g(0xF0141))
+        self.back.get_style_context().add_class("np-back")
+        self.back.connect("clicked", lambda *_: self.go_back())
+        self.back.set_no_show_all(True)
+        head.pack_start(self.back, False, False, 0)
+        self.title = label("", "np-title")
+        head.pack_start(self.title, True, True, 0)
+        self.box.pack_start(head, False, False, 0)
+        self.search = Gtk.SearchEntry()
+        self.search.get_style_context().add_class("np-search")
+        self.search.set_placeholder_text("Search")
+        self.search.connect("search-changed", lambda *_: self.fill())
+        self.search.connect("activate", lambda *_: self.activate())
+        self.box.pack_start(self.search, False, False, 0)
+        self.list = vbox(0)
+        self.box.pack_start(self.list, False, False, 0)
+
+        try:
+            with open(os.path.expanduser("~/.config/nameplate/name")) as f:
+                name = f.read().strip()
+        except OSError:
+            name = ""
+        self.root = self.tree()
+        self.stack.append((name or "Menu", self.root))
+        for item in self.root:           # e.g. "panel menu system" opens System directly
+            if route and item["label"].lower() == route.lower() and "sub" in item:
+                self.stack.append((item["label"], self.items_of(item)))
+        self.fill()
+
+    def shown(self):
+        self.search.grab_focus()
+        self.back.set_visible(len(self.stack) > 1)
+        GLib.idle_add(self.keep_size)
+
+    def keep_size(self):
+        """Hold the first height, so the menu doesn't jump around while you search."""
+        self.list.set_size_request(-1, self.list.get_allocated_height())
+        return False
+
+    # ---- what's in the menu ----
+
+    def tree(self):
+        B = BIN + "/"
+        panel = lambda kind: {"panel": kind}
+        run_ = lambda *cmd: {"run": list(cmd)}
+        recording = subprocess.run(["pgrep", "-x", "wf-recorder"], capture_output=True).returncode == 0
+        dnd = "do-not-disturb" in out("makoctl", "mode", timeout=3).split()
+        cfg = os.path.expanduser("~/.config")
+        configs = [("Hyprland (keys, windows, startup)", "hypr/hyprland.lua"),
+                   ("Lock screen", "hypr/hyprlock.conf"), ("Idle and screen off", "hypr/hypridle.conf"),
+                   ("Bar", "waybar/config.jsonc"), ("Bar style", "waybar/style.css"),
+                   ("Notifications", "mako/config"), ("Launcher", "fuzzel/fuzzel.ini"),
+                   ("Terminal", "alacritty/alacritty.toml"), ("Prompt", "starship.toml")]
+        updates = [{"icon": g(0xF03D3), "label": "Ubuntu packages",
+                    "run": in_terminal("Update", "sudo apt update && sudo apt full-upgrade")}]
+        if shutil.which("snap"):
+            updates.append({"icon": g(0xF01A7), "label": "Snaps",
+                            "run": in_terminal("Update", "sudo snap refresh")})
+        if shutil.which("flatpak"):
+            updates.append({"icon": g(0xF01A7), "label": "Flatpaks",
+                            "run": in_terminal("Update", "flatpak update")})
+        if shutil.which("fwupdmgr"):
+            updates.append({"icon": g(0xF061A), "label": "Firmware",
+                            "run": in_terminal("Update", "fwupdmgr refresh; fwupdmgr update")})
+        record = ([{"icon": g(0xF04DB), "label": "Stop recording", **run_(B + "screenrecord")}] if recording else [
+            {"icon": g(0xF019E), "label": "Region", **run_(B + "screenrecord")},
+            {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenrecord", "full")},
+            {"icon": g(0xF036C), "label": "Full screen with microphone", **run_(B + "screenrecord", "full", "mic")}])
+        return [
+            {"icon": g(0xF003B), "label": "Apps", **run_("fuzzel")},
+            {"icon": g(0xF03D8), "label": "Appearance", "sub": [
+                {"icon": g(0xF03D8), "label": "Theme", **panel("themes")},
+                {"icon": I["image"], "label": "Background", **panel("wallpapers")},
+                {"icon": I["next"], "label": "Next background", "stay": True, **run_(B + "wallpaper", "next")},
+                {"icon": g(0xF0209), "label": "Show or hide the bar", **run_("pkill", "-SIGUSR1", "waybar")},
+                {"icon": I["refresh"], "label": "Restart the bar",
+                 **run_("sh", "-c", "pkill -x waybar; sleep 0.5; exec waybar")},
+            ]},
+            {"icon": g(0xF0241), "label": "Trigger", "sub": [
+                {"icon": g(0xF0100), "label": "Screenshot", "sub": [
+                    {"icon": g(0xF019E), "label": "Region", **run_(B + "screenshot", "region")},
+                    {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenshot", "full")}]},
+                {"icon": g(0xF044A), "label": "Stop recording" if recording else "Screen recording",
+                 **({"run": record[0]["run"]} if recording else {"sub": record})},
+                {"icon": I["clip"], "label": "Clipboard history", **panel("clipboard")},
+                {"icon": g(0xF01F5), "label": "Emoji", **panel("emoji")},
+                {"icon": g(0xF009B), "label": "Do not disturb", "right": "on" if dnd else "off",
+                 **run_(B + "dnd")},
+            ]},
+            {"icon": I["cog"], "label": "Setup", "sub": [
+                {"icon": I["wifi"][-1], "label": "Wi-Fi", **panel("wifi")},
+                {"icon": I["bt"], "label": "Bluetooth", **panel("bluetooth")},
+                {"icon": I["vol"][-1], "label": "Sound and brightness", **panel("sound")},
+                {"icon": I["monitor"], "label": "Displays", **panel("display")},
+                {"icon": I["balance"], "label": "Power profile", **panel("power")},
+                {"icon": g(0xF030C), "label": "Keybindings", **run_(B + "keys")},
+                {"icon": g(0xF0219), "label": "Config files", "sub": [
+                    {"icon": g(0xF0219), "label": text, "run": edit(os.path.join(cfg, rel))}
+                    for text, rel in configs if os.path.exists(os.path.join(cfg, rel))]},
+                {"icon": g(0xF062E), "label": "GNOME Settings",
+                 **run_("env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center")},
+            ]},
+            {"icon": g(0xF06B0), "label": "Update", "sub": updates},
+            {"icon": g(0xF05DA), "label": "Learn", "sub": [
+                {"icon": g(0xF030C), "label": "Keybindings", **run_(B + "keys")},
+                {"icon": g(0xF059F), "label": "Hyprland wiki", **run_("xdg-open", "https://wiki.hypr.land")},
+                {"icon": g(0xF02A4), "label": "hypr-nameplate on GitHub",
+                 **run_("xdg-open", "https://github.com/adoodevv/hypr-nameplate")},
+            ]},
+            {"icon": g(0xF02FD), "label": "About", "sub": info_rows},
+            {"icon": g(0xF0425), "label": "System", "sub": [
+                {"icon": I["lock"], "label": "Lock", **run_("loginctl", "lock-session")},
+                {"icon": I["monitor"], "label": "Screensaver", **run_(B + "launch-screensaver")},
+                {"icon": g(0xF04B2), "label": "Suspend", **run_("systemctl", "suspend")},
+                {"icon": g(0xF0343), "label": "Log out", **run_("hyprctl", "dispatch", "hl.dsp.exit()")},
+                {"icon": g(0xF0709), "label": "Restart", **run_("systemctl", "reboot")},
+                {"icon": g(0xF0425), "label": "Shut down", **run_("systemctl", "poweroff")},
+            ]},
+        ]
+
+    @staticmethod
+    def items_of(item):
+        sub = item["sub"]
+        return sub() if callable(sub) else sub
+
+    def everything(self, items=None, path=""):
+        """Every item reachable from the top, with where it lives, for searching."""
+        for item in self.root if items is None else items:
+            if "sub" in item and not callable(item["sub"]):
+                yield from self.everything(item["sub"], item["label"] if not path else path + " › " + item["label"])
+            if not item.get("info"):
+                yield item, path
+
+    # ---- drawing ----
+
+    def fill(self):
+        clear(self.list)
+        self.buttons = []
+        query = self.search.get_text().strip().lower()
+        title, items = self.stack[-1]
+        self.title.set_text(title)
+        if query:
+            def words(item, path):   # "wifi" finds Wi-Fi, "shutdown" finds Shut down
+                text = (path + " " + item["label"]).lower().replace("-", "")
+                return text.split() + [item["label"].lower().replace(" ", "").replace("-", "")]
+            wanted = query.replace("-", "").split()
+            shown = [(item, path) for item, path in self.everything()
+                     if all(any(w.startswith(q) for w in words(item, path)) for q in wanted)]
+            shown = shown[:self.MAX_RESULTS]
+        else:
+            shown = [(item, item.get("right", "")) for item in items]
+        for item, right in shown:
+            if item.get("info"):           # About: a plain line, not a button
+                line = hbox(10)
+                line.set_margin_start(8)
+                line.set_margin_end(8)
+                line.set_margin_top(4)
+                line.set_margin_bottom(4)
+                line.pack_start(label(item["label"], "np-dim"), False, False, 5)
+                line.pack_end(label(right, ellipsize=True, width=30, xalign=1.0), True, True, 5)
+                self.list.pack_start(line, False, False, 0)
+                continue
+            if query:
+                right = right.split(" › ")[-1]          # just where it lives, e.g. "Config files"
+            more = "sub" in item
+            b = row(item["icon"], item["label"], right=right + (("  " if right else "") + g(0xF0142) if more else ""),
+                    on_click=lambda it=item: self.choose(it))
+            self.buttons.append((b, item))
+            b.connect("enter-notify-event", lambda w, *_: self.select_button(w))
+            self.list.pack_start(b, False, False, 0)
+        if not shown:
+            self.list.pack_start(label("No matches." if query else "Nothing here.", "np-dim"), False, False, 6)
+        self.list.show_all()
+        self.select(0)
+
+    def select_button(self, button):
+        for i, (b, _) in enumerate(self.buttons):
+            if b is button:
+                self.select(i)
+        return False
+
+    def select(self, i):
+        if not self.buttons:
+            return
+        self.selected = max(0, min(i, len(self.buttons) - 1))
+        for n, (b, _) in enumerate(self.buttons):
+            ctx = b.get_style_context()
+            (ctx.add_class if n == self.selected else ctx.remove_class)("np-selected")
+
+    # ---- doing ----
+
+    def activate(self):
+        if self.buttons:
+            self.choose(self.buttons[self.selected][1])
+
+    def choose(self, item):
+        if "sub" in item:
+            self.stack.append((item["label"], self.items_of(item)))
+            self.search.set_text("")
+            self.back.set_visible(True)
+            self.fill()
+            self.search.grab_focus()
+        elif "panel" in item:
+            self.close()                         # frees the panel slot first
+            spawn(BIN + "/panel", item["panel"])
+        elif "run" in item:
+            if item.get("stay"):
+                spawn(*item["run"])
+                return
+            self.close()
+            # a moment for the menu to disappear, so screenshots and the lock don't catch it
+            spawn("sh", "-c", 'sleep 0.25; exec "$@"', "sh", *item["run"])
+
+    def go_back(self):
+        if len(self.stack) > 1:
+            self.stack.pop()
+            self.search.set_text("")
+            self.back.set_visible(len(self.stack) > 1)
+            self.fill()
+            self.search.grab_focus()
+            return True
+        return False
+
+    def on_key(self, event):
+        key = event.keyval
+        if key == Gdk.KEY_Escape:
+            if self.search.get_text():
+                self.search.set_text("")
+                return True
+            return self.go_back()            # at the top, Escape closes as usual
+        if key == Gdk.KEY_BackSpace and not self.search.get_text():
+            self.go_back()
+            return True
+        if key in (Gdk.KEY_Down, Gdk.KEY_Tab, Gdk.KEY_Up, Gdk.KEY_ISO_Left_Tab) and self.buttons:
+            step = 1 if key in (Gdk.KEY_Down, Gdk.KEY_Tab) else -1
+            self.select((self.selected + step) % len(self.buttons))   # wraps around
+            return True
+        if key == Gdk.KEY_Right and self.buttons and "sub" in self.buttons[self.selected][1] \
+                and not self.search.get_text():
+            self.activate()
+            return True
+        if key == Gdk.KEY_Left and not self.search.get_text():
+            return self.go_back()
+        return False
+
 
 KINDS = {"calendar": CalendarPanel, "media": MediaPanel, "sound": SoundPanel,
          "wifi": WifiPanel, "bluetooth": BluetoothPanel, "display": DisplayPanel,
          "power": PowerPanel, "wallpapers": WallpaperPanel,
-         "clipboard": ClipboardPanel, "emoji": EmojiPanel}
+         "clipboard": ClipboardPanel, "emoji": EmojiPanel, "menu": MenuPanel,
+         "themes": ThemePanel}
 
 
 # --------------------------------------------------------------------- app --
 
 class App:
-    def __init__(self, kind):
+    def __init__(self, kind, route=None):
         self.windows = []
         provider = Gtk.CssProvider()
-        provider.load_from_data(CSS)
+        css, light = themed_css()
+        provider.load_from_data(css)
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), provider,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_USER)
-        Gtk.Settings.get_default().set_property("gtk-application-prefer-dark-theme", True)
+        Gtk.Settings.get_default().set_property("gtk-application-prefer-dark-theme", not light)
         layered = GtkLayerShell is not None and GtkLayerShell.is_supported()
 
         if layered:
             self.windows.append(self.backdrop())
 
-        panel = KINDS[kind](self)
+        panel = KINDS[kind](self, route) if route else KINDS[kind](self)
+        self.panel = panel
         win = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         win.get_style_context().add_class("np-popup")
         win.set_title(f"nameplate {kind}")
@@ -1350,6 +1789,9 @@ class App:
         return w
 
     def on_key(self, _w, event):
+        hook = getattr(self.panel, "on_key", None)
+        if hook and hook(event):
+            return True
         if event.keyval == Gdk.KEY_Escape:
             self.quit()
             return True
@@ -1394,7 +1836,7 @@ def main():
     if not take_over(kind):
         return
     GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, Gtk.main_quit)
-    App(kind)
+    App(kind, sys.argv[2] if len(sys.argv) > 2 else None)
     Gtk.main()
 
 

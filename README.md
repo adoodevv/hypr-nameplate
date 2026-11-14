@@ -21,8 +21,9 @@ bash install.sh --name yourname
 | | |
 |---|---|
 | **Screensaver** | Your name in block letters, cycling through random [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) animations after 2.5 minutes idle. Works on GNOME and Hyprland. |
-| **Lock screen** | Your screen blurred behind your name and a password box (hyprlock). |
+| **Lock screen** | Omarchy style: your current wallpaper, heavily blurred, with just a password box (hyprlock). Follows the wallpaper picker. |
 | **Top bar** | Your name, workspaces, date and time, a music icon while something plays, Bluetooth, Wi-Fi, volume, brightness, battery and a power menu (Waybar). Clicking an icon opens a small panel under it: a calendar with the player (seek bar, previous / play / next) underneath while something plays, volume and brightness sliders with output selection, Wi-Fi networks, Bluetooth devices. Click anywhere outside to close it. |
+| **Main menu** | <kbd>Super</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd> or click your name in the bar, like Omarchy's menu: apps, appearance, screenshots and recording, setup panels, config files, updates (apt, snap, firmware), about this computer, and power options. Type to search everything at once. |
 | **Animations** | Omarchy's window open, close and fade timings on Hyprland. |
 | **Terminal** | Alacritty in Tokyo Night with JetBrainsMono Nerd Font and a minimal Starship prompt. |
 | **Launcher and notifications** | fuzzel and mako in matching colours. |
@@ -34,6 +35,7 @@ bash install.sh --name yourname
 | **Emoji picker** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>E</kbd>: search by name or everyday words ("laugh", "thanks"); recent ones first. |
 | **Screen recording** | <kbd>Alt</kbd> + <kbd>Print</kbd> for a region, add <kbd>Shift</kbd> for the whole screen or <kbd>Ctrl</kbd> for the whole screen with your microphone. Same keys or the red dot in the bar stop it. Saved as .mp4 in `~/Videos/Screencasts`. |
 | **Notifications** | <kbd>Super</kbd> + <kbd>,</kbd> dismisses, add <kbd>Shift</kbd> for all, <kbd>Alt</kbd> to bring the last one back, <kbd>Ctrl</kbd> for do not disturb. |
+| **Themes** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> (or Menu → Appearance → Theme): Omarchy's 23 colour themes, including Tokyo Night, Catppuccin, Gruvbox, Nord, Rosé Pine, Everforest, Kanagawa and a few light ones. The bar, panels, terminal, notifications, launcher, window borders and lock screen all switch at once, and so does the wallpaper if you downloaded Omarchy's collection. GNOME is not touched (except the terminal, which both share). |
 | **Wallpapers** | Double-click the desktop for a picker; <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd> for the next one. Drop your own images in `~/Pictures/Wallpapers`. The installer can also download Omarchy's artwork (74 images) straight from Omarchy's repository, leaving out the ones that only show its name or logo. |
 
 ![The screensaver](docs/screenshots/screensaver.gif)
@@ -67,13 +69,15 @@ as `name.bak-DATE`.
 ```
 bash install.sh [options]
 
-  --name NAME       Name shown on the screensaver, lock screen and bar
+  --name NAME       Name shown on the screensaver and bar
                     (default: your username). Up to about 12 characters
                     gets the large block lettering; longer names fall back
                     to smaller lettering.
   --terminal-only   Only the terminal, prompt and screensaver, on your current
                     GNOME desktop. Skips Hyprland and the PPA entirely.
   --configs-only    Don't install any packages; just (re)write the configs.
+  --theme THEME     Colour theme, e.g. gruvbox, nord, catppuccin, rose-pine
+                    (default: keep the current one, Tokyo Night at first).
 ```
 
 `--terminal-only` is the low-risk way to try it: no PPA, nothing outside your home folder
@@ -105,12 +109,15 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | Keys | Action |
 |---|---|
 | Super + Return | Terminal |
+| Super + Alt + Space | Main menu (or click your name in the bar) |
 | Super + Space | App launcher |
 | Super + E | Files |
 | Super + K | Cheat sheet |
-| Super + Escape | Power menu |
+| Super + Escape | Power options |
 | Super + L | Lock |
 | Super + Ctrl + S | Start the screensaver now |
+| Super + Ctrl + Shift + Space | Colour theme |
+| Super + Ctrl + Space | Next wallpaper |
 | Super + P | Screens: extend, mirror, one screen |
 | Super + Ctrl + A / B / N / P | Sound, Bluetooth, network, power panels |
 | Super + Ctrl + V | Clipboard history |
@@ -143,7 +150,12 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | `~/.config/xdg-desktop-portal/hyprland-portals.conf` | Lets sandboxed apps (snaps such as Proton VPN) use the GNOME keyring under Hyprland |
 | `~/.config/alacritty/alacritty.toml` | Terminal |
 | `~/.config/starship.toml` | Prompt |
-| `~/.config/nameplate/` | Your name's artwork, wallpaper, helper scripts |
+| `~/.config/nameplate/` | Your name's artwork, wallpaper, themes, helper scripts |
+
+Each themed file has a block between `theme:begin` and `theme:end` lines holding its colours.
+Switching theme rewrites only that block, so your other edits to those files stay. To make
+your own theme, copy a file from `~/.config/nameplate/themes/` into
+`~/.config/nameplate/user-themes/`, rename it, change the colours, and it shows up in the picker.
 
 Hyprland 0.57 removed the old `hyprland.conf` format, so this project uses the Lua config.
 Most Hyprland tutorials written before mid-2026 show the old syntax.
@@ -197,7 +209,9 @@ ffmpeg -i /tmp/saver.mp4 -vf "fps=15,scale=960:-1" docs/screenshots/screensaver.
 - [Hyprland](https://hypr.land), hyprlock and hypridle by the hyprwm team.
 - [cpiber/hyprland-ppa](https://github.com/cpiber/hyprland-ppa) for the Ubuntu packages.
 - [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) by ChrisBuilds.
-- [Tokyo Night](https://github.com/enkia/tokyo-night-vscode-theme) colour scheme by enkia.
+- The colour themes in `share/themes` are Omarchy's palettes (MIT, from `themes/*/colors.toml`),
+  which in turn adapt Tokyo Night, Catppuccin, Gruvbox, Nord, Rosé Pine, Everforest, Kanagawa and
+  others by their original authors.
 - Waybar, fuzzel, mako, Alacritty, Starship, pyfiglet and the Nerd Fonts project.
 
 If you want the complete Omarchy experience on Ubuntu rather than a small look-alike, see

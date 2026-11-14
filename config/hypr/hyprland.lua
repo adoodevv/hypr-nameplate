@@ -9,9 +9,13 @@ local terminal    = "alacritty"
 local fileManager = "nautilus --new-window"
 local menu        = "pkill fuzzel || fuzzel"
 
--- Tokyo Night
+-- Colours: this block is rewritten by 'theme set NAME' (SUPER + CTRL + SHIFT + SPACE)
+-- theme:begin colors
 local accent = "rgba(7aa2f7ee)"
 local muted  = "rgba(414868aa)"
+local shadow = 0x661a1b26
+local backdrop = "rgb(1a1b26)"
+-- theme:end
 
 ------------------
 ---- MONITORS ----
@@ -72,7 +76,7 @@ hl.config({
       enabled      = true,
       range        = 6,
       render_power = 3,
-      color        = 0x661a1b26,
+      color        = shadow,
     },
 
     -- Kept light for integrated graphics. Set enabled = false if it ever feels slow.
@@ -95,7 +99,7 @@ hl.config({
   misc = {
     disable_hyprland_logo    = true,
     disable_splash_rendering = true,
-    background_color         = "rgb(1a1b26)",
+    background_color         = backdrop,
     focus_on_activate        = true,
     key_press_enables_dpms   = true,
     mouse_move_enables_dpms  = true,
@@ -174,11 +178,12 @@ hl.bind(mod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mod .. " + Space",  hl.dsp.exec_cmd(menu))
 hl.bind(mod .. " + E",      hl.dsp.exec_cmd(fileManager))
 hl.bind(mod .. " + K",      hl.dsp.exec_cmd(bin .. "keys"))
-hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(bin .. "power-menu"))
+hl.bind(mod .. " + ALT + Space", hl.dsp.exec_cmd(bin .. "panel menu"))
+hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(bin .. "panel menu system"))
 hl.bind(mod .. " + L",      hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd(bin .. "launch-screensaver"))
 hl.bind(mod .. " + CTRL + Space", hl.dsp.exec_cmd(bin .. "wallpaper next"))
-hl.bind(mod .. " + CTRL + SHIFT + Space", hl.dsp.exec_cmd(bin .. "panel wallpapers"))
+hl.bind(mod .. " + CTRL + SHIFT + Space", hl.dsp.exec_cmd(bin .. "panel themes"))
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("pkill -SIGUSR1 waybar"))
 hl.bind(mod .. " + P",         hl.dsp.exec_cmd(bin .. "display-menu"))
 

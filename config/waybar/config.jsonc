@@ -23,8 +23,9 @@
   ],
   "custom/logo": {
     "format": "@NAME@",
-    "tooltip-format": "App launcher (Super + Space)",
-    "on-click": "pkill fuzzel || fuzzel"
+    "tooltip-format": "Menu (Super + Alt + Space)\nRight-click: apps (Super + Space)",
+    "on-click": "~/.config/nameplate/bin/panel menu",
+    "on-click-right": "pkill fuzzel || fuzzel"
   },
   "hyprland/workspaces": {
     "format": "{id}",

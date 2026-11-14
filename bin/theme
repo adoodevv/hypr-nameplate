@@ -1,0 +1,308 @@
+#!/usr/bin/python3
+"""Colour themes for hypr-nameplate, using Omarchy's theme palettes.
+
+    theme                  print the current theme
+    theme list             print the themes you can pick
+    theme set NAME         switch theme (also its wallpapers, if you downloaded them)
+    theme set NAME --keep-wallpaper
+    theme refresh          apply the current theme again (the installer does this)
+
+Each themed config file has a block between "theme:begin" and "theme:end" lines.
+Only that block is rewritten, so the rest of each file is yours to edit.
+The palettes are Omarchy's colors.toml files (MIT, github.com/basecamp/omarchy).
+"""
+import os
+import re
+import subprocess
+import sys
+import tomllib
+
+HOME = os.path.expanduser("~")
+CFG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
+APP = os.path.join(CFG, "nameplate")
+THEMES = os.path.join(APP, "themes")
+USER_THEMES = os.path.join(APP, "user-themes")      # drop your own NAME.toml here
+CURRENT = os.path.join(APP, "theme")
+COLORS = os.path.join(APP, "colors.toml")          # read by the panels and the wallpaper
+WALLPAPERS = os.path.join(HOME, "Pictures", "Wallpapers")
+DEFAULT = "tokyo-night"
+
+# Which block in which file gets what. {{ key }} is "#rrggbb", {{ key.hex }} is
+# "rrggbb", {{ key.rgb }} is "r, g, b".
+BLOCKS = {
+    "waybar/style.css": {"colors": """\
+@define-color bg {{ background }};
+@define-color fg {{ foreground }};
+@define-color fg_bright {{ bright_foreground }};
+@define-color fg_dim {{ dark_foreground }};
+@define-color muted {{ muted }};
+@define-color accent {{ accent }};
+@define-color red {{ red }};
+@define-color yellow {{ yellow }};
+@define-color green {{ green }};
+@define-color bar_bg alpha(@bg, 0.82);
+@define-color hover alpha(@accent, 0.12);"""},
+
+    "mako/config": {
+        "colors": """\
+background-color={{ background }}ee
+text-color={{ foreground }}
+border-color={{ accent }}""",
+        "critical": "border-color={{ red }}",
+        "osd": """\
+text-color={{ bright_foreground }}
+progress-color=over {{ accent }}3a
+border-color={{ accent }}"""},
+
+    "fuzzel/fuzzel.ini": {"colors": """\
+background={{ background.hex }}ee
+text={{ foreground.hex }}ff
+prompt={{ accent.hex }}ff
+input={{ bright_foreground.hex }}ff
+match={{ accent.hex }}ff
+selection={{ selection.hex }}ff
+selection-text={{ bright_foreground.hex }}ff
+selection-match={{ bright_cyan.hex }}ff
+border={{ accent.hex }}ff"""},
+
+    "alacritty/alacritty.toml": {"colors": """\
+[colors.primary]
+background = "{{ background }}"
+foreground = "{{ foreground }}"
+
+[colors.cursor]
+text = "{{ background }}"
+cursor = "{{ bright_foreground }}"
+
+[colors.search.matches]
+foreground = "{{ background }}"
+background = "{{ yellow }}"
+
+[colors.search.focused_match]
+foreground = "{{ background }}"
+background = "{{ red }}"
+
+[colors.selection]
+text = "{{ background }}"
+background = "{{ accent }}"
+
+[colors.normal]
+black = "{{ lighter_background }}"
+red = "{{ red }}"
+green = "{{ green }}"
+yellow = "{{ yellow }}"
+blue = "{{ blue }}"
+magenta = "{{ magenta }}"
+cyan = "{{ cyan }}"
+white = "{{ foreground }}"
+
+[colors.bright]
+black = "{{ muted }}"
+red = "{{ bright_red }}"
+green = "{{ bright_green }}"
+yellow = "{{ bright_yellow }}"
+blue = "{{ bright_blue }}"
+magenta = "{{ bright_magenta }}"
+cyan = "{{ bright_cyan }}"
+white = "{{ bright_foreground }}\""""},
+
+    "alacritty/screensaver.toml": {"colors": """\
+[colors.primary]
+background = "{{ darker_background }}"
+foreground = "{{ accent }}\""""},
+
+    "hypr/hyprland.lua": {"colors": """\
+local accent = {{ active_border }}
+local muted  = {{ inactive_border }}
+local shadow = {{ shadow }}
+local backdrop = "rgb({{ background.hex }})\""""},
+
+    "hypr/hyprlock.conf": {"colors": """\
+$np_bg = rgba({{ background.rgb }}, 1.0)
+$np_field = rgba({{ background.rgb }}, 0.85)
+$np_text = rgba({{ bright_foreground.rgb }}, 1.0)
+$np_accent = rgba({{ accent.rgb }}, 1.0)
+$np_check = rgba({{ yellow.rgb }}, 1.0)
+$np_fail = rgba({{ red.rgb }}, 1.0)"""},
+}
+
+
+def die(msg):
+    sys.exit(f"theme: {msg}")
+
+
+def available():
+    names = {}
+    for folder in (THEMES, USER_THEMES):
+        if os.path.isdir(folder):
+            for f in sorted(os.listdir(folder)):
+                if f.endswith(".toml"):
+                    names[f[:-5]] = os.path.join(folder, f)
+    return names
+
+
+def pretty(name):
+    special = {"rose-pine": "Rosé Pine", "catppuccin-latte": "Catppuccin Latte", "retro-82": "Retro 82"}
+    return special.get(name, name.replace("-", " ").title())
+
+
+def current():
+    try:
+        with open(CURRENT) as f:
+            name = f.read().strip()
+        if name in available():
+            return name
+    except OSError:
+        pass
+    return DEFAULT
+
+
+def lua_border(spec):
+    """A Hyprland border colour as Lua: one colour is a string, a gradient
+    ("rgba(..) rgba(..) 45deg") is { colors = { ... }, angle = 45 }."""
+    colors = re.findall(r"rgba?\([0-9a-fA-F]+\)|#[0-9a-fA-F]{6,8}", spec)
+    angle = re.search(r"(-?\d+)\s*deg", spec)
+    if len(colors) <= 1:
+        return '"%s"' % (colors[0] if colors else spec.strip())
+    table = "{ colors = { %s }" % ", ".join('"%s"' % c for c in colors)
+    return table + (", angle = %s }" % angle.group(1) if angle else " }")
+
+
+def palette(name):
+    path = available().get(name)
+    if not path:
+        die(f"no theme called {name!r}. Try: theme list")
+    with open(path, "rb") as f:
+        c = tomllib.load(f)
+    # A few themes leave out the rarer colours; borrow the nearest ones
+    c.setdefault("orange", c.get("bright_yellow", c["yellow"]))
+    c.setdefault("brown", c.get("dark_foreground", c["muted"]))
+    c.setdefault("mode", "dark")
+    border = lambda key, fallback: c.get(key) if isinstance(c.get(key), str) else fallback
+    c["active_border"] = lua_border(border("hyprland_active_border", "rgba(%see)" % c["accent"].lstrip("#")))
+    c["inactive_border"] = lua_border(border("hyprland_inactive_border", "rgba(%saa)" % c["muted"].lstrip("#")))
+    c["shadow"] = "0x33000000" if c["mode"] == "light" else "0x66" + c["background"].lstrip("#")
+    return c
+
+
+def render(template, c):
+    def sub(m):
+        key, _, form = m.group(1).partition(".")
+        if key not in c:
+            die(f"theme is missing the colour {key!r}")
+        value = str(c[key])
+        if form == "hex":
+            return value.lstrip("#")
+        if form == "rgb":
+            h = value.lstrip("#")
+            return ", ".join(str(int(h[i:i + 2], 16)) for i in (0, 2, 4))
+        return value
+    return re.sub(r"\{\{\s*([\w.]+)\s*\}\}", sub, template)
+
+
+def rewrite(path, blocks, c):
+    """Replace the inside of each theme:begin NAME ... theme:end block. Returns False if
+    the file is missing or has no blocks (an older copy: run the installer again)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().split("\n")
+    except OSError:
+        return False
+    result, inside, found = [], None, False
+    for line in lines:
+        m = re.search(r"theme:begin\s+(\w+)", line)
+        if inside is None and m:
+            result.append(line)
+            inside = m.group(1)
+            if inside in blocks:
+                result.extend(render(blocks[inside], c).split("\n"))
+                found = True
+            continue
+        if inside is not None and "theme:end" in line:
+            inside = None
+        elif inside is not None and inside in blocks:
+            continue            # old colours, replaced above
+        result.append(line)
+    if not found:
+        return False
+    tmp = path + ".theme-tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(result))
+    os.replace(tmp, path)      # one step, so Hyprland / Alacritty never read half a file
+    return True
+
+
+def quiet(*args):
+    try:
+        subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def theme_wallpaper(name):
+    """First image of the theme's own wallpapers (get-omarchy-wallpapers puts them in
+    ~/Pictures/Wallpapers/omarchy/NAME; your own ~/Pictures/Wallpapers/NAME works too)."""
+    for folder in (os.path.join(WALLPAPERS, "omarchy", name), os.path.join(WALLPAPERS, name)):
+        if not os.path.isdir(folder):
+            continue
+        images = sorted(f for f in os.listdir(folder)
+                        if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))
+        if images:
+            return os.path.join(folder, images[0])
+    return None
+
+
+def apply(name, keep_wallpaper=False, announce=True):
+    c = palette(name)
+    skipped = []
+    for rel, blocks in BLOCKS.items():
+        path = os.path.join(CFG, rel)
+        if os.path.exists(path) and not rewrite(path, blocks, c):
+            skipped.append(rel)
+    os.makedirs(APP, exist_ok=True)
+    with open(COLORS, "w") as f:
+        f.write(f"# {pretty(name)} - written by 'theme', read by the panels and the wallpaper\n")
+        for k, v in c.items():
+            if isinstance(v, str):
+                f.write(f'{k} = "{v}"\n')
+    with open(CURRENT, "w") as f:
+        f.write(name + "\n")
+
+    # Live reloads; Alacritty notices its config changed by itself
+    quiet("pkill", "-SIGUSR2", "-x", "waybar")
+    quiet("makoctl", "reload")
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        quiet("hyprctl", "reload")
+    if not keep_wallpaper:
+        image = theme_wallpaper(name)
+        if image:
+            quiet(os.path.join(APP, "bin", "wallpaper"), "set", image)
+    if skipped:
+        print("Not themed (older copies, run the installer again to fix): " + ", ".join(skipped),
+              file=sys.stderr)
+    if announce:
+        quiet("notify-send", "-a", "Theme", "-t", "2000", f"Theme: {pretty(name)}")
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else ""
+    if cmd == "":
+        print(current())
+    elif cmd == "list":
+        names = available()
+        if not names:
+            die(f"no themes in {THEMES}. Run the installer again.")
+        now = current()
+        for n in names:
+            print(("* " if n == now else "  ") + n)
+    elif cmd == "set" and len(args) > 1:
+        apply(args[1], keep_wallpaper="--keep-wallpaper" in args)
+    elif cmd == "refresh":
+        apply(current(), keep_wallpaper=True, announce=False)
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

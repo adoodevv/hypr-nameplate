@@ -16,19 +16,24 @@ export PATH="$BIN:$PATH"
 NAME="${USER:-nameplate}"
 TERMINAL_ONLY=0
 CONFIGS_ONLY=0
+THEME=""
 failed=()
 
 usage() {
   cat <<MSG
 Usage: bash install.sh [options]
 
-  --name NAME       Name shown on the screensaver, lock screen and bar
+  --name NAME       Name shown on the screensaver and bar
                     (default: your username, "$NAME"). Up to about 12
                     characters gets the large block lettering.
   --terminal-only   Only the terminal, prompt and screensaver, on your current
                     GNOME desktop. Skips Hyprland entirely.
   --configs-only    Don't install any packages; just (re)write the configs.
                     Use this to change the name or restore the defaults.
+  --theme THEME     Colour theme, e.g. gruvbox, nord, catppuccin, rose-pine
+                    (default: keep the current one, Tokyo Night on a first
+                    install). See share/themes. Change it later with
+                    SUPER + CTRL + SHIFT + SPACE.
   -h, --help        Show this help.
 MSG
 }
@@ -39,6 +44,8 @@ while (( $# )); do
     --name=*)        NAME="${1#*=}" ;;
     --terminal-only) TERMINAL_ONLY=1 ;;
     --configs-only)  CONFIGS_ONLY=1 ;;
+    --theme)         THEME="${2:-}"; shift ;;
+    --theme=*)       THEME="${1#*=}" ;;
     -h|--help)       usage; exit 0 ;;
     *)               echo "Unknown option: $1"; usage; exit 1 ;;
   esac
@@ -51,6 +58,8 @@ die()  { printf '\033[1;31m%s\033[0m\n' "$1"; exit 1; }
 ask()  { local a; read -r -p "$1 [y/N] " a; [[ $a == [yY]* ]]; }
 
 [[ $EUID -eq 0 ]] && die "Run this as your normal user, not with sudo."
+[[ -z $THEME || -f $SRC/share/themes/$THEME.toml ]] ||
+  die "No theme called '$THEME'. Pick one of: $(cd "$SRC/share/themes" && ls *.toml | sed 's/\.toml$//' | tr '\n' ' ')"
 [[ $NAME =~ ^[A-Za-z0-9][A-Za-z0-9._\ -]{0,31}$ ]] ||
   die "Name must be 1-32 characters: letters, numbers, spaces, dots, dashes or underscores."
 
@@ -65,11 +74,11 @@ put() {   # put <source> <destination>, backing up a different existing file
 
 render() {   # render <template> <destination>: fill in the placeholders, then put
   local tmp; tmp="$(mktemp)"
-  NP_HOME="$HOME" NP_NAME="$NAME" NP_ICONS="$ICON_THEME" NP_LOCK="$LOCK_BRAND" python3 - "$1" > "$tmp" <<'PY'
+  NP_HOME="$HOME" NP_NAME="$NAME" NP_ICONS="$ICON_THEME" python3 - "$1" > "$tmp" <<'PY'
 import os, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 for token, key in (("@HOME@", "NP_HOME"), ("@NAME@", "NP_NAME"),
-                   ("@ICON_THEME@", "NP_ICONS"), ("@LOCK_BRAND@", "NP_LOCK")):
+                   ("@ICON_THEME@", "NP_ICONS")):
     text = text.replace(token, os.environ[key])
 sys.stdout.write(text)
 PY
@@ -204,38 +213,12 @@ make_brand
 ICON_THEME="$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'")"
 [[ -n $ICON_THEME ]] || ICON_THEME="Yaru"
 
-if [[ -f $BRAND/logo.png ]]; then
-  LOCK_BRAND="# Your name
-image {
-    monitor =
-    path = $APP/logo.png
-    size = 130
-    rounding = 0
-    border_size = 0
-    position = 0, 8%
-    halign = center
-    valign = center
-}"
-else
-  LOCK_BRAND="# Your name
-label {
-    monitor =
-    text = $NAME
-    color = rgba(122, 162, 247, 1.0)
-    font_size = 64
-    font_family = JetBrainsMono Nerd Font ExtraBold
-    position = 0, 8%
-    halign = center
-    valign = center
-}"
-fi
-
 step "Copying configs"
 put "$SRC/config/alacritty/alacritty.toml"   "$CFG/alacritty/alacritty.toml"
 put "$SRC/config/alacritty/screensaver.toml" "$CFG/alacritty/screensaver.toml"
 put "$SRC/config/starship.toml"              "$CFG/starship.toml"
 put "$BRAND/screensaver.txt"                 "$APP/screensaver.txt"
-if [[ -f $BRAND/logo.png ]]; then put "$BRAND/logo.png" "$APP/logo.png"; else rm -f "$APP/logo.png"; fi
+rm -f "$APP/logo.png"   # older versions put the name on the lock screen
 put "$SRC/share/wallpaper.png"               "$APP/wallpaper.png"
 render "$SRC/share/KEYS.txt"                 "$APP/KEYS.txt"
 printf '%s\n' "$NAME" > "$APP/name"
@@ -244,6 +227,7 @@ for f in "$SRC"/bin/*; do
   chmod +x "$APP/bin/$(basename "$f")"
 done
 rm -rf "$BRAND"
+"$APP/bin/wallpaper" lock 2>/dev/null || true   # lock screen background
 
 if (( ! TERMINAL_ONLY )); then
   put    "$SRC/config/hypr/hyprland.lua"    "$CFG/hypr/hyprland.lua"
@@ -279,6 +263,16 @@ if (( ! TERMINAL_ONLY )); then
   fi
 fi
 
+step "Colour theme"
+# The configs above arrive in Tokyo Night; put back the theme you had (or the one asked for)
+mkdir -p "$APP/themes"
+cp "$SRC"/share/themes/*.toml "$APP/themes/"
+if [[ -n $THEME ]]; then
+  "$APP/bin/theme" set "$THEME" --keep-wallpaper >/dev/null && echo "$THEME" || failed+=("theme")
+else
+  "$APP/bin/theme" refresh && "$APP/bin/theme" || failed+=("theme")
+fi
+
 if (( ! TERMINAL_ONLY && ! CONFIGS_ONLY )) && [[ ! -d $HOME/Pictures/Wallpapers/omarchy ]]; then
   step "Wallpapers"
   if ask "Download Omarchy's wallpaper collection (74 images, about 68 MB)?"; then
@@ -286,6 +280,25 @@ if (( ! TERMINAL_ONLY && ! CONFIGS_ONLY )) && [[ ! -d $HOME/Pictures/Wallpapers/
   else
     echo "Skipped. Run ~/.config/nameplate/bin/get-omarchy-wallpapers any time."
   fi
+fi
+
+if (( ! TERMINAL_ONLY )) && command -v xdg-mime >/dev/null; then
+  step "Default apps for images and PDFs"
+  # Ubuntu keeps its defaults where only the GNOME session reads them, so under Hyprland
+  # images and PDFs can fall through to a browser. Point them at GNOME's own viewers,
+  # but only where the current default is a browser: choices you made yourself stay.
+  pick() { local d; for d in "$@"; do [[ -f /usr/share/applications/$d ]] && { echo "$d"; return; }; done; }
+  is_browser() { [[ ${1,,} =~ chrome|chromium|firefox|brave|vivaldi|opera|edge|browser ]]; }
+  viewer=$(pick org.gnome.Loupe.desktop org.gnome.eog.desktop)
+  pdf=$(pick org.gnome.Papers.desktop org.gnome.Evince.desktop)
+  changed=0
+  for t in image/png image/jpeg image/gif image/webp image/bmp image/tiff image/svg+xml image/x-icon; do
+    cur=$(xdg-mime query default "$t" 2>/dev/null)
+    if [[ -n $viewer ]] && { [[ -z $cur ]] || is_browser "$cur"; }; then xdg-mime default "$viewer" "$t"; changed=1; fi
+  done
+  cur=$(xdg-mime query default application/pdf 2>/dev/null)
+  if [[ -n $pdf ]] && { [[ -z $cur ]] || is_browser "$cur"; }; then xdg-mime default "$pdf" application/pdf; changed=1; fi
+  (( changed )) && echo "images: ${viewer:-unchanged}, PDFs: ${pdf:-unchanged}" || echo "already fine"
 fi
 
 step "Enabling the prompt in ~/.bashrc"
