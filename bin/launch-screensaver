@@ -1,5 +1,10 @@
 #!/bin/bash
 # Opens the screensaver fullscreen. Press any key to close it.
+# Does nothing if it is already open.
+pgrep -f '[a]lacritty --class nameplate-screensaver' >/dev/null && exit 0
+# Record the start time: opening the window can itself register as activity,
+# and screensaver-resume uses this to ignore that.
+touch "${XDG_RUNTIME_DIR:-/tmp}/nameplate-screensaver-started"
 exec alacritty \
   --class nameplate-screensaver \
   --title "screensaver" \

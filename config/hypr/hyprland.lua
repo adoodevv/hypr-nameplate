@@ -25,6 +25,14 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 -------------------
 
 hl.on("hyprland.start", function()
+  -- Optional: lock straight away, for use with automatic login (see README, "Boot straight into Hyprland").
+  -- Enable with: touch ~/.config/nameplate/lock-on-start
+  local lock_on_start = io.open(home .. "/.config/nameplate/lock-on-start")
+  if lock_on_start then
+    lock_on_start:close()
+    hl.exec_cmd("hyprlock --immediate-render --no-fade-in")
+  end
+
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
   hl.exec_cmd("swaybg -m fill -c 1a1b26 -i " .. home .. "/.config/nameplate/wallpaper.png")
   hl.exec_cmd("waybar")

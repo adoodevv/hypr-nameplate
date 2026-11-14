@@ -17,6 +17,11 @@ if ! command -v tte >/dev/null; then
   exit 1
 fi
 
+# On Hyprland, lock once the screensaver has been showing this long (seconds).
+# Together with the 2.5 minute idle delay this locks at 5 minutes.
+LOCK_AFTER="${NAMEPLATE_LOCK_AFTER:-150}"
+locked=0
+
 printf '\033[?25l'
 clear
 while true; do
@@ -29,6 +34,10 @@ while true; do
   started=$SECONDS
   while kill -0 "$pid" 2>/dev/null; do
     if read -rsn1 -t 0.5; then cleanup; fi
+    if (( !locked && SECONDS >= LOCK_AFTER )) && [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+      locked=1
+      loginctl lock-session   # hypridle's lock_cmd closes this window and opens the lock screen
+    fi
   done
   wait "$pid"
   # If tte died straight away something is wrong; don't spin the CPU.

@@ -1,0 +1,10 @@
+#!/bin/bash
+# Called by hypridle when activity is detected after the screensaver started.
+# Opening the screensaver window counts as activity on some setups, which made
+# it close itself straight away and restart every idle timer, so the lock and
+# suspend steps never fired. Activity in the first few seconds is ignored.
+stamp="${XDG_RUNTIME_DIR:-/tmp}/nameplate-screensaver-started"
+if [[ -f $stamp ]] && (( $(date +%s) - $(stat -c %Y "$stamp") < 5 )); then
+  exit 0
+fi
+exec "$HOME/.config/nameplate/bin/stop-screensaver"
