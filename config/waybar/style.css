@@ -83,3 +83,9 @@ box:hover > #custom-power { background: rgba(122, 162, 247, 0.12); }
 #datetime { padding: 0 11px; }
 #datetime #clock:hover, #datetime #custom-media:hover,
 #datetime box:hover > #custom-media { background: transparent; }
+
+/* Recording dot and do-not-disturb bell (only shown while active) */
+#custom-recording { color: #f7768e; padding: 0 10px; }
+#custom-dnd { color: #e0af68; padding: 0 10px; }
+box:hover > #custom-recording, box:hover > #custom-dnd,
+#custom-recording:hover, #custom-dnd:hover { background: rgba(122, 162, 247, 0.12); }

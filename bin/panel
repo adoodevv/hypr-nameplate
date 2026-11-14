@@ -34,7 +34,8 @@ except (ValueError, ImportError):
 RUN = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
 PIDFILE = os.path.join(RUN, "nameplate-panel.pid")
 BIN = os.path.expanduser("~/.config/nameplate/bin")
-PANELS = ("calendar", "media", "sound", "wifi", "bluetooth", "display", "power", "wallpapers")
+PANELS = ("calendar", "media", "sound", "wifi", "bluetooth", "display", "power", "wallpapers",
+          "clipboard", "emoji")
 
 
 def g(code):
@@ -53,7 +54,7 @@ I = {
     "bat": [g(0xF008E), g(0xF007A), g(0xF007B), g(0xF007C), g(0xF007D), g(0xF007E), g(0xF007F),
             g(0xF0080), g(0xF0081), g(0xF0082), g(0xF0079)],
     "charging": g(0xF0084), "leaf": g(0xF032A), "balance": g(0xF05D1), "rocket": g(0xF0463),
-    "folder": g(0xF024B), "image": g(0xF02E9),
+    "folder": g(0xF024B), "image": g(0xF02E9), "clip": g(0xF0147), "trash": g(0xF0A7A),
 }
 
 CSS = b"""
@@ -114,6 +115,9 @@ window.np-popup {
 .np-popup button.np-thumb { padding: 2px; border: 2px solid transparent; }
 .np-popup button.np-thumb:hover { border-color: #414868; background-color: transparent; }
 .np-popup button.np-thumb.np-current { border-color: #7aa2f7; }
+.np-popup button.np-emoji { padding: 2px 4px; }
+.np-popup button.np-emoji label { font-family: "Noto Color Emoji", sans-serif; font-size: 18pt; }
+.np-popup entry.np-search { margin-bottom: 4px; }
 """
 
 
@@ -1056,9 +1060,225 @@ def thumbnail(path, w, h):
         return None
 
 
+
+class ClipboardPanel(Panel):
+    """Recent copies (SUPER + CTRL + V). Click one to copy it again, then paste as usual."""
+    width = 420
+    anchor = "middle"
+    LIMIT = 60
+
+    def __init__(self, app):
+        super().__init__(app)
+        head = hbox()
+        head.pack_start(label("Clipboard history", "np-title"), True, True, 0)
+        self.box.pack_start(head, False, False, 0)
+        self.search = Gtk.SearchEntry()
+        self.search.get_style_context().add_class("np-search")
+        self.search.set_placeholder_text("Search")
+        self.search.connect("search-changed", lambda *_: self.fill())
+        self.search.connect("activate", lambda *_: self.pick_first())
+        self.box.pack_start(self.search, False, False, 0)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_min_content_height(360)
+        self.list = vbox(0)
+        scroll.add(self.list)
+        self.box.pack_start(scroll, True, True, 0)
+        self.box.pack_start(Gtk.Separator(), False, False, 0)
+        foot = hbox()
+        foot.pack_start(label("Click to copy, then paste with Ctrl+V", "np-dim"), True, True, 0)
+        foot.pack_end(row(I["trash"], "Clear", on_click=self.clear_all), False, False, 0)
+        self.box.pack_start(foot, False, False, 0)
+        self.entries = []
+        self.load()
+
+    def shown(self):
+        self.search.grab_focus()
+
+    def load(self):
+        rc, text = run("cliphist", "list", timeout=10)
+        self.entries = text.splitlines() if rc == 0 else []
+        self.missing = rc == 127
+        self.fill()
+
+    def fill(self):
+        clear(self.list)
+        if self.missing:
+            self.list.pack_start(label("cliphist isn't installed. Run the installer again.", "np-dim"), False, False, 6)
+        query = self.search.get_text().lower()
+        shown = 0
+        for line in self.entries:
+            _, _, preview = line.partition("\t")
+            if query and query not in preview.lower():
+                continue
+            m = re.match(r"\[\[ binary data .*?(\w+) (\d+x\d+) \]\]", preview)
+            text = f"Image  {m.group(2)}  ({m.group(1)})" if m else " ".join(preview.split())
+            icon = I["image"] if m or preview.startswith("[[ binary") else I["clip"]
+            self.list.pack_start(row(icon, text or "(empty)", on_click=lambda l=line: self.pick(l)), False, False, 0)
+            shown += 1
+            if shown >= self.LIMIT:
+                break
+        if not shown and not self.missing:
+            self.list.pack_start(label("Nothing yet. Things you copy show up here." if not query else "No matches.",
+                                       "np-dim"), False, False, 6)
+        self.list.show_all()
+
+    def pick_first(self):
+        query = self.search.get_text().lower()
+        for line in self.entries:
+            if not query or query in line.partition("\t")[2].lower():
+                return self.pick(line)
+
+    def pick(self, line):
+        try:
+            data = subprocess.run(["cliphist", "decode"], input=(line + "\n").encode(),
+                                  capture_output=True, timeout=10).stdout
+            subprocess.run(["wl-copy"], input=data, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return
+        spawn("notify-send", "-a", "Clipboard", "-t", "1500", "Copied. Paste with Ctrl+V")
+        self.close()
+
+    def clear_all(self):
+        run("cliphist", "wipe", timeout=10)
+        self.load()
+
+
+# Everyday words for emoji whose official Unicode names don't say what people search for
+EMOJI_WORDS = {
+    "😂": "laugh lol haha joy tears funny", "🤣": "laugh lol rofl", "😆": "laugh haha", "😄": "happy smile laugh",
+    "😅": "sweat nervous laugh relief", "😊": "happy smile blush", "🙂": "smile ok", "😉": "wink",
+    "😍": "love heart eyes", "🥰": "love hearts adore", "😘": "kiss love", "😎": "cool sunglasses",
+    "🤔": "think hmm wonder", "😢": "sad cry tear", "😭": "cry sob sad", "😡": "angry mad", "😠": "angry mad",
+    "😱": "scared shock scream", "😴": "sleep tired", "🙏": "please thanks pray thank you", "👏": "clap applause well done",
+    "🙌": "praise celebrate hooray", "👍": "yes ok good like approve", "👎": "no bad dislike", "👌": "ok perfect",
+    "💪": "strong muscle flex", "🎉": "party celebrate congrats tada", "🥳": "party celebrate birthday",
+    "🔥": "fire lit hot", "✨": "sparkle magic new", "💯": "hundred perfect score", "✅": "done check yes tick",
+    "❌": "no wrong cross x", "⚡": "fast lightning power", "🚀": "launch ship fast rocket", "💡": "idea tip bulb",
+    "🤖": "robot bot ai", "💻": "laptop computer code", "🐛": "bug", "🎂": "birthday cake", "🙄": "eye roll whatever",
+    "😬": "awkward grimace yikes", "🤝": "deal handshake agree", "👋": "hi hello bye wave", "🤗": "hug",
+    "😇": "angel innocent", "🤯": "mind blown wow", "😮": "wow surprised", "🥺": "please pleading puppy",
+}
+
+
+def emoji_list():
+    """Every single-character emoji the Noto Color Emoji font can draw, with names."""
+    import unicodedata
+    charset = out("fc-match", "-f", "%{charset}", "Noto Color Emoji", timeout=5)
+    have = set()
+    for part in charset.split():
+        lo, _, hi = part.partition("-")
+        try:
+            have.update(range(int(lo, 16), int(hi or lo, 16) + 1))
+        except ValueError:
+            pass
+    ranges = [(0x1F600, 0x1F64F), (0x1F910, 0x1F9FF), (0x1F44A, 0x1F4FF), (0x1F300, 0x1F449),
+              (0x1F500, 0x1F5FF), (0x1F680, 0x1F6FF), (0x1FA70, 0x1FAFF), (0x2600, 0x27BF),
+              (0x2B00, 0x2BFF)]
+    result = []
+    for lo, hi in ranges:
+        for cp in range(lo, hi + 1):
+            if have and cp not in have:
+                continue
+            try:
+                name = unicodedata.name(chr(cp)).lower()
+            except ValueError:
+                continue
+            if unicodedata.category(chr(cp)) != "So":
+                continue
+            ch = chr(cp) + ("\ufe0f" if cp < 0x1F000 else "")   # ask for the colour version
+            result.append((ch, name))
+    words = {k.replace("\ufe0f", ""): v for k, v in EMOJI_WORDS.items()}
+    return [(ch, f"{name} {words.get(ch.replace(chr(0xFE0F), ''), '')}".strip()) for ch, name in result]
+
+
+class EmojiPanel(Panel):
+    """Emoji picker (SUPER + CTRL + E). Click one to copy it."""
+    width = 440
+    anchor = "middle"
+    RECENT = os.path.expanduser("~/.cache/nameplate/emoji-recent")
+    SHOW = 280
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.box.pack_start(label("Emoji", "np-title"), False, False, 0)
+        self.search = Gtk.SearchEntry()
+        self.search.get_style_context().add_class("np-search")
+        self.search.set_placeholder_text("Search, e.g. heart, fire, laugh")
+        self.search.connect("search-changed", lambda *_: self.fill())
+        self.search.connect("activate", lambda *_: self.pick_first())
+        self.box.pack_start(self.search, False, False, 0)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_min_content_height(320)
+        self.flow = Gtk.FlowBox()
+        self.flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.flow.set_max_children_per_line(10)
+        self.flow.set_min_children_per_line(10)
+        self.flow.set_homogeneous(True)
+        scroll.add(self.flow)
+        self.box.pack_start(scroll, True, True, 0)
+        self.hint = label("Click to copy, then paste with Ctrl+V", "np-dim", xalign=0.5)
+        self.box.pack_start(self.hint, False, False, 0)
+        self.all = emoji_list()
+        try:
+            with open(self.RECENT, encoding="utf-8") as f:
+                self.recent = [l.rstrip("\n") for l in f if l.strip()][:20]
+        except OSError:
+            self.recent = []
+        self.matches = []
+        self.fill()
+
+    def shown(self):
+        self.search.grab_focus()
+
+    def fill(self):
+        for c in self.flow.get_children():
+            self.flow.remove(c)
+        query = self.search.get_text().lower().strip()
+        if query:
+            words = query.split()
+            # each search word must start a word in the name: "love" finds love, not "glove"
+            self.matches = [ch for ch, name in self.all
+                            if all(any(nw.startswith(w) for nw in name.split()) for w in words)]
+        else:
+            names = {ch for ch, _ in self.all}
+            self.matches = [ch for ch in self.recent if ch in names] + \
+                [ch for ch, _ in self.all if ch not in self.recent]
+        names = dict(self.all)
+        for ch in self.matches[:self.SHOW]:
+            b = Gtk.Button(label=ch)
+            b.get_style_context().add_class("np-emoji")
+            b.set_tooltip_text(names.get(ch, ""))
+            b.connect("clicked", lambda _b, c=ch: self.pick(c))
+            self.flow.add(b)
+        self.flow.show_all()
+        if not self.matches:
+            self.hint.set_text("No matches.")
+        else:
+            self.hint.set_text("Click to copy, then paste with Ctrl+V")
+
+    def pick_first(self):
+        if self.matches:
+            self.pick(self.matches[0])
+
+    def pick(self, ch):
+        try:
+            subprocess.run(["wl-copy"], input=ch.encode(), timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            return
+        recent = [ch] + [c for c in self.recent if c != ch]
+        os.makedirs(os.path.dirname(self.RECENT), exist_ok=True)
+        with open(self.RECENT, "w", encoding="utf-8") as f:
+            f.write("\n".join(recent[:20]) + "\n")
+        spawn("notify-send", "-a", "Emoji", "-t", "1500", f"Copied {ch}  Paste with Ctrl+V")
+        self.close()
+
+
 KINDS = {"calendar": CalendarPanel, "media": MediaPanel, "sound": SoundPanel,
          "wifi": WifiPanel, "bluetooth": BluetoothPanel, "display": DisplayPanel,
-         "power": PowerPanel, "wallpapers": WallpaperPanel}
+         "power": PowerPanel, "wallpapers": WallpaperPanel,
+         "clipboard": ClipboardPanel, "emoji": EmojiPanel}
 
 
 # --------------------------------------------------------------------- app --

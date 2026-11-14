@@ -1,0 +1,5 @@
+#!/bin/bash
+# Red dot in the bar while a screen recording runs (signal 10 refreshes it)
+pgrep -x wf-recorder >/dev/null &&
+  printf '{"text": "󰑋", "tooltip": "Recording. Click to stop", "class": "recording"}\n'
+exit 0

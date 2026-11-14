@@ -36,6 +36,26 @@
     SUPER + S               Show / hide the scratchpad
     SUPER + ALT + S         Send window to the scratchpad
 
+  TOOLS
+    SUPER + CTRL + V        Clipboard history (search, click to copy again)
+    SUPER + CTRL + E        Emoji picker
+    ALT + Print             Record a region of the screen (same keys again to stop)
+    ALT + SHIFT + Print     Record the whole screen
+    ALT + CTRL + Print      Record the whole screen with your microphone
+                            Recordings go to ~/Videos/Screencasts
+
+  NOTIFICATIONS
+    SUPER + comma           Dismiss the latest
+    SUPER + SHIFT + comma   Dismiss all
+    SUPER + ALT + comma     Bring back the last one dismissed
+    SUPER + CTRL + comma    Do not disturb on / off (bell in the bar while on)
+
+  PANELS
+    SUPER + CTRL + A        Sound and brightness
+    SUPER + CTRL + B        Bluetooth
+    SUPER + CTRL + N        Network (Wi-Fi)
+    SUPER + CTRL + P        Battery and power mode
+
   OTHER
     SUPER + SHIFT + S       Screenshot a region      (or Print)
     SUPER + SHIFT + P       Screenshot the whole screen  (or SHIFT + Print)

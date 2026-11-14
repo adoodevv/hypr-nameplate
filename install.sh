@@ -10,7 +10,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 PPA="ppa:cppiber/hyprland"
 BASE_PKGS="alacritty pipx curl fontconfig xz-utils"
 CORE_PKGS="hyprland hyprlock hypridle waybar xdg-desktop-portal-hyprland"
-EXTRA_PKGS="python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
+EXTRA_PKGS="python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
 export PATH="$BIN:$PATH"
 
 NAME="${USER:-nameplate}"

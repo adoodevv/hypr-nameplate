@@ -31,6 +31,8 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("mako")
   hl.exec_cmd("hypridle")
   hl.exec_cmd(bin .. "battery-watch")
+  hl.exec_cmd("wl-paste --type text --watch cliphist store")    -- clipboard history
+  hl.exec_cmd("wl-paste --type image --watch cliphist store")
   hl.exec_cmd("playerctld daemon")   -- lets the bar control whichever player was used last
   hl.exec_cmd("systemctl --user start hyprpolkitagent")
 end)
@@ -180,6 +182,20 @@ hl.bind(mod .. " + CTRL + SHIFT + Space", hl.dsp.exec_cmd(bin .. "panel wallpape
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("pkill -SIGUSR1 waybar"))
 hl.bind(mod .. " + P",         hl.dsp.exec_cmd(bin .. "display-menu"))
 
+-- Panels from the keyboard (same as clicking the bar icons)
+hl.bind(mod .. " + CTRL + A", hl.dsp.exec_cmd(bin .. "panel sound"))
+hl.bind(mod .. " + CTRL + B", hl.dsp.exec_cmd(bin .. "panel bluetooth"))
+hl.bind(mod .. " + CTRL + N", hl.dsp.exec_cmd(bin .. "panel wifi"))
+hl.bind(mod .. " + CTRL + P", hl.dsp.exec_cmd(bin .. "panel power"))
+hl.bind(mod .. " + CTRL + V", hl.dsp.exec_cmd(bin .. "panel clipboard"))
+hl.bind(mod .. " + CTRL + E", hl.dsp.exec_cmd(bin .. "panel emoji"))
+
+-- Notifications
+hl.bind(mod .. " + comma",          hl.dsp.exec_cmd("makoctl dismiss"))
+hl.bind(mod .. " + SHIFT + comma",  hl.dsp.exec_cmd("makoctl dismiss --all"))
+hl.bind(mod .. " + ALT + comma",    hl.dsp.exec_cmd("makoctl restore"))
+hl.bind(mod .. " + CTRL + comma",   hl.dsp.exec_cmd(bin .. "dnd"))
+
 -- Windows
 hl.bind(mod .. " + W",       hl.dsp.window.close())
 hl.bind(mod .. " + Q",       hl.dsp.window.close())
@@ -225,6 +241,11 @@ hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 -- Screenshots (saved to ~/Pictures/Screenshots and copied to the clipboard)
 hl.bind("Print",         hl.dsp.exec_cmd(bin .. "screenshot region"))
 hl.bind("SHIFT + Print", hl.dsp.exec_cmd(bin .. "screenshot full"))
+
+-- Screen recording: same keys again (or click the red dot in the bar) to stop
+hl.bind("ALT + Print",          hl.dsp.exec_cmd(bin .. "screenrecord"))
+hl.bind("ALT + SHIFT + Print",  hl.dsp.exec_cmd(bin .. "screenrecord full"))
+hl.bind("ALT + CTRL + Print",   hl.dsp.exec_cmd(bin .. "screenrecord full mic"))
 -- Same thing for laptops where Print needs the Fn key
 hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd(bin .. "screenshot region"))
 hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd(bin .. "screenshot full"))

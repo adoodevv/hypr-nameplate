@@ -1,0 +1,36 @@
+#!/bin/bash
+# Screen recording. Press the same keys again to stop.
+#   screenrecord          drag a region (ALT + Print)
+#   screenrecord full     whole screen (ALT + SHIFT + Print)
+#   screenrecord full mic whole screen with your microphone (ALT + CTRL + Print)
+# Saves an .mp4 to ~/Videos/Screencasts and shows a red dot in the bar while recording.
+dir="$HOME/Videos/Screencasts"
+
+if pgrep -x wf-recorder >/dev/null; then
+  pkill -INT -x wf-recorder
+  for _ in $(seq 50); do pgrep -x wf-recorder >/dev/null || break; sleep 0.1; done
+  pkill -RTMIN+10 waybar
+  last=$(ls -t "$dir"/*.mp4 2>/dev/null | head -1)
+  notify-send -a "Screen recording" "Recording saved" "${last:-$dir}"
+  exit 0
+fi
+
+command -v wf-recorder >/dev/null || { notify-send -a "Screen recording" "wf-recorder isn't installed" "sudo apt install wf-recorder"; exit 1; }
+mkdir -p "$dir"
+file="$dir/recording-$(date +%Y-%m-%d_%H-%M-%S).mp4"
+args=(-f "$file" -c libx264 -p preset=veryfast -p crf=23)
+
+if [[ ${1:-region} != full ]]; then
+  area=$(slurp) || exit 0          # Escape cancels
+  args+=(-g "$area")
+fi
+[[ ${2:-} == mic ]] && args+=(--audio)
+
+setsid -f wf-recorder "${args[@]}" >/dev/null 2>&1 </dev/null
+sleep 0.5
+if pgrep -x wf-recorder >/dev/null; then
+  pkill -RTMIN+10 waybar
+  notify-send -a "Screen recording" -t 2500 "Recording" "Press the same keys again, or click the red dot, to stop"
+else
+  notify-send -a "Screen recording" "Couldn't start recording"
+fi

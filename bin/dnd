@@ -1,0 +1,10 @@
+#!/bin/bash
+# Do not disturb on/off (SUPER + CTRL + comma). While on, notifications are kept
+# out of sight (critical ones still show) and a bell icon appears in the bar.
+if makoctl mode | grep -qx do-not-disturb; then
+  makoctl mode -r do-not-disturb >/dev/null
+  notify-send -a Notifications -t 1500 "Do not disturb is off"
+else
+  makoctl mode -a do-not-disturb >/dev/null
+fi
+pkill -RTMIN+11 waybar

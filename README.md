@@ -30,6 +30,10 @@ bash install.sh --name yourname
 | **Volume and brightness** | A small level indicator whenever you press the volume, mute or brightness keys. |
 | **Low battery** | A warning at 15% and an urgent one at 5% while unplugged. |
 | **Battery and power modes** | Click the battery for the charge, time left and power mode (power saver, balanced, performance). |
+| **Clipboard history** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>V</kbd>: search what you copied recently, text and images; click to copy it again. |
+| **Emoji picker** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>E</kbd>: search by name or everyday words ("laugh", "thanks"); recent ones first. |
+| **Screen recording** | <kbd>Alt</kbd> + <kbd>Print</kbd> for a region, add <kbd>Shift</kbd> for the whole screen or <kbd>Ctrl</kbd> for the whole screen with your microphone. Same keys or the red dot in the bar stop it. Saved as .mp4 in `~/Videos/Screencasts`. |
+| **Notifications** | <kbd>Super</kbd> + <kbd>,</kbd> dismisses, add <kbd>Shift</kbd> for all, <kbd>Alt</kbd> to bring the last one back, <kbd>Ctrl</kbd> for do not disturb. |
 | **Wallpapers** | Double-click the desktop for a picker; <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd> for the next one. Drop your own images in `~/Pictures/Wallpapers`. The installer can also download Omarchy's artwork (74 images) straight from Omarchy's repository, leaving out the ones that only show its name or logo. |
 
 ![The screensaver](docs/screenshots/screensaver.gif)
@@ -108,6 +112,11 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | Super + L | Lock |
 | Super + Ctrl + S | Start the screensaver now |
 | Super + P | Screens: extend, mirror, one screen |
+| Super + Ctrl + A / B / N / P | Sound, Bluetooth, network, power panels |
+| Super + Ctrl + V | Clipboard history |
+| Super + Ctrl + E | Emoji picker |
+| Alt + Print | Record the screen (again to stop) |
+| Super + , | Dismiss notification (Ctrl: do not disturb) |
 | Super + W | Close window |
 | Super + arrows | Move focus |
 | Super + Shift + arrows | Swap windows |

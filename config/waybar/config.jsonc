@@ -12,6 +12,8 @@
     "group/datetime"
   ],
   "modules-right": [
+    "custom/recording",
+    "custom/dnd",
     "tray",
     "bluetooth",
     "network",
@@ -129,5 +131,21 @@
       "clock",
       "custom/media"
     ]
+  },
+  "custom/recording": {
+    "exec": "~/.config/nameplate/bin/recording-status",
+    "return-type": "json",
+    "interval": 2,
+    "signal": 10,
+    "format": "{}",
+    "on-click": "~/.config/nameplate/bin/screenrecord"
+  },
+  "custom/dnd": {
+    "exec": "~/.config/nameplate/bin/dnd-status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 11,
+    "format": "{}",
+    "on-click": "~/.config/nameplate/bin/dnd"
   }
 }
