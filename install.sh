@@ -253,6 +253,7 @@ if (( ! TERMINAL_ONLY )); then
   put    "$SRC/config/waybar/style.css"     "$CFG/waybar/style.css"
   render "$SRC/config/fuzzel/fuzzel.ini"    "$CFG/fuzzel/fuzzel.ini"
   put    "$SRC/config/mako/config"          "$CFG/mako/config"
+  put    "$SRC/config/xdg-desktop-portal/hyprland-portals.conf" "$CFG/xdg-desktop-portal/hyprland-portals.conf"
   [[ -e $CFG/waybar/config ]] || ln -s config.jsonc "$CFG/waybar/config"   # older waybar reads "config"
 fi
 

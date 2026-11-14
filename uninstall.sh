@@ -10,13 +10,14 @@ ask() { local a; read -r -p "$1 [y/N] " a; [[ $a == [yY]* ]]; }
 echo "This deletes:"
 echo "  $CFG/nameplate  $CFG/hypr  $CFG/waybar  $CFG/fuzzel  $CFG/mako"
 echo "  $CFG/alacritty  $CFG/starship.toml  the screensaver autostart entry"
+echo "  $CFG/xdg-desktop-portal/hyprland-portals.conf"
 echo "  and the prompt lines in ~/.bashrc"
 echo "Backups made by the installer (*.bak-DATE) inside those folders go too."
 ask "Continue?" || exit 0
 
 pkill -f "[b]in/idle-watch" 2>/dev/null
 rm -rf "$CFG/nameplate" "$CFG/hypr" "$CFG/waybar" "$CFG/fuzzel" "$CFG/mako" "$CFG/alacritty"
-rm -f "$CFG/starship.toml" "$CFG/autostart/nameplate-screensaver.desktop"
+rm -f "$CFG/starship.toml" "$CFG/autostart/nameplate-screensaver.desktop" "$CFG/xdg-desktop-portal/hyprland-portals.conf"
 
 if grep -q '^# hypr-nameplate prompt$' "$HOME/.bashrc" 2>/dev/null; then
   cp -a "$HOME/.bashrc" "$HOME/.bashrc.bak-uninstall"

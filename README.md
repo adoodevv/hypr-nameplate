@@ -89,25 +89,6 @@ To go back to GNOME, press <kbd>Super</kbd> + <kbd>Escape</kbd>, choose Log out,
 If the screen comes up blank or broken: <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F3</kbd>,
 log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login screen.
 
-## Boot straight into Hyprland
-
-By default you pass through Ubuntu's login screen. To boot directly to your own lock screen instead:
-
-```bash
-touch ~/.config/nameplate/lock-on-start        # Hyprland locks itself as soon as it starts
-bash install.sh --configs-only --name yourname # only needed if you installed before this option existed
-sudo sed -i 's/^#\s*AutomaticLoginEnable.*/AutomaticLoginEnable = true/; s/^#\s*AutomaticLogin\s*=.*/AutomaticLogin = '"$USER"'/' /etc/gdm3/custom.conf
-grep -n AutomaticLogin /etc/gdm3/custom.conf    # should show two lines without a leading #
-```
-
-Automatic login starts whichever session you used last, so log into Hyprland once the normal way first.
-
-Trade-offs: apps that store passwords in the GNOME keyring (browsers, VS Code, some Wi-Fi setups) ask for
-your password once per boot, because nothing unlocked the keyring at login. And the lock screen is drawn
-by your session rather than by the system login manager, which is a slightly weaker barrier.
-
-To undo: `rm ~/.config/nameplate/lock-on-start` and put the `#` back on those two lines.
-
 ## Keys
 
 <kbd>Super</kbd> is the Windows key.
@@ -143,6 +124,7 @@ To undo: `rm ~/.config/nameplate/lock-on-start` and put the `#` back on those tw
 | `~/.config/waybar/` | Top bar layout and CSS |
 | `~/.config/fuzzel/fuzzel.ini` | Launcher |
 | `~/.config/mako/config` | Notifications |
+| `~/.config/xdg-desktop-portal/hyprland-portals.conf` | Lets sandboxed apps (snaps such as Proton VPN) use the GNOME keyring under Hyprland |
 | `~/.config/alacritty/alacritty.toml` | Terminal |
 | `~/.config/starship.toml` | Prompt |
 | `~/.config/nameplate/` | Your name's artwork, wallpaper, helper scripts |
