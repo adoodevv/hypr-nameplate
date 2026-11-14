@@ -22,10 +22,15 @@ bash install.sh --name yourname
 |---|---|
 | **Screensaver** | Your name in block letters, cycling through random [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) animations after 2.5 minutes idle. Works on GNOME and Hyprland. |
 | **Lock screen** | Your screen blurred behind your name and a password box (hyprlock). |
-| **Top bar** | Your name, workspaces, date and time, Bluetooth, Wi-Fi, volume, battery and a power menu (Waybar). Clicking Wi-Fi, Bluetooth or volume opens a dropdown under the icon to pick a network, connect a device or switch the audio output. |
+| **Top bar** | Your name, workspaces, date and time, a music icon while something plays, Bluetooth, Wi-Fi, volume, brightness, battery and a power menu (Waybar). Clicking an icon opens a small panel under it: a calendar with the player (seek bar, previous / play / next) underneath while something plays, volume and brightness sliders with output selection, Wi-Fi networks, Bluetooth devices. Click anywhere outside to close it. |
 | **Animations** | Omarchy's window open, close and fade timings on Hyprland. |
 | **Terminal** | Alacritty in Tokyo Night with JetBrainsMono Nerd Font and a minimal Starship prompt. |
 | **Launcher and notifications** | fuzzel and mako in matching colours. |
+| **Screens** | <kbd>Super</kbd> + <kbd>P</kbd> extends, mirrors or switches to one screen when you plug in a projector or monitor. Unplugging it restores the laptop screen. |
+| **Volume and brightness** | A small level indicator whenever you press the volume, mute or brightness keys. |
+| **Low battery** | A warning at 15% and an urgent one at 5% while unplugged. |
+| **Battery and power modes** | Click the battery for the charge, time left and power mode (power saver, balanced, performance). |
+| **Wallpapers** | Double-click the desktop for a picker; <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd> for the next one. Drop your own images in `~/Pictures/Wallpapers`. The installer can also download Omarchy's artwork (74 images) straight from Omarchy's repository, leaving out the ones that only show its name or logo. |
 
 ![The screensaver](docs/screenshots/screensaver.gif)
 
@@ -102,12 +107,14 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | Super + Escape | Power menu |
 | Super + L | Lock |
 | Super + Ctrl + S | Start the screensaver now |
+| Super + P | Screens: extend, mirror, one screen |
 | Super + W | Close window |
 | Super + arrows | Move focus |
 | Super + Shift + arrows | Swap windows |
 | Super + F / Super + Alt + F | Fullscreen / maximise |
 | Super + T | Float or tile a window |
 | Super + J | Flip the split |
+| Super + Alt + P | Pseudo-tile (keep a window's own size in its tile) |
 | Super + 1..0 | Go to workspace |
 | Super + Shift + 1..0 | Send window to workspace |
 | Super + S | Scratchpad |
@@ -173,7 +180,8 @@ ffmpeg -i /tmp/saver.mp4 -vf "fps=15,scale=960:-1" docs/screenshots/screensaver.
 
 ## Credits
 
-- [Omarchy](https://omarchy.org) by DHH and contributors, for the look, the animation timings
+- [Omarchy](https://omarchy.org) by DHH and contributors, including the optional wallpaper collection
+  (downloaded from Omarchy's repository by `get-omarchy-wallpapers`, not included here), for the look, the animation timings
   and the idea of a terminal screensaver. The animation curve and timing values are taken
   from Omarchy's MIT-licensed config. This project is not affiliated with Omarchy; it is a
   small independent setup for people who need to stay on Ubuntu.

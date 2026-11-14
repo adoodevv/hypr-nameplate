@@ -39,7 +39,7 @@ tooltip {
 
 #clock { color: #c0caf5; font-weight: 700; }
 
-#tray, #bluetooth, #network, #pulseaudio, #battery, #custom-power {
+#tray, #bluetooth, #network, #pulseaudio, #battery, #custom-power, #custom-sound {
   padding: 0 11px;
 }
 
@@ -57,3 +57,29 @@ tooltip {
 #bluetooth:hover, #battery:hover, #custom-power:hover {
   background: rgba(122, 162, 247, 0.12);
 }
+
+/* Music icon beside the clock while something plays */
+#custom-media { color: #7aa2f7; padding: 0 10px; }
+#custom-media.paused { color: #565f89; }
+#custom-media:hover { background: rgba(122, 162, 247, 0.12); }
+
+/* Volume and brightness: one item */
+#custom-sound { padding: 0 11px; }
+#custom-sound.muted { color: #565f89; }
+#custom-sound:hover { background: rgba(122, 162, 247, 0.12); }
+#network.disabled { color: #565f89; }
+
+/* Recent Waybar versions put the hover state on a box around custom modules,
+   not on the module itself; match both so custom items highlight like Wi-Fi. */
+box:hover > #custom-logo, box:hover > #custom-sound, box:hover > #custom-media,
+box:hover > #custom-power { background: rgba(122, 162, 247, 0.12); }
+
+/* Clock and music icon: one item with one hover highlight, padded like the others */
+#datetime:hover { background: rgba(122, 162, 247, 0.12); }
+#datetime #clock { padding: 0; }
+/* Nerd Font icons draw a little wider than the space Waybar measures for them;
+   room on the right stops the music icon being clipped */
+#datetime #custom-media { padding: 0 3px 0 10px; }
+#datetime { padding: 0 11px; }
+#datetime #clock:hover, #datetime #custom-media:hover,
+#datetime box:hover > #custom-media { background: transparent; }

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Previous / play-pause / next buttons for the top bar. Prints nothing (hiding the
+# button) when no media player is running.
+status=$(playerctl status 2>/dev/null) || exit 0
+case "${1:-}" in
+  prev) printf '󰒮\n' ;;
+  next) printf '󰒭\n' ;;
+  play) [[ $status == Playing ]] && printf '󰏤\n' || printf '󰐊\n' ;;
+esac

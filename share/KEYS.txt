@@ -10,6 +10,9 @@
     SUPER + Escape          Power menu (lock, log out, restart, shut down)
     SUPER + L               Lock the screen
     SUPER + CTRL + S        Start the screensaver now
+    SUPER + CTRL + SPACE    Next wallpaper (double-click the desktop to pick one;
+                            SUPER + CTRL + SHIFT + SPACE opens the picker too)
+    SUPER + P               Screens: extend, mirror or one screen (projector)
 
   WINDOWS
     SUPER + W  (or Q)       Close window
@@ -38,11 +41,14 @@
     SUPER + SHIFT + P       Screenshot the whole screen  (or SHIFT + Print)
     SUPER + SHIFT + B       Hide / show the top bar
   TOP BAR (click the icons)
-    Wi-Fi                   Pick a network      (right-click: full network menu)
-    Bluetooth               Connect devices     (right-click: Bluetooth settings)
-    Volume                  Choose the output   (right-click: mute, middle-click: mixer,
-                                                 scroll: volume)
-    Click the same icon again, or press Escape, to close a menu.
+    Date and time           Calendar, with the player underneath while music plays
+    Music icon              Shown beside the time while something plays; same panel
+    Wi-Fi                   Networks, Wi-Fi on/off (right-click: full network menu)
+    Bluetooth               Devices, Bluetooth on/off
+    Volume / brightness     Sliders for both, audio output (scroll: volume,
+                            right-click: mute)
+    Battery                 Charge, time left, power mode (saver / balanced / performance)
+    Click outside a panel, press Escape, or click the same icon again to close it.
 
   Stuck? SUPER + Escape -> Log out, then pick "Ubuntu" from the gear icon
   on the login screen to return to GNOME.

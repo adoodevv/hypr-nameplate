@@ -1,0 +1,27 @@
+#!/bin/bash
+# Warns when the battery runs low (started by Hyprland at login).
+# 15%: a normal notification. 5%: an urgent one that stays until dismissed.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/nameplate-battery-watch.lock"
+flock -n 9 || exit 0   # already running
+
+bat=$(ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1)
+[[ -z $bat ]] && exit 0   # no battery (desktop PC)
+
+LOW=${NAMEPLATE_BATTERY_LOW:-15}
+CRITICAL=${NAMEPLATE_BATTERY_CRITICAL:-5}
+warned=none
+
+while true; do
+  level=$(cat "$bat/capacity" 2>/dev/null || echo 100)
+  status=$(cat "$bat/status" 2>/dev/null || echo Unknown)
+  if [[ $status != Discharging ]]; then
+    warned=none
+  elif (( level <= CRITICAL )) && [[ $warned != critical ]]; then
+    notify-send -a Battery -u critical "Battery critically low: ${level}%" "Plug in now. The laptop will shut down soon."
+    warned=critical
+  elif (( level <= LOW )) && [[ $warned == none ]]; then
+    notify-send -a Battery "Battery low: ${level}%" "Plug in your charger soon."
+    warned=low
+  fi
+  sleep "${NAMEPLATE_BATTERY_INTERVAL:-60}"
+done

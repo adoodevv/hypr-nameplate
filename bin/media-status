@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+"""Now-playing icon for the top bar (Waybar custom module, JSON output).
+
+Follows whatever is playing through MPRIS: Spotify, YouTube in Chrome or Firefox,
+VLC and most media apps. Prints nothing (hiding the module) when nothing is playing.
+"""
+import json
+import subprocess
+import sys
+import time
+
+MUSIC, PAUSED = chr(0xF075A), chr(0xF03E4)
+FMT = "{{status}}\x1f{{artist}}\x1f{{title}}\x1f{{playerName}}"
+
+
+def emit(text="", tooltip="", cls=""):
+    try:
+        print(json.dumps({"text": text, "tooltip": tooltip, "class": cls}, ensure_ascii=False), flush=True)
+    except BrokenPipeError:      # the bar restarted or quit
+        sys.exit(0)
+
+
+def follow():
+    p = subprocess.Popen(["playerctl", "--follow", "metadata", "--format", FMT],
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    for line in p.stdout:
+        parts = (line.rstrip("\n").split("\x1f") + [""] * 4)[:4]
+        status, artist, title, player = parts
+        if not title or status not in ("Playing", "Paused"):
+            emit()
+            continue
+        song = f"{title} · {artist}" if artist else title
+        icon = MUSIC if status == "Playing" else PAUSED
+        # Just an icon beside the clock; the song is in the tooltip and the calendar panel
+        emit(icon, f"{song}\n{player.split('.')[0].capitalize()}: {status.lower()}\n"
+             "Click for controls", status.lower())
+    p.wait()
+
+
+if __name__ == "__main__":
+    emit()
+    while True:            # playerctl exits if its connection drops; start it again
+        try:
+            follow()
+        except FileNotFoundError:
+            emit()
+            sys.exit(0)
+        emit()
+        time.sleep(2)

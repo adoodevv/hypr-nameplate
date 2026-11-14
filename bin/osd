@@ -1,0 +1,30 @@
+#!/bin/bash
+# On-screen level indicator for the volume, microphone and brightness keys.
+#   osd volume | mic | brightness
+# Shows one small notification with a level bar that each key press updates in place.
+idfile="${XDG_RUNTIME_DIR:-/tmp}/nameplate-osd-id"
+
+case "${1:-volume}" in
+  volume|mic)
+    target='@DEFAULT_AUDIO_SINK@'; label=Volume; icons=('󰕿' '󰖀' '󰕾'); mute_icon='󰝟'
+    if [[ $1 == mic ]]; then target='@DEFAULT_AUDIO_SOURCE@'; label=Microphone; icons=('󰍬' '󰍬' '󰍬'); mute_icon='󰍭'; fi
+    raw=$(wpctl get-volume "$target" 2>/dev/null) || exit 0
+    pct=$(awk '{ printf "%d", $2 * 100 + 0.5 }' <<<"$raw")
+    if [[ $raw == *MUTED* ]]; then
+      icon=$mute_icon; text="$label muted"
+    else
+      icon=${icons[$(( pct >= 66 ? 2 : pct >= 33 ? 1 : 0 ))]}; text="$label ${pct}%"
+    fi ;;
+  brightness)
+    pct=$(brightnessctl -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; exit }')
+    [[ -z $pct ]] && exit 0
+    icon='󰃠'; text="Brightness ${pct}%" ;;
+  *) exit 1 ;;
+esac
+
+(( pct > 100 )) && bar=100 || bar=$pct
+old=$(cat "$idfile" 2>/dev/null)
+id=$(notify-send -a nameplate-osd -u low -t 1500 -h "int:value:$bar" -p ${old:+-r "$old"} "$icon  $text" 2>/dev/null)
+[[ -n $id ]] && printf '%s\n' "$id" > "$idfile"
+pkill -RTMIN+9 waybar 2>/dev/null   # refresh the volume/brightness icon in the bar
+exit 0

@@ -10,7 +10,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 PPA="ppa:cppiber/hyprland"
 BASE_PKGS="alacritty pipx curl fontconfig xz-utils"
 CORE_PKGS="hyprland hyprlock hypridle waybar xdg-desktop-portal-hyprland"
-EXTRA_PKGS="hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
+EXTRA_PKGS="python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
 export PATH="$BIN:$PATH"
 
 NAME="${USER:-nameplate}"
@@ -276,6 +276,15 @@ if (( ! TERMINAL_ONLY )); then
     [[ -f $dst ]] || cp "$src" "$dst"
     sed -i '/^Exec=/{ /XDG_CURRENT_DESKTOP=GNOME/! s#^Exec=#Exec=env XDG_CURRENT_DESKTOP=GNOME #; }' "$dst"
     echo "Settings app set to open under Hyprland ($dst)"
+  fi
+fi
+
+if (( ! TERMINAL_ONLY && ! CONFIGS_ONLY )) && [[ ! -d $HOME/Pictures/Wallpapers/omarchy ]]; then
+  step "Wallpapers"
+  if ask "Download Omarchy's wallpaper collection (74 images, about 68 MB)?"; then
+    bash "$APP/bin/get-omarchy-wallpapers" || failed+=("Omarchy wallpapers")
+  else
+    echo "Skipped. Run ~/.config/nameplate/bin/get-omarchy-wallpapers any time."
   fi
 fi
 

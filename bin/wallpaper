@@ -1,0 +1,203 @@
+#!/usr/bin/python3
+"""Desktop wallpaper for hypr-nameplate, with a picker on double-click.
+
+    wallpaper              draw the wallpaper (started by Hyprland at login)
+    wallpaper set IMAGE    switch to an image
+    wallpaper next         next image in the collection (SUPER + CTRL + SPACE)
+    wallpaper list         print the collection
+
+The collection is the default wallpaper plus every image in ~/Pictures/Wallpapers
+(sub-folders included). Double-click the desktop to choose one.
+"""
+import math
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+
+CONF = os.path.expanduser("~/.config/nameplate")
+DEFAULT = os.path.join(CONF, "wallpaper.png")
+CURRENT = os.path.join(CONF, "wallpaper-current")
+FOLDERS = [os.path.expanduser("~/Pictures/Wallpapers")]
+EXTS = (".png", ".jpg", ".jpeg", ".webp")
+RUN = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+PIDFILE = os.path.join(RUN, "nameplate-wallpaper.pid")
+
+
+def collection():
+    images = [DEFAULT] if os.path.exists(DEFAULT) else []
+    for folder in FOLDERS:
+        for root, dirs, files in os.walk(folder):
+            dirs.sort()
+            images += [os.path.join(root, f) for f in sorted(files) if f.lower().endswith(EXTS)]
+    return images
+
+
+def current():
+    try:
+        with open(CURRENT) as f:
+            path = f.read().strip()
+        if os.path.exists(path):
+            return path
+    except OSError:
+        pass
+    return DEFAULT
+
+
+def set_wallpaper(path):
+    path = os.path.abspath(os.path.expanduser(path))
+    if not os.path.exists(path):
+        sys.exit(f"No such image: {path}")
+    os.makedirs(CONF, exist_ok=True)
+    with open(CURRENT, "w") as f:
+        f.write(path + "\n")
+    try:   # tell the running wallpaper to reload
+        with open(PIDFILE) as f:
+            os.kill(int(f.read().strip()), signal.SIGUSR1)
+    except (OSError, ValueError):
+        pass
+
+
+def next_wallpaper():
+    images = collection()
+    if not images:
+        return
+    now = current()
+    i = images.index(now) if now in images else -1
+    set_wallpaper(images[(i + 1) % len(images)])
+
+
+def fallback():
+    """No layer-shell support: let swaybg draw it (no double-click picker then)."""
+    os.execvp("swaybg", ["swaybg", "-m", "fill", "-c", "#1a1b26", "-i", current()])
+
+
+def serve():
+    import gi
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("Gdk", "3.0")
+    from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
+    try:
+        gi.require_version("GtkLayerShell", "0.1")
+        from gi.repository import GtkLayerShell
+    except (ValueError, ImportError):
+        return fallback()
+    if not GtkLayerShell.is_supported():
+        return fallback()
+
+    try:   # already running?
+        with open(PIDFILE) as f:
+            pid = int(f.read().strip())
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            if b"wallpaper" in f.read() and pid != os.getpid():
+                return
+    except (OSError, ValueError):
+        pass
+    with open(PIDFILE, "w") as f:
+        f.write(f"{os.getpid()}\n")
+
+    css = Gtk.CssProvider()
+    css.load_from_data(b"window.np-wallpaper { background-color: #1a1b26; }")
+    Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css,
+                                             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def cover(path, width, height):
+        """The image scaled to fill width x height, cropped to the centre."""
+        info = GdkPixbuf.Pixbuf.get_file_info(path)
+        if not info or not info[0]:
+            raise GLib.Error("unreadable image")
+        w, h = info[1], info[2]
+        s = max(width / w, height / h)
+        pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, max(width, math.ceil(w * s)),
+                                                      max(height, math.ceil(h * s)), False)
+        x = (pix.get_width() - width) // 2
+        y = (pix.get_height() - height) // 2
+        return pix.new_subpixbuf(x, y, width, height)
+
+    windows = []
+
+    class Surface:
+        def __init__(self, monitor):
+            self.win = Gtk.Window()
+            self.win.get_style_context().add_class("np-wallpaper")
+            GtkLayerShell.init_for_window(self.win)
+            GtkLayerShell.set_namespace(self.win, "nameplate-wallpaper")
+            GtkLayerShell.set_layer(self.win, GtkLayerShell.Layer.BACKGROUND)
+            GtkLayerShell.set_monitor(self.win, monitor)
+            for edge in (GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM,
+                         GtkLayerShell.Edge.LEFT, GtkLayerShell.Edge.RIGHT):
+                GtkLayerShell.set_anchor(self.win, edge, True)
+            GtkLayerShell.set_exclusive_zone(self.win, -1)   # also behind the bar
+            GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
+            self.box = Gtk.EventBox()
+            self.image = Gtk.Image()
+            self.box.add(self.image)
+            self.box.connect("button-press-event", self.on_click)
+            self.box.connect("size-allocate", self.on_size)
+            self.win.add(self.box)
+            self.size = None
+            self.path = None
+            self.win.show_all()
+
+        def on_size(self, _w, alloc):
+            if (alloc.width, alloc.height) != self.size:
+                self.size = (alloc.width, alloc.height)
+                GLib.idle_add(self.draw)
+
+        def draw(self, force=False):
+            path = current()
+            if not self.size or (path == self.path and not force):
+                return False
+            try:
+                self.image.set_from_pixbuf(cover(path, *self.size))
+                self.path = path
+            except GLib.Error:
+                self.image.clear()
+            return False
+
+        def on_click(self, _w, event):
+            if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
+                subprocess.Popen([os.path.join(CONF, "bin", "panel"), "wallpapers"], start_new_session=True)
+            return True
+
+    def rebuild(*_):
+        for s in windows:
+            s.win.destroy()
+        windows.clear()
+        display = Gdk.Display.get_default()
+        for i in range(display.get_n_monitors()):
+            windows.append(Surface(display.get_monitor(i)))
+        return False
+
+    def reload():
+        for s in windows:
+            s.path = None
+            s.draw(force=True)
+        return True
+
+    display = Gdk.Display.get_default()
+    display.connect("monitor-added", lambda *_: GLib.timeout_add(500, rebuild))
+    display.connect("monitor-removed", lambda *_: GLib.timeout_add(500, rebuild))
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, reload)
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, Gtk.main_quit)
+    rebuild()
+    Gtk.main()
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "set" and len(sys.argv) > 2:
+        set_wallpaper(sys.argv[2])
+    elif cmd == "next":
+        next_wallpaper()
+    elif cmd == "list":
+        print("\n".join(collection()))
+    elif cmd == "":
+        serve()
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

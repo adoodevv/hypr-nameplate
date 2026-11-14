@@ -9,13 +9,13 @@
     "hyprland/workspaces"
   ],
   "modules-center": [
-    "clock"
+    "group/datetime"
   ],
   "modules-right": [
     "tray",
     "bluetooth",
     "network",
-    "pulseaudio",
+    "custom/sound",
     "battery",
     "custom/power"
   ],
@@ -33,15 +33,9 @@
   },
   "clock": {
     "format": "{:%a %d %b   %H:%M}",
-    "format-alt": "{:%A, %d %B %Y   %H:%M:%S}",
     "interval": 1,
-    "tooltip-format": "<tt>{calendar}</tt>",
-    "calendar": {
-      "mode": "month",
-      "format": {
-        "today": "<span color='#7aa2f7'><b>{}</b></span>"
-      }
-    }
+    "on-click": "~/.config/nameplate/bin/panel calendar",
+    "tooltip": false
   },
   "tray": {
     "icon-size": 16,
@@ -51,45 +45,38 @@
     "format": "󰂯",
     "format-off": "󰂲",
     "format-disabled": "󰂲",
-    "format-connected": "󰂯 {num_connections}",
+    "format-connected": "󰂱",
     "tooltip-format": "Bluetooth: {status}",
     "tooltip-format-connected": "{device_enumerate}",
     "tooltip-format-enumerate-connected": "{device_alias}",
-    "on-click": "~/.config/nameplate/bin/bluetooth-menu",
+    "on-click": "~/.config/nameplate/bin/panel bluetooth",
     "on-click-right": "XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth"
   },
   "network": {
-    "format-wifi": "󰖩  {essid}",
-    "format-ethernet": "󰈀  wired",
-    "format-disconnected": "󰖪  offline",
+    "format-wifi": "{icon}",
+    "format-ethernet": "󰈀",
+    "format-disconnected": "󰤮",
     "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
     "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
-    "tooltip-format-disconnected": "No connection",
-    "max-length": 22,
+    "tooltip-format-disconnected": "Not connected. Click to pick a network",
     "interval": 5,
-    "on-click": "~/.config/nameplate/bin/wifi-menu",
-    "on-click-right": "alacritty --class nameplate-float --title Network -e ~/.config/nameplate/bin/wifi edit"
-  },
-  "pulseaudio": {
-    "format": "{icon}  {volume}%",
-    "format-muted": "󰝟  muted",
-    "format-icons": {
-      "default": [
-        "󰕿",
-        "󰖀",
-        "󰕾"
-      ]
-    },
-    "scroll-step": 5,
-    "on-click": "~/.config/nameplate/bin/audio-menu",
-    "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "tooltip-format": "{desc}",
-    "on-click-middle": "pavucontrol"
+    "on-click": "~/.config/nameplate/bin/panel wifi",
+    "on-click-right": "alacritty --class nameplate-float --title Network -e ~/.config/nameplate/bin/wifi edit",
+    "format-icons": [
+      "󰤯",
+      "󰤟",
+      "󰤢",
+      "󰤥",
+      "󰤨"
+    ],
+    "format-linked": "󰤫",
+    "format-disabled": "󰖪",
+    "tooltip-format-disabled": "Wi-Fi is off. Click to turn it on"
   },
   "battery": {
-    "format": "{icon}  {capacity}%",
-    "format-charging": "󰂄  {capacity}%",
-    "format-plugged": "󰂄  {capacity}%",
+    "format": "{icon}",
+    "format-charging": "󰂄",
+    "format-plugged": "󰚥",
     "format-icons": [
       "󰁺",
       "󰁻",
@@ -107,11 +94,40 @@
       "critical": 10
     },
     "interval": 30,
-    "tooltip-format": "{timeTo}"
+    "tooltip-format": "{capacity}%  ·  {timeTo}",
+    "on-click": "~/.config/nameplate/bin/panel power"
   },
   "custom/power": {
     "format": "󰐥",
     "tooltip-format": "Power menu (Super + Escape)",
     "on-click": "~/.config/nameplate/bin/power-menu"
+  },
+  "custom/media": {
+    "exec": "~/.config/nameplate/bin/media-status",
+    "return-type": "json",
+    "format": "{}",
+    "escape": true,
+    "max-length": 4,
+    "on-click": "~/.config/nameplate/bin/panel calendar",
+    "on-click-right": "playerctl play-pause"
+  },
+  "custom/sound": {
+    "exec": "~/.config/nameplate/bin/sound-status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 9,
+    "format": "{}",
+    "on-click": "~/.config/nameplate/bin/panel sound",
+    "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle; pkill -RTMIN+9 waybar",
+    "on-click-middle": "pavucontrol",
+    "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+; pkill -RTMIN+9 waybar",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-; pkill -RTMIN+9 waybar"
+  },
+  "group/datetime": {
+    "orientation": "inherit",
+    "modules": [
+      "clock",
+      "custom/media"
+    ]
   }
 }

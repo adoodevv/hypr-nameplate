@@ -1,0 +1,35 @@
+#!/bin/bash
+# Downloads the wallpapers that ship with Omarchy's themes (about 68 MB, 74 images; the ones
+# that only show Omarchy's name or logo are skipped)
+# into ~/Pictures/Wallpapers/omarchy/<theme>/, where the wallpaper picker finds them.
+# They come straight from Omarchy's repository (github.com/basecamp/omarchy, MIT licence);
+# hypr-nameplate doesn't include them itself.
+set -u
+dest="$HOME/Pictures/Wallpapers/omarchy"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+echo "Downloading Omarchy's wallpapers…"
+git clone -q --depth 1 --filter=blob:none --sparse https://github.com/basecamp/omarchy.git "$tmp/omarchy" &&
+  git -C "$tmp/omarchy" sparse-checkout set --no-cone '/themes/*/backgrounds/*.webp' '/themes/*/backgrounds/*.jpg' \
+    '/themes/*/backgrounds/*.jpeg' '/themes/*/backgrounds/*.png' ||
+  { echo "Download failed. Check your connection and try again."; exit 1; }
+
+# Skip the ones that are just Omarchy's name or logo; keep the artwork and photos
+branded() {
+  local name=${1##*/}
+  [[ ${name,,} == *omarchy* || $name == 6-oma-* || $name == 7-oma.* || $1 == */lumon/backgrounds/02-opinions-equally.* ]]
+}
+
+count=0
+for dir in "$tmp"/omarchy/themes/*/backgrounds; do
+  theme=$(basename "$(dirname "$dir")")
+  mkdir -p "$dest/$theme"
+  for img in "$dir"/*; do
+    [[ -f $img ]] || continue
+    branded "$img" && continue
+    cp -n "$img" "$dest/$theme/" && count=$((count + 1))
+  done
+done
+echo "Added $count wallpapers to $dest"
+echo "Double-click the desktop to choose one."

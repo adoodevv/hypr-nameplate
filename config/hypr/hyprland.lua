@@ -25,19 +25,13 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 -------------------
 
 hl.on("hyprland.start", function()
-  -- Optional: lock straight away, for use with automatic login (see README, "Boot straight into Hyprland").
-  -- Enable with: touch ~/.config/nameplate/lock-on-start
-  local lock_on_start = io.open(home .. "/.config/nameplate/lock-on-start")
-  if lock_on_start then
-    lock_on_start:close()
-    hl.exec_cmd("hyprlock --immediate-render --no-fade-in")
-  end
-
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
-  hl.exec_cmd("swaybg -m fill -c 1a1b26 -i " .. home .. "/.config/nameplate/wallpaper.png")
+  hl.exec_cmd(bin .. "wallpaper")      -- double-click the desktop to change it
   hl.exec_cmd("waybar")
   hl.exec_cmd("mako")
   hl.exec_cmd("hypridle")
+  hl.exec_cmd(bin .. "battery-watch")
+  hl.exec_cmd("playerctld daemon")   -- lets the bar control whichever player was used last
   hl.exec_cmd("systemctl --user start hyprpolkitagent")
 end)
 
@@ -181,7 +175,10 @@ hl.bind(mod .. " + K",      hl.dsp.exec_cmd(bin .. "keys"))
 hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(bin .. "power-menu"))
 hl.bind(mod .. " + L",      hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd(bin .. "launch-screensaver"))
+hl.bind(mod .. " + CTRL + Space", hl.dsp.exec_cmd(bin .. "wallpaper next"))
+hl.bind(mod .. " + CTRL + SHIFT + Space", hl.dsp.exec_cmd(bin .. "panel wallpapers"))
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("pkill -SIGUSR1 waybar"))
+hl.bind(mod .. " + P",         hl.dsp.exec_cmd(bin .. "display-menu"))
 
 -- Windows
 hl.bind(mod .. " + W",       hl.dsp.window.close())
@@ -190,7 +187,7 @@ hl.bind(mod .. " + F",       hl.dsp.window.fullscreen({ mode = "fullscreen" }))
 hl.bind(mod .. " + ALT + F", hl.dsp.window.fullscreen({ mode = "maximized" }))
 hl.bind(mod .. " + T",       hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + J",       hl.dsp.layout("togglesplit"))
-hl.bind(mod .. " + P",       hl.dsp.window.pseudo())
+hl.bind(mod .. " + ALT + P", hl.dsp.window.pseudo())
 hl.bind("ALT + Tab",         hl.dsp.window.cycle_next())
 
 -- Focus and swap with the arrow keys
@@ -233,12 +230,14 @@ hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd(bin .. "screenshot region"))
 hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd(bin .. "screenshot full"))
 
 -- Volume, brightness and media keys (these also work on the lock screen)
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
-hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true })
-hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true })
-hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"), { locked = true, repeating = true })
+-- Each shows a small level indicator afterwards (bin/osd)
+local osd = " && " .. bin .. "osd "
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+" .. osd .. "volume"), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-" .. osd .. "volume"),      { locked = true, repeating = true })
+hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" .. osd .. "volume"),     { locked = true })
+hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" .. osd .. "mic"),      { locked = true })
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+" .. osd .. "brightness"), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-" .. osd .. "brightness"), { locked = true, repeating = true })
 hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
@@ -287,3 +286,19 @@ hl.window_rule({
 hl.layer_rule({ name = "bar-blur",      match = { namespace = "waybar" },        blur = true, ignore_alpha = 0.3 })
 hl.layer_rule({ name = "launcher-blur", match = { namespace = "launcher" },      blur = true, ignore_alpha = 0.3 })
 hl.layer_rule({ name = "notify-blur",   match = { namespace = "notifications" }, blur = true, ignore_alpha = 0.3 })
+
+-------------------------
+---- EXTERNAL SCREENS ----
+-------------------------
+
+-- A new screen extends the desktop to the right (the monitor rule at the top).
+-- Point to SUPER + P for mirroring or using one screen.
+hl.on("monitor.added", function(m)
+  hl.exec_cmd("notify-send -a Display 'Screen connected' 'Press SUPER + P to mirror or change the layout'")
+end)
+
+-- When a screen is unplugged, go back to the config's layout. This also brings the
+-- laptop screen back if it was switched off with "External screen only".
+hl.on("monitor.removed", function(m)
+  hl.exec_cmd("hyprctl reload")
+end)

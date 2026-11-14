@@ -1,0 +1,3 @@
+#!/bin/bash
+# Kept for older bindings: the dropdown is now a panel (bin/panel).
+exec "$HOME/.config/nameplate/bin/panel" display
