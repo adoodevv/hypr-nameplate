@@ -13,7 +13,8 @@ CORE_PKGS="hyprland hyprlock hypridle waybar xdg-desktop-portal-hyprland"
 EXTRA_PKGS="hyprsunset python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
 export PATH="$BIN:$PATH"
 
-NAME="${USER:-nameplate}"
+NAME="$(cat "$APP/name" 2>/dev/null)"   # the name from the last install, if any
+NAME="${NAME:-${USER:-nameplate}}"
 TERMINAL_ONLY=0
 CONFIGS_ONLY=0
 THEME=""
@@ -24,7 +25,7 @@ usage() {
 Usage: bash install.sh [options]
 
   --name NAME       Name shown on the screensaver and bar
-                    (default: your username, "$NAME"). Up to about 12
+                    (default: the current one, "$NAME"). Up to about 12
                     characters gets the large block lettering.
   --terminal-only   Only the terminal, prompt and screensaver, on your current
                     GNOME desktop. Skips Hyprland entirely.

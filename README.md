@@ -73,7 +73,7 @@ the last install; theme and font changes don't count.
 bash install.sh [options]
 
   --name NAME       Name shown on the screensaver and bar
-                    (default: your username). Up to about 12 characters
+                    (default: the current one, or your username). Up to about 12 characters
                     gets the large block lettering; longer names fall back
                     to smaller lettering.
   --terminal-only   Only the terminal, prompt and screensaver, on your current
