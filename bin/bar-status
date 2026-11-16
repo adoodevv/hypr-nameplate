@@ -97,8 +97,8 @@ case $1 in
     done
     ;;
 
-  awake)              # coffee cup: lit while "stay awake" is on (hypridle paused)
-    if [[ -n $HYPRLAND_INSTANCE_SIGNATURE ]] && ! pgrep -x hypridle >/dev/null; then
+  awake)              # coffee cup: lit while "stay awake" is on (bin/stay-awake)
+    if pgrep -f "[s]ystemd-inhibit --what=idle --who=hypr-nameplate stay awake" >/dev/null; then
       emit "󰅶" "Staying awake: no screensaver or lock. Click to turn off" on
     else
       emit "󰅶" "Stay awake: click to keep the screensaver and lock away" off

@@ -6,6 +6,7 @@
     panel daemon        keep running in the background (started at login), so panels
                         open instantly instead of starting Python and GTK on every click
     panel reload        pick up a new theme or font
+    panel close         close whatever panel is open (before the screensaver or lock)
 
 Clicking anywhere outside a panel, or pressing Escape, closes it. Clicking the same
 bar icon again closes it too; clicking a different icon switches panels.
@@ -40,8 +41,8 @@ def client():
     args = [a for a in sys.argv[1:] if a != "--bar"]
     if not args or args[0] == "daemon":
         return
-    if args[0] == "reload":
-        send("reload")
+    if args[0] in ("reload", "close"):
+        send(args[0])                  # nothing running: nothing to close
         sys.exit(0)
     x = ""
     if "--bar" in sys.argv:          # where the click was, to mark the bar item
@@ -2044,7 +2045,8 @@ class MenuPanel(Panel):
         recording = subprocess.run(["pgrep", "-x", "wf-recorder"], capture_output=True).returncode == 0
         dnd = "do-not-disturb" in out("makoctl", "mode", timeout=3).split()
         running = lambda name: subprocess.run(["pgrep", "-x", name], capture_output=True).returncode == 0
-        awake = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE") and not running("hypridle")
+        awake = subprocess.run(["pgrep", "-f", "[s]ystemd-inhibit --what=idle --who=hypr-nameplate stay awake"],
+                               capture_output=True).returncode == 0
         night = running("hyprsunset")
         cfg = os.path.expanduser("~/.config")
         configs = [("Hyprland (keys, windows, startup)", "hypr/hyprland.lua"),
@@ -2501,7 +2503,7 @@ def main():
         Gtk.main()
         return
     if kind not in KINDS:
-        sys.exit("usage: panel " + " | ".join(PANELS) + " | daemon | reload")
+        sys.exit("usage: panel " + " | ".join(PANELS) + " | daemon | reload | close")
     if not take_over(kind):
         return
     GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, Gtk.main_quit)

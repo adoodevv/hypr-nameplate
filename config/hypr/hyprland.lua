@@ -109,6 +109,7 @@ hl.config({
 
   cursor = {
     hide_on_key_press = true,
+    inactive_timeout  = 30,   -- hide the pointer after 30 s still, so it's not on the lock screen
   },
 
   ecosystem = {

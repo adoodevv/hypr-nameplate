@@ -21,6 +21,7 @@ fi
 # Together with the 2.5 minute idle delay this locks at 5 minutes.
 LOCK_AFTER="${NAMEPLATE_LOCK_AFTER:-150}"
 locked=0
+lock_seen=0
 
 printf '\033[?25l'
 clear
@@ -34,6 +35,13 @@ while true; do
   started=$SECONDS
   while kill -0 "$pid" 2>/dev/null; do
     if read -rsn1 -t 0.5; then cleanup; fi
+    # Backup: bin/lock closes the screensaver ~1 s after locking (with animations
+    # off, so nothing replays on unlock). If that didn't happen, close after ~3 s.
+    if pidof -q hyprlock; then
+      (( lock_seen++ >= 6 )) && cleanup
+    else
+      lock_seen=0
+    fi
     if (( !locked && SECONDS >= LOCK_AFTER )) && [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
       locked=1
       loginctl lock-session   # hypridle's lock_cmd closes this window and opens the lock screen

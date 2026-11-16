@@ -1,0 +1,30 @@
+#!/bin/bash
+# Lock the screen. Modelled on Omarchy 3's omarchy-system-lock, which used the same
+# lock screen (hyprlock): lock, close the screensaver, then turn the display off
+# after 3 s; it comes back on when you unlock (or press a key).
+# hypridle runs this for every lock: the screensaver's, idle, SUPER + L, the menu,
+# the lid. Before sleep it runs with NAMEPLATE_LOCK_ONLY=1: lock, no display-off.
+bin="$HOME/.config/nameplate/bin"
+display() { hyprctl dispatch "hl.dsp.dpms({ action = \"$1\" })" >/dev/null 2>&1; }
+
+"$bin/panel" close 2>/dev/null        # don't leave a panel open, holding the keyboard, behind the lock
+pkill -x fuzzel 2>/dev/null
+
+if ! pidof hyprlock >/dev/null; then
+  ( hyprlock; display enable ) &       # display back on once you've unlocked
+  # Unlike Omarchy, give the lock a second to cover the screen before the
+  # screensaver goes, so the desktop doesn't show in between.
+  sleep 1
+fi
+
+for _ in 1 2 3 4 5; do                 # the screensaver shouldn't keep running behind the lock
+  "$bin/stop-screensaver"
+  pgrep -f '[a]lacritty --class nameplate-screensaver' >/dev/null || break
+  sleep 0.5
+done
+
+if [[ -z ${NAMEPLATE_LOCK_ONLY:-} ]]; then
+  sleep 3
+  pidof hyprlock >/dev/null && display disable
+fi
+exit 0

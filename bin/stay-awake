@@ -1,12 +1,14 @@
 #!/bin/bash
-# Stay awake: stop the screensaver, lock and screen-off from kicking in (Omarchy's
-# "idle lock" toggle). It pauses hypridle; run again, or click the cup in the bar, to undo.
-# Closing the lid still suspends as usual.
-if pgrep -x hypridle >/dev/null; then
-  pkill -x hypridle
-  notify-send -a "Stay awake" -t 3000 "Staying awake" "No screensaver, lock or screen-off until you click the cup in the bar"
-else
-  setsid -f hypridle >/dev/null 2>&1
+# Stay awake: no screensaver, lock or screen-off while it's on (Omarchy's "idle
+# lock" toggle). It asks the system not to go idle, which hypridle respects;
+# closing the lid still suspends and locks as usual. Run again, or click the cup
+# in the bar, to turn it off.
+who="hypr-nameplate stay awake"
+if pkill -f "[s]ystemd-inhibit --what=idle --who=$who"; then
   notify-send -a "Stay awake" -t 2000 "Screensaver and lock back on"
+else
+  setsid -f systemd-inhibit --what=idle --who="$who" --why="Turned on from the bar" \
+    sleep infinity >/dev/null 2>&1
+  notify-send -a "Stay awake" -t 3000 "Staying awake" "No screensaver, lock or screen-off until you click the cup in the bar"
 fi
 pkill -RTMIN+14 -x waybar
