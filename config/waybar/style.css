@@ -126,6 +126,15 @@ box:hover > #custom-recording, box:hover > #custom-dnd,
 /* AI agents (Claude Code, Grok): click for today's use and recent sessions */
 #custom-agents { padding: 0 11px; }
 
+/* Nerd Font icons draw past the right edge of the width Waybar measures for them
+   (Wi-Fi ~5px, the robot ~4px, Bluetooth and speaker ~2px, the same in every Nerd Font).
+   More padding on the right by that much keeps the hover highlight and the accent line
+   below centred on the icon you see, rather than on its measured box. */
+#custom-network { padding: 0 13px 0 8px; }
+#custom-network.ethernet { padding: 0 12px 0 9px; }
+#custom-agents { padding: 0 12px 0 8px; }
+#custom-bluetooth, #custom-sound { padding: 0 12px 0 10px; }
+
 /* Microphone: dim while on, red when muted */
 #custom-mic { color: @fg_dim; padding: 0 11px; }
 #custom-mic.muted { color: @red; }
