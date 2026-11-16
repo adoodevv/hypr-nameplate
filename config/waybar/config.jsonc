@@ -8,102 +8,97 @@
     "custom/logo",
     "hyprland/workspaces"
   ],
+  // Like Omarchy: toggles that are on sit before the clock, info after it
   "modules-center": [
-    "group/datetime"
-  ],
-  "modules-right": [
     "custom/recording",
     "custom/dnd",
+    "custom/awake",
+    "custom/nightlight",
+    "group/datetime",
+    "custom/weather",
+    "custom/updates"
+  ],
+  "modules-right": [
     "tray",
-    "bluetooth",
-    "network",
+    "custom/agents",
+    "custom/bluetooth",
+    "custom/network",
     "custom/sound",
-    "battery",
+    "custom/mic",
+    "custom/battery",
     "custom/power"
   ],
   "custom/logo": {
-    "format": "@NAME@",
-    "tooltip-format": "Menu (Super + Alt + Space)\nRight-click: apps (Super + Space)",
-    "on-click": "~/.config/nameplate/bin/panel menu",
+    "exec": "~/.config/nameplate/bin/bar-status logo",
+    "return-type": "json",
+    "interval": "once",
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel menu --bar",
     "on-click-right": "pkill fuzzel || fuzzel"
   },
   "hyprland/workspaces": {
-    "format": "{id}",
+    "format": "{icon}",
+    "format-icons": {
+      "active": "󱓻",
+      "default": "",
+      "1": "1", "2": "2", "3": "3", "4": "4", "5": "5",
+      "6": "6", "7": "7", "8": "8", "9": "9", "10": "0"
+    },
     "on-click": "activate",
     "persistent-workspaces": {
       "*": 5
     }
   },
-  "clock": {
-    "format": "{:%a %d %b   %H:%M}",
-    "interval": 1,
-    "on-click": "~/.config/nameplate/bin/panel calendar",
-    "tooltip": false
+  "custom/clock": {
+    "exec": "~/.config/nameplate/bin/bar-status clock",
+    "return-type": "json",
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel calendar --bar"
   },
   "tray": {
     "icon-size": 16,
     "spacing": 10
   },
-  "bluetooth": {
-    "format": "󰂯",
-    "format-off": "󰂲",
-    "format-disabled": "󰂲",
-    "format-connected": "󰂱",
-    "tooltip-format": "Bluetooth: {status}",
-    "tooltip-format-connected": "{device_enumerate}",
-    "tooltip-format-enumerate-connected": "{device_alias}",
-    "on-click": "~/.config/nameplate/bin/panel bluetooth",
+  "custom/bluetooth": {
+    "exec": "~/.config/nameplate/bin/bar-status bluetooth",
+    "return-type": "json",
+    "interval": 10,
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel bluetooth --bar",
     "on-click-right": "XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth"
   },
-  "network": {
-    "format-wifi": "{icon}",
-    "format-ethernet": "󰈀",
-    "format-disconnected": "󰤮",
-    "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
-    "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
-    "tooltip-format-disconnected": "Not connected. Click to pick a network",
+  "custom/network": {
+    "exec": "~/.config/nameplate/bin/bar-status network",
+    "return-type": "json",
     "interval": 5,
-    "on-click": "~/.config/nameplate/bin/panel wifi",
-    "on-click-right": "alacritty --class nameplate-float --title Network -e ~/.config/nameplate/bin/wifi edit",
-    "format-icons": [
-      "󰤯",
-      "󰤟",
-      "󰤢",
-      "󰤥",
-      "󰤨"
-    ],
-    "format-linked": "󰤫",
-    "format-disabled": "󰖪",
-    "tooltip-format-disabled": "Wi-Fi is off. Click to turn it on"
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel wifi --bar",
+    "on-click-right": "alacritty --class nameplate-float --title Network -e ~/.config/nameplate/bin/wifi edit"
   },
-  "battery": {
-    "format": "{icon}",
-    "format-charging": "󰂄",
-    "format-plugged": "󰚥",
-    "format-icons": [
-      "󰁺",
-      "󰁻",
-      "󰁼",
-      "󰁽",
-      "󰁾",
-      "󰁿",
-      "󰂀",
-      "󰂁",
-      "󰂂",
-      "󰁹"
-    ],
-    "states": {
-      "warning": 25,
-      "critical": 10
-    },
+  "custom/battery": {
+    "exec": "~/.config/nameplate/bin/bar-status battery",
+    "return-type": "json",
     "interval": 30,
-    "tooltip-format": "{capacity}%  ·  {timeTo}",
-    "on-click": "~/.config/nameplate/bin/panel power"
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel power --bar"
   },
   "custom/power": {
-    "format": "󰐥",
-    "tooltip-format": "Power menu (Super + Escape)",
-    "on-click": "~/.config/nameplate/bin/power-menu"
+    "exec": "~/.config/nameplate/bin/bar-status power",
+    "return-type": "json",
+    "interval": "once",
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel menu system --bar"
   },
   "custom/media": {
     "exec": "~/.config/nameplate/bin/media-status",
@@ -111,7 +106,8 @@
     "format": "{}",
     "escape": true,
     "max-length": 4,
-    "on-click": "~/.config/nameplate/bin/panel calendar",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel calendar --bar",
     "on-click-right": "playerctl play-pause"
   },
   "custom/sound": {
@@ -120,7 +116,8 @@
     "interval": 5,
     "signal": 9,
     "format": "{}",
-    "on-click": "~/.config/nameplate/bin/panel sound",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel sound --bar",
     "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle; pkill -RTMIN+9 waybar",
     "on-click-middle": "pavucontrol",
     "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+; pkill -RTMIN+9 waybar",
@@ -129,7 +126,7 @@
   "group/datetime": {
     "orientation": "inherit",
     "modules": [
-      "clock",
+      "custom/clock",
       "custom/media"
     ]
   },
@@ -142,11 +139,62 @@
     "on-click": "~/.config/nameplate/bin/screenrecord"
   },
   "custom/dnd": {
-    "exec": "~/.config/nameplate/bin/dnd-status",
+    "exec": "~/.config/nameplate/bin/bar-status dnd",
     "return-type": "json",
     "interval": 5,
     "signal": 11,
     "format": "{}",
     "on-click": "~/.config/nameplate/bin/dnd"
+  },
+  "custom/awake": {
+    "exec": "~/.config/nameplate/bin/bar-status awake",
+    "return-type": "json",
+    "interval": 10,
+    "signal": 14,
+    "format": "{}",
+    "on-click": "~/.config/nameplate/bin/stay-awake"
+  },
+  "custom/nightlight": {
+    "exec": "~/.config/nameplate/bin/bar-status nightlight",
+    "return-type": "json",
+    "interval": 10,
+    "signal": 14,
+    "format": "{}",
+    "on-click": "~/.config/nameplate/bin/nightlight"
+  },
+  "custom/weather": {
+    "exec": "~/.config/nameplate/bin/weather",
+    "return-type": "json",
+    "interval": 900,
+    "signal": 16,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel weather --bar"
+  },
+  "custom/updates": {
+    "exec": "~/.config/nameplate/bin/bar-status updates",
+    "return-type": "json",
+    "interval": 1800,
+    "signal": 15,
+    "format": "{}",
+    "on-click": "~/.config/nameplate/bin/update"
+  },
+  "custom/mic": {
+    "exec": "~/.config/nameplate/bin/bar-status mic",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 13,
+    "format": "{}",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; pkill -RTMIN+13 waybar",
+    "on-click-right": "pavucontrol --tab=4"
+  },
+  "custom/agents": {
+    "exec": "~/.config/nameplate/bin/agents",
+    "return-type": "json",
+    "interval": "once",
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel agents --bar"
   }
 }

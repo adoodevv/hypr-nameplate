@@ -17,4 +17,9 @@ if [[ -n $bright ]]; then
 else
   text="$vicon"; tip="$vtext\nClick for sliders, scroll for volume"
 fi
-printf '{"text": "%s", "tooltip": "%s", "class": "%s"}\n' "$text" "$tip" "$cls"
+# "open" draws the accent line under the item while the sound panel shows (bin/panel)
+kind=""
+[[ -r ${XDG_RUNTIME_DIR:-/tmp}/nameplate-panel-open ]] && read -r kind _ <"${XDG_RUNTIME_DIR:-/tmp}/nameplate-panel-open"
+[[ $kind == sound ]] && cls="${cls:+$cls }open"
+printf '{"text": "%s", "tooltip": "%s", "class": [%s]}\n' "$text" "$tip" \
+  "$(for c in $cls; do printf '"%s",' "$c"; done | sed 's/,$//')"

@@ -1,0 +1,138 @@
+#!/usr/bin/python3
+"""Weather for the bar (after the clock), from wttr.in: free, no account needed.
+
+    weather                 the bar item (JSON); fetches at most every 15 minutes
+    weather refresh         fetch now
+    weather data            the cached forecast as JSON (for the weather panel)
+    weather location CITY   use a city instead of guessing from your internet address
+    weather location        back to automatic
+
+wttr.in guesses where you are from your internet address unless you set a city.
+"""
+import json
+import os
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+HOME = os.path.expanduser("~")
+CACHE = os.path.join(HOME, ".cache", "nameplate", "weather.json")
+LOCATION = os.path.join(HOME, ".config", "nameplate", "weather-location")
+OPEN_FILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "nameplate-panel-open")
+FRESH = 15 * 60          # seconds before fetching again
+KEEP = 3 * 3600          # show an old reading this long if the internet is down
+
+# wttr.in (WorldWeatherOnline) condition codes -> (day icon, night icon)
+SUN, MOON = "\U000F0599", "\U000F0594"
+PARTLY, PARTLY_NIGHT = "\U000F0595", "\U000F0F31"
+CLOUDY, FOG, RAIN, POURING = "\U000F0590", "\U000F0591", "\U000F0597", "\U000F0596"
+THUNDER, SNOW, SLEET = "\U000F067E", "\U000F0598", "\U000F067F"
+ICONS = {113: (SUN, MOON), 116: (PARTLY, PARTLY_NIGHT)}
+for codes, icon in (((119, 122), CLOUDY), ((143, 248, 260), FOG),
+                    ((176, 263, 266, 293, 296, 353), RAIN),
+                    ((299, 302, 305, 308, 356, 359), POURING),
+                    ((200, 386, 389, 392, 395), THUNDER),
+                    ((179, 182, 185, 281, 284, 311, 314, 317, 320, 350, 362, 365, 374, 377), SLEET),
+                    ((227, 230, 323, 326, 329, 332, 335, 338, 368, 371), SNOW)):
+    for code in codes:
+        ICONS[code] = (icon, icon)
+
+
+def icon(code, hour=None):
+    if hour is None:
+        hour = time.localtime().tm_hour
+    day, night = ICONS.get(int(code or 0), (CLOUDY, CLOUDY))
+    return night if hour < 6 or hour >= 18 else day
+
+
+def location():
+    try:
+        with open(LOCATION) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def cached():
+    try:
+        with open(CACHE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def fetch():
+    url = "https://wttr.in/%s?format=j1" % urllib.parse.quote(location())
+    req = urllib.request.Request(url, headers={"User-Agent": "curl/8 (hypr-nameplate)"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        data = json.load(r)
+    if not data.get("current_condition"):
+        raise ValueError("no current conditions")
+    entry = {"fetched": time.time(), "location": location(), "data": data}
+    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
+    tmp = CACHE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(entry, f)
+    os.replace(tmp, CACHE)
+    return entry
+
+
+def get(force=False):
+    entry = cached()
+    stale = (not entry or force or time.time() - entry.get("fetched", 0) > FRESH
+             or entry.get("location", "") != location())
+    if stale:
+        try:
+            entry = fetch()
+        except Exception:          # offline: keep showing the last reading for a while
+            if entry and time.time() - entry.get("fetched", 0) > KEEP:
+                entry = None
+    return entry
+
+
+def bar(entry):
+    if not entry:
+        print("")                  # nothing to show: the item hides
+        return
+    now = entry["data"]["current_condition"][0]
+    classes = []
+    try:
+        with open(OPEN_FILE) as f:
+            if f.read().split()[:1] == ["weather"]:
+                classes.append("open")
+    except OSError:
+        pass
+    print(json.dumps({"text": "%s  %s°" % (icon(now.get("weatherCode")), now.get("temp_C", "?")),
+                      "tooltip": now.get("weatherDesc", [{}])[0].get("value", ""),
+                      "class": classes}, ensure_ascii=False))
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else ""
+    if cmd == "":
+        bar(get())
+    elif cmd == "refresh":
+        bar(get(force=True))
+    elif cmd == "data":
+        print(json.dumps(get(force="--refresh" in args) or {}))
+    elif cmd == "location":
+        city = " ".join(args[1:]).strip()
+        os.makedirs(os.path.dirname(LOCATION), exist_ok=True)
+        if city:
+            with open(LOCATION, "w") as f:
+                f.write(city + "\n")
+        else:
+            try:
+                os.remove(LOCATION)
+            except OSError:
+                pass
+        get(force=True)
+        os.system("pkill -RTMIN+16 -x waybar")
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

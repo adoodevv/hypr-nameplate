@@ -35,6 +35,8 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("mako")
   hl.exec_cmd("hypridle")
   hl.exec_cmd(bin .. "battery-watch")
+  hl.exec_cmd(bin .. "screen-added --init")   -- screens already plugged in at login aren't "new"
+  hl.exec_cmd(bin .. "panel daemon")          -- keeps the panels ready, so bar clicks open instantly
   hl.exec_cmd("wl-paste --type text --watch cliphist store")    -- clipboard history
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
   hl.exec_cmd("playerctld daemon")   -- lets the bar control whichever player was used last
@@ -194,6 +196,9 @@ hl.bind(mod .. " + CTRL + N", hl.dsp.exec_cmd(bin .. "panel wifi"))
 hl.bind(mod .. " + CTRL + P", hl.dsp.exec_cmd(bin .. "panel power"))
 hl.bind(mod .. " + CTRL + V", hl.dsp.exec_cmd(bin .. "panel clipboard"))
 hl.bind(mod .. " + CTRL + E", hl.dsp.exec_cmd(bin .. "panel emoji"))
+hl.bind(mod .. " + CTRL + I", hl.dsp.exec_cmd(bin .. "stay-awake"))      -- no screensaver/lock (Omarchy's key)
+hl.bind(mod .. " + CTRL + L", hl.dsp.exec_cmd(bin .. "nightlight"))      -- warmer colours
+hl.bind(mod .. " + CTRL + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; pkill -RTMIN+13 waybar"))
 
 -- Notifications
 hl.bind(mod .. " + comma",          hl.dsp.exec_cmd("makoctl dismiss"))
@@ -319,8 +324,9 @@ hl.layer_rule({ name = "notify-blur",   match = { namespace = "notifications" },
 
 -- A new screen extends the desktop to the right (the monitor rule at the top).
 -- Point to SUPER + P for mirroring or using one screen.
+-- (bin/screen-added ignores the laptop screen being re-detected on wake-up or lid open)
 hl.on("monitor.added", function(m)
-  hl.exec_cmd("notify-send -a Display 'Screen connected' 'Press SUPER + P to mirror or change the layout'")
+  hl.exec_cmd(bin .. "screen-added")
 end)
 
 -- When a screen is unplugged, go back to the config's layout. This also brings the

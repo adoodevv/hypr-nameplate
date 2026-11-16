@@ -1,0 +1,214 @@
+#!/usr/bin/python3
+"""Fonts for hypr-nameplate (Menu -> Appearance -> Font).
+
+    font                   print the current font and terminal size
+    font list              Nerd Fonts installed (the ones with the icons the bar needs)
+    font set "FAMILY"      use a font for the terminal, bar, panels, launcher, notifications
+    font size N            terminal font size (Omarchy uses 9)
+    font more              fonts you can download
+    font install NAME      download one of those from the Nerd Fonts project
+    font refresh           put your choice back after the installer rewrote the configs
+
+Like Omarchy, the font also becomes your account's monospace font: fontconfig's
+"monospace" and GNOME's fixed-width font (code in the text editor, GNOME apps).
+Normal app text (menus, web pages) is left alone.
+"""
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HOME = os.path.expanduser("~")
+CFG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
+APP = os.path.join(CFG, "nameplate")
+STATE = os.path.join(APP, "font")
+SIZE_STATE = os.path.join(APP, "font-size")
+DEFAULT = "JetBrainsMono Nerd Font"
+DEFAULT_SIZE = "9"
+FONTS = os.path.join(HOME, ".local", "share", "fonts")
+
+# Files that name the font. Only the family name is swapped, sizes stay as they are.
+FILES = ["alacritty/alacritty.toml", "alacritty/screensaver.toml", "waybar/style.css",
+         "fuzzel/fuzzel.ini", "mako/config", "hypr/hyprlock.conf"]
+
+# Downloadable Nerd Fonts: release archive name -> family name it installs
+MORE = {
+    "CascadiaMono": "CaskaydiaMono Nerd Font",     # Omarchy's default
+    "FiraCode": "FiraCode Nerd Font",
+    "Hack": "Hack Nerd Font",
+    "GeistMono": "GeistMono Nerd Font",
+    "SourceCodePro": "SauceCodePro Nerd Font",
+    "UbuntuMono": "UbuntuMono Nerd Font",
+    "JetBrainsMono": "JetBrainsMono Nerd Font",
+}
+
+
+def read(path, default):
+    try:
+        with open(path) as f:
+            return f.read().strip() or default
+    except OSError:
+        return default
+
+
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write(text + "\n")
+
+
+def installed():
+    """Nerd Font families: their first name ends in "Nerd Font" (not the Mono / Propo cuts)."""
+    try:
+        out = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    names = set()
+    for line in out.splitlines():
+        for family in line.split(","):
+            family = family.strip()
+            if family.endswith(" Nerd Font"):
+                names.add(family)
+    return sorted(names, key=str.lower)
+
+
+def quiet(*args):
+    try:
+        subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def swap(old_names, new):
+    for rel in FILES:
+        path = os.path.join(CFG, rel)
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            continue
+        changed = text
+        for old in old_names:
+            if old != new:
+                # whole family name only, so "X Nerd Font" doesn't eat "X Nerd Font Mono"
+                changed = re.sub(re.escape(old) + r"(?! Mono| Propo)", new, changed)
+        if changed != text:
+            tmp = path + ".font-tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(changed)
+            os.replace(tmp, path)
+
+
+def set_size(size):
+    path = os.path.join(CFG, "alacritty/alacritty.toml")
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return
+    # the size line inside [font], not the screensaver's
+    text = re.sub(r"(\[font\][^\[]*?\nsize\s*=\s*)[\d.]+", lambda m: m.group(1) + "%.1f" % float(size), text, count=1)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+FONTCONFIG = os.path.join(CFG, "fontconfig", "conf.d", "60-hypr-nameplate-monospace.conf")
+GNOME_BEFORE = os.path.join(APP, "monospace-before")    # restored by uninstall.sh
+
+
+def system_monospace(family):
+    """Make FAMILY what "monospace" means for this user, as omarchy-font-set does."""
+    os.makedirs(os.path.dirname(FONTCONFIG), exist_ok=True)
+    with open(FONTCONFIG, "w") as f:
+        f.write(f"""<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<!-- Written by hypr-nameplate's font command (Menu -> Appearance -> Font) -->
+<fontconfig>
+  <match target="pattern">
+    <test name="family" qual="any"><string>monospace</string></test>
+    <edit name="family" mode="prepend_first" binding="strong"><string>{family}</string></edit>
+  </match>
+</fontconfig>
+""")
+    # GNOME apps name a font directly ("Ubuntu Sans Mono 13") rather than "monospace"
+    if not shutil.which("gsettings"):
+        return
+    key = ["org.gnome.desktop.interface", "monospace-font-name"]
+    try:
+        now = subprocess.run(["gsettings", "get", *key], capture_output=True, text=True,
+                             timeout=5).stdout.strip().strip("'")
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    if not now:
+        return
+    if not os.path.exists(GNOME_BEFORE):
+        write(GNOME_BEFORE, now)              # so uninstalling can put it back
+    m = re.search(r"\s(\d+(?:\.\d+)?)$", now)
+    quiet("gsettings", "set", *key, f"{family} {m.group(1) if m else '11'}")
+
+
+def reload():
+    quiet("pkill", "-SIGUSR2", "-x", "waybar")
+    quiet("makoctl", "reload")
+    quiet(os.path.join(APP, "bin", "panel"), "reload")
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else ""
+    family = read(STATE, DEFAULT)
+    size = read(SIZE_STATE, DEFAULT_SIZE)
+    if cmd == "":
+        print(f"{family}, terminal size {size}")
+    elif cmd == "list":
+        print("\n".join(installed()))
+    elif cmd == "set" and len(args) > 1:
+        new = args[1]
+        if new not in installed():
+            sys.exit(f"font: {new!r} isn't installed. Try: font list")
+        swap({family, DEFAULT}, new)
+        write(STATE, new)
+        system_monospace(new)
+        reload()
+        quiet("notify-send", "-a", "Font", "-t", "2000", f"Font: {new}")
+    elif cmd == "size" and len(args) > 1:
+        try:
+            if not 5 <= float(args[1]) <= 30:
+                raise ValueError
+        except ValueError:
+            sys.exit("font: size must be a number from 5 to 30")
+        set_size(args[1])
+        write(SIZE_STATE, args[1])
+    elif cmd == "more":
+        have = set(installed())
+        for archive, name in MORE.items():
+            if name not in have:
+                print(f"{archive}\t{name}")
+    elif cmd == "install" and len(args) > 1:
+        archive = args[1]
+        if archive not in MORE:
+            sys.exit("font: pick one of " + ", ".join(MORE))
+        url = f"https://github.com/ryanoasis/nerd-fonts/releases/latest/download/{archive}.tar.xz"
+        dest = os.path.join(FONTS, archive + "Nerd")
+        os.makedirs(dest, exist_ok=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            tar = os.path.join(tmp, archive + ".tar.xz")
+            print(f"Downloading {MORE[archive]}...")
+            if subprocess.run(["curl", "-fL", "--retry", "3", "-o", tar, url]).returncode != 0:
+                sys.exit("Download failed. Check your internet connection.")
+            # Just the regular "Nerd Font" cut; skip the Mono and Propo copies
+            subprocess.run(["tar", "-xJf", tar, "-C", dest, "--wildcards", "*NerdFont-*"])
+        subprocess.run(["fc-cache", "-f", dest])
+        print(f"Installed {MORE[archive]}. Pick it in Menu -> Appearance -> Font.")
+    elif cmd == "refresh":
+        swap({DEFAULT}, family)
+        set_size(size)
+        system_monospace(family)
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

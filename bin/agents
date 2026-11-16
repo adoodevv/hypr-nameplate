@@ -1,0 +1,446 @@
+#!/usr/bin/python3
+"""AI coding agents in the bar, like Omarchy's: Claude Code, Grok, Muse and opencode.
+
+    agents          the bar item (JSON): a robot, shown when either is installed
+    agents stats    today's and this week's use, and recent sessions, as JSON
+
+Everything comes from the history the apps keep on this computer (~/.claude/projects,
+~/.grok/sessions, ~/.local/share/muse, ~/.local/share/opencode). Nothing is sent anywhere, and no
+sign-in details are read, so plan limits aren't shown: use /usage inside the
+app for those. Results are cached in ~/.cache/nameplate/agents.json and only
+changed history files are read again, so it stays quick as history grows.
+"""
+import datetime
+import json
+import os
+import re
+import shutil
+import sqlite3
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+CLAUDE = Path(os.environ.get("CLAUDE_CONFIG_DIR") or HOME / ".claude")
+GROK = Path(os.environ.get("GROK_HOME") or HOME / ".grok")
+DATA = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share")
+MUSE = DATA / "muse"
+OPENCODE = DATA / "opencode"
+CACHE = HOME / ".cache" / "nameplate" / "agents.json"
+OPEN_FILE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "nameplate-panel-open"
+VERSION = 2
+# (key, name, command, where its history lives)
+AGENTS = (("claude", "Claude Code", "claude", CLAUDE), ("grok", "Grok", "grok", GROK),
+          ("muse", "Muse", "muse", MUSE), ("opencode", "opencode", "opencode", OPENCODE))
+
+
+def number(value):
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def local_day(stamp):
+    """An ISO time ('2026-11-15T23:10:04Z') or epoch seconds / ms / µs -> (local
+    'YYYY-MM-DD', epoch seconds)."""
+    if isinstance(stamp, str) and re.fullmatch(r"\d{9,20}(\.\d+)?", stamp.strip()):
+        stamp = float(stamp)
+    if isinstance(stamp, (int, float)) and not isinstance(stamp, bool) and stamp > 0:
+        seconds = stamp / 1e6 if stamp > 1e14 else stamp / 1e3 if stamp > 1e11 else stamp
+        try:
+            local = datetime.datetime.fromtimestamp(seconds).astimezone()
+        except (OverflowError, OSError, ValueError):
+            return None, None
+        return local.date().isoformat(), local.timestamp()
+    if not isinstance(stamp, str) or not stamp:
+        return None, None
+    try:
+        moment = datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None, None
+    if moment.tzinfo is None:
+        moment = moment.astimezone()
+    local = moment.astimezone()
+    return local.date().isoformat(), local.timestamp()
+
+
+def prompt_text(message):
+    """What you typed, for a Claude Code user line that is a real prompt (not a
+    tool result or one of Claude Code's own notes); None otherwise."""
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
+            return None
+        text = next((b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"), "")
+    else:
+        return None
+    text = text.strip()
+    if not text or text.startswith(("<command-", "<local-command", "Caveat:", "[Request interrupted")):
+        return None
+    return text
+
+
+def read_claude_file(path):
+    """One Claude Code transcript (one session): tokens and prompts by day, by model."""
+    days, models, seen = {}, {}, set()
+    session = {"id": path.stem, "cwd": "", "title": "", "last": 0.0, "tokens": 0}
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if '"timestamp"' not in line:
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            day, moment = local_day(entry.get("timestamp"))
+            if not day:
+                continue
+            session["cwd"] = entry.get("cwd") or session["cwd"]
+            session["last"] = max(session["last"], moment)
+            message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+            kind = entry.get("type")
+            if kind == "user" and not (entry.get("isMeta") or entry.get("isSidechain")):
+                text = prompt_text(message)
+                if text:
+                    days.setdefault(day, [0, 0])[1] += 1
+                    if not session["title"]:
+                        session["title"] = " ".join(text.split())[:80]
+            elif kind == "assistant":
+                usage = message.get("usage")
+                # one reply is written as several lines (one per content block): count it once
+                key = message.get("id") or entry.get("requestId") or entry.get("uuid")
+                if not isinstance(usage, dict) or key in seen:
+                    continue
+                seen.add(key)
+                tokens = sum(number(usage.get(k)) for k in (
+                    "input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+                model = str(message.get("model") or "")
+                if not tokens or model in ("", "<synthetic>"):
+                    continue
+                days.setdefault(day, [0, 0])[0] += tokens
+                models.setdefault(day, {}).setdefault(model, 0)
+                models[day][model] += tokens
+                session["tokens"] += tokens
+    return [{"days": days, "models": models, "session": session}]
+
+
+def read_grok_session(folder):
+    """One Grok session folder: summary.json and usage.json (Grok's own ledger)."""
+    days, models = {}, {}
+    session = {"id": folder.name, "cwd": "", "title": "", "last": 0.0, "tokens": 0}
+    try:
+        summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        summary = {}
+    if not isinstance(summary, dict):
+        summary = {}
+    subagent = str(summary.get("session_kind") or "").startswith("subagent")
+    session["title"] = str(summary.get("title") or summary.get("name") or "")[:80]
+    session["cwd"] = str(summary.get("cwd") or summary.get("working_directory") or "")
+    _, moment = local_day(summary.get("last_active_at"))
+    session["last"] = moment or 0.0
+    try:
+        usage = json.loads((folder / "usage.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        usage = {}
+    turns = usage.get("turns") if isinstance(usage, dict) else None
+    for turn in turns if isinstance(turns, list) else []:
+        if not isinstance(turn, dict):
+            continue
+        day, moment = local_day(turn.get("endedAt"))
+        if not day:
+            continue
+        session["last"] = max(session["last"], moment)
+        if not subagent:
+            days.setdefault(day, [0, 0])[1] += 1
+        model_usage = turn.get("modelUsage") if isinstance(turn.get("modelUsage"), dict) else {}
+        for model, b in model_usage.items():
+            if not isinstance(b, dict):
+                continue
+            # Grok's inputTokens already include the cached part
+            tokens = number(b.get("inputTokens")) + number(b.get("outputTokens")) + number(b.get("cacheCreationTokens"))
+            days.setdefault(day, [0, 0])[0] += tokens
+            models.setdefault(day, {}).setdefault(model, 0)
+            models[day][model] += tokens
+            session["tokens"] += tokens
+    if subagent:
+        session["last"] = 0.0          # don't list a helper as one of your sessions
+    return [{"days": days, "models": models, "session": session}]
+
+
+def add(part, day, model, tokens, prompts=0):
+    if not day or not (tokens or prompts):
+        return
+    part["days"].setdefault(day, [0, 0])
+    part["days"][day][0] += tokens
+    part["days"][day][1] += prompts
+    if tokens and model:
+        part["models"].setdefault(day, {}).setdefault(model, 0)
+        part["models"][day][model] += tokens
+    part["session"]["tokens"] += tokens
+
+
+def new_part(session_id, title=""):
+    return {"days": {}, "models": {}, "session": {"id": session_id, "cwd": "", "title": title,
+                                                  "last": 0.0, "tokens": 0}}
+
+
+def muse_events(path):
+    """Payloads in a Muse session log, including ones wrapped in retained frames."""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for raw in f:
+            if "usage" not in raw and "model_id" not in raw:
+                continue
+            try:
+                entry = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            found = [entry]
+            for child in entry.get("children") or []:
+                if isinstance(child, dict) and child.get("record_json"):
+                    try:
+                        found.append(json.loads(child["record_json"]))
+                    except (TypeError, ValueError):
+                        pass
+            for event in found:
+                if isinstance(event, dict) and isinstance(event.get("payload"), dict):
+                    yield event["payload"], event.get("recorded_at"), event.get("id")
+
+
+def read_muse_session(folder):
+    """One Muse session folder: its session.jsonl, and its helpers' under subagent/."""
+    part = new_part(folder.name, "Muse session")
+    seen = set()
+    for path in [folder / "session.jsonl", *sorted((folder / "subagent").rglob("session.jsonl"))]:
+        if not path.is_file() or path.is_symlink():
+            continue
+        model = ""
+        for payload, recorded, event_id in muse_events(path):
+            record = payload.get("record") if isinstance(payload.get("record"), dict) else {}
+            if payload.get("kind") in ("metadata", "run_model"):
+                model = str(record.get("model_id") or model)
+                continue
+            event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
+            if payload.get("kind") not in ("run", None) or event.get("kind") != "model_completed":
+                continue
+            if event_id and event_id in seen:
+                continue
+            seen.add(event_id)
+            usage = event.get("usage") if isinstance(event.get("usage"), dict) else {}
+            # cached tokens are part of input_tokens
+            tokens = number(usage.get("input_tokens")) + number(usage.get("output_tokens"))
+            day, moment = local_day(recorded)
+            if day:
+                part["session"]["last"] = max(part["session"]["last"], moment)
+            add(part, day, str(event.get("model") or model), tokens)
+    # Muse's own index has the real prompt counts
+    try:
+        db = sqlite3.connect((MUSE / "session-index.db").resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+        try:
+            for created, prompts in db.execute("SELECT created_at_us, prompt_count FROM sessions WHERE session_id = ?",
+                                               (folder.name,)):
+                add(part, local_day(created)[0], "", 0, number(prompts))
+        finally:
+            db.close()
+    except sqlite3.Error:
+        pass
+    return [part]
+
+
+def read_opencode(db_path):
+    """opencode's database: one part per session. It has changed shape between
+    versions, so this reads whichever tables are there and skips what it can't."""
+    parts = {}
+    db = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    try:
+        tables = {n for (n,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        cols = lambda t: {r[1] for r in db.execute("PRAGMA table_info(%s)" % t)}
+        helpers = set()
+        if "session" in tables:
+            c = cols("session")
+            picks = [x for x in ("id", "title", "directory", "parent_id") if x in c]
+            if "id" in picks:
+                for row in db.execute("SELECT %s FROM session" % ", ".join(picks)):
+                    info = dict(zip(picks, row))
+                    if info.get("parent_id"):
+                        helpers.add(str(info["id"]))     # a subagent: tokens yes, not your session
+                    part = parts.setdefault(str(info["id"]), new_part(str(info["id"])))
+                    part["session"]["title"] = str(info.get("title") or "")[:80]
+                    part["session"]["cwd"] = str(info.get("directory") or "")
+        if "session_message" in tables and {"session_id", "type", "data"} <= cols("session_message"):
+            rows = db.execute("SELECT session_id, type, data FROM session_message")
+        elif "message" in tables and {"session_id", "data"} <= cols("message"):
+            rows = ((sid, None, data) for sid, data in db.execute("SELECT session_id, data FROM message"))
+        else:
+            rows = []
+        for sid, kind, raw in rows:
+            try:
+                data = json.loads(raw) if isinstance(raw, str) else {}
+            except ValueError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            role = kind or data.get("role")
+            t = data.get("time") if isinstance(data.get("time"), dict) else {}
+            day, moment = local_day(t.get("created"))
+            part = parts.setdefault(str(sid), new_part(str(sid)))
+            if moment:
+                part["session"]["last"] = max(part["session"]["last"], moment)
+            if role == "user" and not data.get("synthetic") and str(sid) not in helpers:
+                add(part, day, "", 0, 1)
+            elif role == "assistant":
+                tk = data.get("tokens") if isinstance(data.get("tokens"), dict) else {}
+                cache = tk.get("cache") if isinstance(tk.get("cache"), dict) else {}
+                tokens = sum(number(tk.get(k)) for k in ("input", "output", "reasoning")) + \
+                    number(cache.get("read")) + number(cache.get("write"))
+                add(part, day, str(data.get("modelID") or ""), tokens)
+        for sid in helpers:
+            if sid in parts:
+                parts[sid]["session"]["last"] = 0.0
+    finally:
+        db.close()
+    return list(parts.values())
+
+
+def sources():
+    """(agent, key, path, stamp, reader) for every history file or folder."""
+    out = []
+    projects = CLAUDE / "projects"
+    if projects.is_dir():
+        for path in projects.rglob("*.jsonl"):
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            out.append(("claude", str(path), path, [st.st_size, st.st_mtime_ns], read_claude_file))
+    sessions = GROK / "sessions"
+    if sessions.is_dir():
+        for folder in sessions.glob("*/*/"):
+            stamp = []
+            for name in ("summary.json", "usage.json"):
+                try:
+                    st = (folder / name).stat()
+                    stamp += [st.st_size, st.st_mtime_ns]
+                except OSError:
+                    stamp += [0, 0]
+            out.append(("grok", str(folder), folder, stamp, read_grok_session))
+    sessions = MUSE / "sessions"
+    if sessions.is_dir():
+        for path in sessions.rglob("session.jsonl"):
+            rel = path.relative_to(sessions).parts
+            if "subagent" in rel or any(p.startswith(".msp-view") for p in rel):
+                continue            # helpers are read with their session; views are copies
+            folder = path.parent
+            stamp = []
+            for f in [path, *(folder / "subagent").rglob("session.jsonl")]:
+                try:
+                    st = f.stat()
+                    stamp += [st.st_size, st.st_mtime_ns]
+                except OSError:
+                    pass
+            out.append(("muse", str(folder), folder, stamp, read_muse_session))
+    for name in ("opencode.db", "opencode-v2.db"):
+        db = OPENCODE / name
+        if db.is_file():
+            stamp = []
+            for f in (db, Path(str(db) + "-wal")):
+                try:
+                    st = f.stat()
+                    stamp += [st.st_size, st.st_mtime_ns]
+                except OSError:
+                    pass
+            out.append(("opencode", str(db), db, stamp, read_opencode))
+            break
+    return out
+
+
+def collect():
+    try:
+        cache = json.loads(CACHE.read_text())
+        if cache.get("version") != VERSION:
+            cache = {}
+    except (OSError, ValueError):
+        cache = {}
+    old = cache.get("files", {})
+    files = {}
+    for agent, key, path, stamp, reader in sources():
+        known = old.get(key)
+        if known and known.get("stamp") == stamp:
+            files[key] = known
+            continue
+        try:
+            files[key] = {"agent": agent, "stamp": stamp, "parts": reader(path)}
+        except (OSError, sqlite3.Error):
+            continue
+    try:
+        CACHE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = CACHE.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"version": VERSION, "files": files}))
+        os.replace(tmp, CACHE)
+    except OSError:
+        pass
+    return files
+
+
+def summarise(files):
+    today = datetime.date.today()
+    week = [(today - datetime.timedelta(days=n)).isoformat() for n in range(6, -1, -1)]
+    agents = {}
+    for agent, name, command, home in AGENTS:
+        if not (shutil.which(command) or home.exists()):
+            continue
+        by_day = {d: [0, 0] for d in week}
+        models, sessions_today, sessions = {}, set(), []
+        for f in (part for entry in files.values() if entry["agent"] == agent for part in entry["parts"]):
+            s = f["session"]
+            for day, (tokens, prompts) in f["days"].items():
+                if day in by_day:
+                    by_day[day][0] += tokens
+                    by_day[day][1] += prompts
+                if day == week[-1] and (tokens or prompts) and s["last"]:   # not Grok's helpers
+                    sessions_today.add(s["id"])
+            for day, per_model in f["models"].items():
+                if day in by_day:
+                    for model, tokens in per_model.items():
+                        models[model] = models.get(model, 0) + tokens
+            if s["last"]:
+                sessions.append(s)
+        sessions.sort(key=lambda s: -s["last"])
+        agents[agent] = {
+            "name": name,
+            "command": command if shutil.which(command) else "",
+            "today": {"tokens": by_day[week[-1]][0], "prompts": by_day[week[-1]][1],
+                      "sessions": len(sessions_today)},
+            "week": [{"date": d, "tokens": by_day[d][0], "prompts": by_day[d][1]} for d in week],
+            "top_model": max(models, key=models.get) if models else "",
+            "recent": sessions[:4],
+        }
+    return agents
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "":
+        if not any(shutil.which(command) or home.exists() for _, _, command, home in AGENTS):
+            print("")                       # neither installed: the item hides
+            return
+        try:
+            is_open = OPEN_FILE.read_text().split()[:1] == ["agents"]
+        except OSError:
+            is_open = False
+        print(json.dumps({"text": "\U000F06A9", "tooltip": "", "class": ["open"] if is_open else []},
+                         ensure_ascii=False))
+    elif cmd == "stats":
+        print(json.dumps(summarise(collect())))
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()

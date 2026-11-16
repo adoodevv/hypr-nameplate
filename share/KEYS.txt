@@ -14,6 +14,9 @@
     SUPER + CTRL + S        Start the screensaver now
     SUPER + CTRL + SPACE    Next wallpaper (double-click the desktop to pick one)
     SUPER + CTRL + SHIFT + SPACE   Colour theme (Gruvbox, Nord, Catppuccin... 23 of them)
+    SUPER + CTRL + I        Stay awake: no screensaver or lock (a cup shows in the bar)
+    SUPER + CTRL + L        Night light: warmer screen colours
+    SUPER + CTRL + M        Mute or unmute the microphone
     SUPER + P               Screens: extend, mirror or one screen (projector)
 
   WINDOWS

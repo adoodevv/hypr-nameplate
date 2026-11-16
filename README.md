@@ -35,7 +35,9 @@ bash install.sh --name yourname
 | **Emoji picker** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>E</kbd>: search by name or everyday words ("laugh", "thanks"); recent ones first. |
 | **Screen recording** | <kbd>Alt</kbd> + <kbd>Print</kbd> for a region, add <kbd>Shift</kbd> for the whole screen or <kbd>Ctrl</kbd> for the whole screen with your microphone. Same keys or the red dot in the bar stop it. Saved as .mp4 in `~/Videos/Screencasts`. |
 | **Notifications** | <kbd>Super</kbd> + <kbd>,</kbd> dismisses, add <kbd>Shift</kbd> for all, <kbd>Alt</kbd> to bring the last one back, <kbd>Ctrl</kbd> for do not disturb. |
+| **Top bar extras** | Like Omarchy's bar: **stay awake** (a cup; no screensaver or lock), **night light** (warmer colours, via hyprsunset) and **do not disturb** sit before the clock: dim when off, lit when on, click to switch. The recording dot joins them while you record. After the clock: **weather** (from wttr.in; click for the next hours and days, or set your city) and **updates**, which appears only when Ubuntu has some waiting. On the right, an **AI agents** robot when Claude Code, Grok, Muse or opencode is installed: click it for today's tokens and prompts, the week at a glance, the model you use most, and your recent sessions (click one to pick it back up). It reads only the history they keep on your computer. Then the **microphone** (click to mute). The bar item whose panel is open gets an accent line under it. |
 | **Themes** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> (or Menu → Appearance → Theme): Omarchy's 23 colour themes, including Tokyo Night, Catppuccin, Gruvbox, Nord, Rosé Pine, Everforest, Kanagawa and a few light ones. The bar, panels, terminal, notifications, launcher, window borders and lock screen all switch at once, and so does the wallpaper if you downloaded Omarchy's collection. GNOME is not touched (except the terminal, which both share). |
+| **Fonts** | Menu → Appearance → Font: switch the terminal, bar, panels, launcher and notifications to any installed Nerd Font, set the terminal size (9 by default, like Omarchy), or download a few popular ones (Caskaydia Mono, Fira Code, Hack, Geist Mono, Source Code Pro, Ubuntu Mono). Like Omarchy, it also becomes your account's monospace font, so code in GNOME apps and anything asking for "monospace" follows it, on GNOME too (the uninstaller puts the old one back). |
 | **Wallpapers** | Double-click the desktop for a picker; <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd> for the next one. Drop your own images in `~/Pictures/Wallpapers`. The installer can also download Omarchy's artwork (74 images) straight from Omarchy's repository, leaving out the ones that only show its name or logo. |
 
 ![The screensaver](docs/screenshots/screensaver.gif)
@@ -117,6 +119,9 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | Super + L | Lock |
 | Super + Ctrl + S | Start the screensaver now |
 | Super + Ctrl + Shift + Space | Colour theme |
+| Super + Ctrl + I | Stay awake (no screensaver or lock) |
+| Super + Ctrl + L | Night light |
+| Super + Ctrl + M | Mute the microphone |
 | Super + Ctrl + Space | Next wallpaper |
 | Super + P | Screens: extend, mirror, one screen |
 | Super + Ctrl + A / B / N / P | Sound, Bluetooth, network, power panels |

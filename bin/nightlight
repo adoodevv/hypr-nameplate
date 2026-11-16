@@ -1,0 +1,21 @@
+#!/bin/bash
+# Night light: warmer screen colours (hyprsunset, Hyprland's blue-light filter).
+#   nightlight          turn it on or off
+#   nightlight 3500     on, at that colour temperature (lower is warmer; default 4000)
+# Screenshots and recordings aren't tinted.
+temp_file="$HOME/.config/nameplate/nightlight-temperature"
+if ! command -v hyprsunset >/dev/null; then
+  notify-send -a "Night light" "Night light needs hyprsunset" "Install it with: sudo apt install hyprsunset"
+  exit 1
+fi
+if [[ $1 =~ ^[0-9]+$ ]]; then
+  echo "$1" >"$temp_file"
+  pkill -x hyprsunset
+elif pgrep -x hyprsunset >/dev/null; then
+  pkill -x hyprsunset
+  pkill -RTMIN+14 -x waybar
+  exit 0
+fi
+temp=$(cat "$temp_file" 2>/dev/null)
+setsid -f hyprsunset --temperature "${temp:-4000}" >/dev/null 2>&1
+pkill -RTMIN+14 -x waybar

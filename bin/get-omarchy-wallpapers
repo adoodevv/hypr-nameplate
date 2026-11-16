@@ -28,7 +28,7 @@ for dir in "$tmp"/omarchy/themes/*/backgrounds; do
   for img in "$dir"/*; do
     [[ -f $img ]] || continue
     branded "$img" && continue
-    cp -n "$img" "$dest/$theme/" && count=$((count + 1))
+    [[ -e $dest/$theme/${img##*/} ]] || { cp "$img" "$dest/$theme/" && count=$((count + 1)); }
   done
 done
 echo "Added $count wallpapers to $dest"

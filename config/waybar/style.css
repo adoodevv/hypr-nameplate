@@ -41,67 +41,102 @@ tooltip {
   padding: 0 14px 0 16px;
 }
 
+/* Workspaces the Omarchy way: numbers, a square on the one you're on,
+   empty ones faded, all in the normal text colour */
 #workspaces button {
-  color: @fg_dim;
-  padding: 0 9px;
+  color: @fg;
+  padding: 0 6px;
+  margin: 0 1.5px;
+  min-width: 9px;
   background: transparent;
   box-shadow: none;
 }
-#workspaces button.empty { color: @muted; }
-#workspaces button.visible,
-#workspaces button.active { color: @accent; box-shadow: inset 0 -2px @accent; }
+#workspaces button.empty { opacity: 0.5; }
+#workspaces button.active { opacity: 1; }
 #workspaces button.urgent { color: @red; }
-#workspaces button:hover { background: @hover; color: @fg_bright; }
+#workspaces button:hover { background-color: @hover; color: @fg_bright; }
 
-#clock { color: @fg_bright; font-weight: 700; }
+#custom-clock { color: @fg_bright; font-weight: 700; }
 
-#tray, #bluetooth, #network, #pulseaudio, #battery, #custom-power, #custom-sound {
+#tray, #custom-bluetooth, #custom-network, #pulseaudio, #custom-battery, #custom-power, #custom-sound {
   padding: 0 11px;
 }
 
-#network.disconnected,
+#custom-network.disconnected,
 #pulseaudio.muted,
-#bluetooth.off, #bluetooth.disabled { color: @fg_dim; }
+#custom-bluetooth.off, #custom-bluetooth.disabled { color: @fg_dim; }
 
-#battery.charging, #battery.plugged { color: @green; }
-#battery.warning:not(.charging) { color: @yellow; }
-#battery.critical:not(.charging) { color: @red; }
+#custom-battery.charging, #custom-battery.plugged { color: @green; }
+#custom-battery.warning:not(.charging) { color: @yellow; }
+#custom-battery.critical:not(.charging) { color: @red; }
 
 #custom-power { color: @red; padding-right: 16px; }
 
-#custom-logo:hover, #clock:hover, #network:hover, #pulseaudio:hover,
-#bluetooth:hover, #battery:hover, #custom-power:hover {
-  background: @hover;
+#custom-logo:hover, #custom-clock:hover, #custom-network:hover, #pulseaudio:hover,
+#custom-bluetooth:hover, #custom-battery:hover, #custom-power:hover {
+  background-color: @hover;
 }
 
 /* Music icon beside the clock while something plays */
 #custom-media { color: @accent; padding: 0 10px; }
 #custom-media.paused { color: @fg_dim; }
-#custom-media:hover { background: @hover; }
+#custom-media:hover { background-color: @hover; }
 
 /* Volume and brightness: one item */
 #custom-sound { padding: 0 11px; }
 #custom-sound.muted { color: @fg_dim; }
-#custom-sound:hover { background: @hover; }
-#network.disabled { color: @fg_dim; }
+#custom-sound:hover { background-color: @hover; }
+#custom-network.disabled { color: @fg_dim; }
 
 /* Recent Waybar versions put the hover state on a box around custom modules,
    not on the module itself; match both so custom items highlight like Wi-Fi. */
 box:hover > #custom-logo, box:hover > #custom-sound, box:hover > #custom-media,
-box:hover > #custom-power { background: @hover; }
+box:hover > #custom-power, box:hover > #custom-network, box:hover > #custom-bluetooth,
+box:hover > #custom-battery, box:hover > #custom-mic, box:hover > #custom-weather,
+box:hover > #custom-updates, box:hover > #custom-awake, box:hover > #custom-nightlight,
+box:hover > #custom-agents, #custom-agents:hover,
+#custom-mic:hover, #custom-weather:hover, #custom-updates:hover,
+#custom-awake:hover, #custom-nightlight:hover { background-color: @hover; }
 
 /* Clock and music icon: one item with one hover highlight, padded like the others */
-#datetime:hover { background: @hover; }
-#datetime #clock { padding: 0; }
+#datetime:hover { background-color: @hover; }
+#datetime #custom-clock { padding: 0; }
 /* Nerd Font icons draw a little wider than the space Waybar measures for them;
    room on the right stops the music icon being clipped */
 #datetime #custom-media { padding: 0 3px 0 10px; }
 #datetime { padding: 0 11px; }
-#datetime #clock:hover, #datetime #custom-media:hover,
-#datetime box:hover > #custom-media { background: transparent; }
+#datetime #custom-clock:hover, #datetime #custom-media:hover,
+#datetime box:hover > #custom-media, #datetime box:hover > #custom-clock { background-color: transparent; }
 
 /* Recording dot and do-not-disturb bell (only shown while active) */
 #custom-recording { color: @red; padding: 0 10px; }
-#custom-dnd { color: @yellow; padding: 0 10px; }
+#custom-dnd { color: @yellow; padding: 0 8px; }
 box:hover > #custom-recording, box:hover > #custom-dnd,
-#custom-recording:hover, #custom-dnd:hover { background: @hover; }
+#custom-recording:hover, #custom-dnd:hover { background-color: @hover; }
+
+/* Toggles before the clock: dim when off, lit when on. Click to switch. */
+#custom-awake { color: @accent; padding: 0 8px; }
+#custom-nightlight { color: @yellow; padding: 0 8px; }
+#custom-awake.off, #custom-nightlight.off, #custom-dnd.off { color: @fg_dim; }
+
+/* After the clock: weather, and updates when Ubuntu has some waiting */
+#custom-weather { padding: 0 11px; }
+#custom-updates { color: @green; padding: 0 11px; }
+
+/* AI agents (Claude Code, Grok): click for today's use and recent sessions */
+#custom-agents { padding: 0 11px; }
+
+/* Microphone: dim while on, red when muted */
+#custom-mic { color: @fg_dim; padding: 0 11px; }
+#custom-mic.muted { color: @red; }
+
+/* The item whose panel is open gets a short accent line under it, like Omarchy.
+   bin/panel tells the bar which one; see bin/bar-status. */
+#custom-logo.open, #custom-clock.open, #custom-network.open, #custom-bluetooth.open,
+#custom-sound.open, #custom-battery.open, #custom-power.open, #custom-weather.open,
+#custom-agents.open {
+  background-image: linear-gradient(@accent, @accent);
+  background-size: 16px 2px;
+  background-position: 50% 88%;
+  background-repeat: no-repeat;
+}

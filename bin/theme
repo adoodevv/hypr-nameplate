@@ -271,6 +271,7 @@ def apply(name, keep_wallpaper=False, announce=True):
     # Live reloads; Alacritty notices its config changed by itself
     quiet("pkill", "-SIGUSR2", "-x", "waybar")
     quiet("makoctl", "reload")
+    quiet(os.path.join(APP, "bin", "panel"), "reload")
     if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
         quiet("hyprctl", "reload")
     if not keep_wallpaper:

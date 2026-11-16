@@ -1,0 +1,30 @@
+#!/bin/bash
+# Called when Hyprland adds a screen. Hyprland also "adds" the laptop's own screen when it
+# starts, wakes up, or the lid opens, so only say something for an external screen that's
+# still there a moment later and that we haven't already announced.
+#   screen-added --init   remember what's connected now (at login)
+seen="${XDG_RUNTIME_DIR:-/tmp}/nameplate-screens"
+
+external() {
+  hyprctl -j monitors all 2>/dev/null | python3 -c '
+import json, sys
+try:
+    screens = json.load(sys.stdin)
+except ValueError:
+    screens = []
+for m in screens:
+    if not m["name"].startswith(("eDP", "LVDS", "DSI", "HEADLESS", "FALLBACK")):
+        print(m["name"])' | sort
+}
+
+if [[ $1 == --init ]]; then
+  external >"$seen"
+  exit 0
+fi
+
+sleep ${NAMEPLATE_SETTLE:-2}                                   # let a wake-up or a flaky cable settle
+now=$(external)
+new=$(comm -13 "$seen" <(echo "$now") 2>/dev/null | grep .)
+echo "$now" >"$seen"                      # unplugged screens drop out, so re-plugging announces again
+[[ -n $new ]] && notify-send -a Display "Screen connected" "Press SUPER + P to mirror or change the layout"
+exit 0

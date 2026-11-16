@@ -1,0 +1,7 @@
+#!/bin/bash
+# Install Ubuntu's waiting updates in a small terminal (the updates item in the bar)
+exec alacritty --class nameplate-float --title "Updates" -e bash -c '
+  sudo apt update && sudo apt full-upgrade
+  command -v snap >/dev/null && sudo snap refresh
+  pkill -RTMIN+15 -x waybar
+  echo; read -n 1 -s -r -p "Done. Press any key to close."'

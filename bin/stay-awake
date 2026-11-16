@@ -1,0 +1,12 @@
+#!/bin/bash
+# Stay awake: stop the screensaver, lock and screen-off from kicking in (Omarchy's
+# "idle lock" toggle). It pauses hypridle; run again, or click the cup in the bar, to undo.
+# Closing the lid still suspends as usual.
+if pgrep -x hypridle >/dev/null; then
+  pkill -x hypridle
+  notify-send -a "Stay awake" -t 3000 "Staying awake" "No screensaver, lock or screen-off until you click the cup in the bar"
+else
+  setsid -f hypridle >/dev/null 2>&1
+  notify-send -a "Stay awake" -t 2000 "Screensaver and lock back on"
+fi
+pkill -RTMIN+14 -x waybar

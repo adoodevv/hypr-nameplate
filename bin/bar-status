@@ -1,0 +1,151 @@
+#!/bin/bash
+# Bar items that open a panel (Waybar custom modules, JSON output):
+#   bar-status logo | power | network | bluetooth | battery | clock
+# Each adds the "open" class while its panel is showing, which draws the accent
+# line under it (style.css). bin/panel writes which panel is open and sends the bar
+# signal 12, so the line appears at once. The clock runs continuously instead.
+
+open_file="${XDG_RUNTIME_DIR:-/tmp}/nameplate-panel-open"
+
+is_open() {           # is_open PANEL [ROUTE]
+  local kind="" route=""
+  [[ -r $open_file ]] && read -r kind route <"$open_file"
+  [[ $kind == "$1" && $route == "${2:-}" ]]
+}
+
+emit() {              # emit TEXT TOOLTIP CLASS... (classes may be empty)
+  local text=$1 tip=$2 classes="" c
+  shift 2
+  for c in "$@"; do [[ -n $c ]] && classes+="\"$c\","; done
+  printf '{"text": "%s", "tooltip": "%s", "class": [%s]}\n' "$text" "$tip" "${classes%,}"
+}
+
+mark() { is_open "$@" && echo open; }
+
+case $1 in
+  logo)
+    name=$(cat "$HOME/.config/nameplate/name" 2>/dev/null)
+    emit "${name:-menu}" "" "$(mark menu)"
+    ;;
+
+  power)
+    emit "󰐥" "" "$(mark menu system)"
+    ;;
+
+  network)
+    icons=(󰤯 󰤟 󰤢 󰤥 󰤨)
+    if nmcli -t -f TYPE,STATE dev 2>/dev/null | grep -q '^ethernet:connected'; then
+      emit "󰈀" "" ethernet "$(mark wifi)"
+    elif [[ $(nmcli radio wifi 2>/dev/null) != enabled ]]; then
+      emit "󰖪" "" disabled "$(mark wifi)"
+    else
+      signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi list --rescan no 2>/dev/null | awk -F: '$1 == "*" { print $2; exit }')
+      if [[ -n $signal ]]; then
+        level=$(( signal >= 80 ? 4 : signal >= 60 ? 3 : signal >= 40 ? 2 : signal >= 20 ? 1 : 0 ))
+        emit "${icons[$level]}" "" wifi "$(mark wifi)"
+      elif nmcli -t -f TYPE,STATE dev 2>/dev/null | grep -q '^wifi:connecting'; then
+        emit "󰤫" "" linked "$(mark wifi)"
+      else
+        emit "󰤮" "" disconnected "$(mark wifi)"
+      fi
+    fi
+    ;;
+
+  bluetooth)
+    show=$(timeout 3 bluetoothctl show 2>/dev/null)
+    [[ -z $show ]] && { echo; exit 0; }             # no Bluetooth adapter: hide the item
+    if ! grep -q "Powered: yes" <<<"$show"; then
+      emit "󰂲" "" off "$(mark bluetooth)"
+    elif [[ -n $(timeout 3 bluetoothctl devices Connected 2>/dev/null) ]]; then
+      emit "󰂱" "" connected "$(mark bluetooth)"
+    else
+      emit "󰂯" "" on "$(mark bluetooth)"
+    fi
+    ;;
+
+  battery)
+    bat=$(ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1)
+    [[ -z $bat ]] && { echo; exit 0; }              # a desktop: hide the item
+    level=$(<"$bat/capacity") status=$(<"$bat/status")
+    icons=(󰁺 󰁺 󰁻 󰁼 󰁽 󰁾 󰁿 󰂀 󰂁 󰂂 󰁹)
+    state=""
+    (( level <= 25 )) && state=warning
+    (( level <= 10 )) && state=critical
+    case $status in
+      Charging) emit "󰂄" "" charging "$(mark power)" ;;
+      Full|"Not charging") emit "󰚥" "" plugged "$(mark power)" ;;
+      *) emit "${icons[level / 10]}" "" "$state" "$(mark power)" ;;
+    esac
+    ;;
+
+  clock)
+    # Runs for as long as the bar does: prints when the minute or the calendar's
+    # open state changes. Cheap: bash built-ins plus a short sleep.
+    last=""
+    while :; do
+      printf -v now '%(%a %d %b   %H:%M)T' -1
+      kind="" route=""
+      [[ -r $open_file ]] && read -r kind route <"$open_file"
+      cls=""
+      [[ $kind == calendar ]] && cls=open
+      line="$now|$cls"
+      if [[ $line != "$last" ]]; then
+        emit "$now" "" "$cls" || exit 0              # the bar went away
+        last=$line
+      fi
+      sleep 0.4
+    done
+    ;;
+
+  awake)              # coffee cup: lit while "stay awake" is on (hypridle paused)
+    if [[ -n $HYPRLAND_INSTANCE_SIGNATURE ]] && ! pgrep -x hypridle >/dev/null; then
+      emit "󰅶" "Staying awake: no screensaver or lock. Click to turn off" on
+    else
+      emit "󰅶" "Stay awake: click to keep the screensaver and lock away" off
+    fi
+    ;;
+
+  nightlight)         # half-light circle (Omarchy's): lit while night light is on
+    if pgrep -x hyprsunset >/dev/null; then
+      emit "󰔎" "Night light is on. Click to turn it off" on
+    else
+      emit "󰔎" "Night light: click for warmer screen colours" off
+    fi
+    ;;
+
+  dnd)                # bell: crossed out and lit while do-not-disturb is on
+    if makoctl mode 2>/dev/null | grep -qx do-not-disturb; then
+      emit "󰂛" "Do not disturb is on. Click to turn it off" on
+    else
+      emit "󰂚" "Do not disturb: click to silence notifications" off
+    fi
+    ;;
+
+  mic)
+    raw=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null)
+    if [[ -z $raw ]]; then
+      echo                                          # no microphone
+    elif [[ $raw == *MUTED* ]]; then
+      emit "󰍭" "Microphone muted. Click to unmute" muted
+    else
+      emit "󰍬" "Microphone on. Click to mute" on
+    fi
+    ;;
+
+  updates)            # only when Ubuntu has updates waiting (apt refreshes its list daily)
+    # Count what an upgrade would really install now. "apt list --upgradable" also
+    # lists Ubuntu's phased updates, which roll out gradually and get held back,
+    # so that count wouldn't drop after updating.
+    n=$(apt-get -s -o Debug::NoLocking=true full-upgrade 2>/dev/null | grep -c '^Inst ')
+    if (( n > 0 )); then
+      emit "󰚰 $n" "$n update$( ((n > 1)) && echo s) waiting. Click to install" waiting
+    else
+      echo
+    fi
+    ;;
+
+  *)
+    echo "usage: bar-status logo|power|network|bluetooth|battery|clock|awake|nightlight|dnd|mic|updates" >&2
+    exit 1
+    ;;
+esac
