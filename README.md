@@ -63,8 +63,9 @@ bash install.sh --name yourname
 - NVIDIA graphics are untested.
 
 The installer checks these with you. It also shows which installed packages would change,
-refuses to continue if apt would remove anything, and backs up every config file it replaces
-as `name.bak-DATE`.
+refuses to continue if apt would remove anything, and backs up any config file of yours it
+replaces as `name.bak-DATE`. Re-running it only makes a backup when you edited a file since
+the last install; theme and font changes don't count.
 
 ## Install options
 
@@ -171,8 +172,20 @@ Most Hyprland tutorials written before mid-2026 show the old syntax.
 bash uninstall.sh
 ```
 
-This removes the configs and prints the commands for removing the packages and restoring
-Ubuntu's own library versions with `ppa-purge`.
+This removes the configs this project installed and puts back the ones you had before.
+Other files in those folders and the installer's `.bak-DATE` backups are kept (it prints
+the command to delete the backups). It also prints the commands for removing the packages
+and restoring Ubuntu's own library versions with `ppa-purge`.
+
+## Testing
+
+```bash
+bash tests/smoke.sh
+```
+
+Checks that every script parses and every theme loads, then installs, reinstalls and
+uninstalls into a throwaway home folder. It installs no packages, and anything that would
+reach your running session (`pkill`, `hyprctl`, `gsettings`, ...) is stubbed out.
 
 ## Known limits
 

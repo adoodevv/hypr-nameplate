@@ -11,6 +11,7 @@ Each themed config file has a block between "theme:begin" and "theme:end" lines.
 Only that block is rewritten, so the rest of each file is yours to edit.
 The palettes are Omarchy's colors.toml files (MIT, github.com/basecamp/omarchy).
 """
+import hashlib
 import os
 import re
 import subprocess
@@ -26,6 +27,27 @@ CURRENT = os.path.join(APP, "theme")
 COLORS = os.path.join(APP, "colors.toml")          # read by the panels and the wallpaper
 WALLPAPERS = os.path.join(HOME, "Pictures", "Wallpapers")
 DEFAULT = "tokyo-night"
+
+
+MANAGED = os.path.join(APP, "managed")      # written by install.sh
+
+
+def remember(path):
+    """install.sh backs up a config only when you edited it since the last install.
+    Note this rewrite as ours, so the next install doesn't take it for your edit."""
+    try:
+        with open(MANAGED, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        with open(path, "rb") as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return
+    new = [f"{digest}  {path}" if line[66:] == path else line for line in lines]
+    if new != lines:
+        tmp = MANAGED + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(new) + "\n")
+        os.replace(tmp, MANAGED)
 
 # Which block in which file gets what. {{ key }} is "#rrggbb", {{ key.hex }} is
 # "rrggbb", {{ key.rgb }} is "r, g, b".
@@ -229,6 +251,7 @@ def rewrite(path, blocks, c):
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(result))
     os.replace(tmp, path)      # one step, so Hyprland / Alacritty never read half a file
+    remember(path)
     return True
 
 

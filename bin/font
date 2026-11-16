@@ -13,6 +13,7 @@ Like Omarchy, the font also becomes your account's monospace font: fontconfig's
 "monospace" and GNOME's fixed-width font (code in the text editor, GNOME apps).
 Normal app text (menus, web pages) is left alone.
 """
+import hashlib
 import os
 import re
 import shutil
@@ -28,6 +29,27 @@ SIZE_STATE = os.path.join(APP, "font-size")
 DEFAULT = "JetBrainsMono Nerd Font"
 DEFAULT_SIZE = "9"
 FONTS = os.path.join(HOME, ".local", "share", "fonts")
+
+
+MANAGED = os.path.join(APP, "managed")      # written by install.sh
+
+
+def remember(path):
+    """install.sh backs up a config only when you edited it since the last install.
+    Note this rewrite as ours, so the next install doesn't take it for your edit."""
+    try:
+        with open(MANAGED, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        with open(path, "rb") as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return
+    new = [f"{digest}  {path}" if line[66:] == path else line for line in lines]
+    if new != lines:
+        tmp = MANAGED + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(new) + "\n")
+        os.replace(tmp, MANAGED)
 
 # Files that name the font. Only the family name is swapped, sizes stay as they are.
 FILES = ["alacritty/alacritty.toml", "alacritty/screensaver.toml", "waybar/style.css",
@@ -99,6 +121,7 @@ def swap(old_names, new):
             with open(tmp, "w", encoding="utf-8") as f:
                 f.write(changed)
             os.replace(tmp, path)
+            remember(path)
 
 
 def set_size(size):
@@ -112,6 +135,7 @@ def set_size(size):
     text = re.sub(r"(\[font\][^\[]*?\nsize\s*=\s*)[\d.]+", lambda m: m.group(1) + "%.1f" % float(size), text, count=1)
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
+    remember(path)
 
 
 FONTCONFIG = os.path.join(CFG, "fontconfig", "conf.d", "60-hypr-nameplate-monospace.conf")
