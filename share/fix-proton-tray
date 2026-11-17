@@ -1,0 +1,12 @@
+#!/bin/sh
+# Fixes Proton VPN's tray menu, which Waybar refuses to open. Proton's bundled tray
+# code types each menu entry's list of sub-entries as a(ia{sv}av); the dbusmenu
+# format requires av, and Waybar rejects the menu as malformed. One word in one
+# file. Installed by hypr-nameplate's installer (if you agreed) and run by apt after
+# every package change, so a Proton update doesn't bring the bug back.
+for f in /usr/lib/python3/dist-packages/proton/vpn/app/gtk/widgets/main/tray_icon.py; do
+  [ -f "$f" ] || continue
+  grep -q 'dbus.Array(\[\], signature="(ia{sv}av)")' "$f" || continue
+  sed -i 's/dbus\.Array(\[\], signature="(ia{sv}av)")/dbus.Array([], signature="v")/g' "$f"
+done
+exit 0

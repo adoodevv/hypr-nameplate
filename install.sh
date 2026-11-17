@@ -251,6 +251,32 @@ if (( ! TERMINAL_ONLY )); then
     echo "Spotify set to run natively on Wayland ($dst)"
   done
 
+  # Notion's snap crashes under Hyprland: it can't reach the Wayland display from its
+  # sandbox. Running it through XWayland works (and is how it runs on GNOME's X11 too).
+  for src in /var/lib/snapd/desktop/applications/notion*.desktop; do
+    [[ -f $src ]] || continue
+    dst="$HOME/.local/share/applications/$(basename "$src")"
+    mkdir -p "$(dirname "$dst")"
+    [[ -f $dst ]] || cp "$src" "$dst"
+    sed -i '/^Exec=/{ /ozone-platform/! s#\( %[uUfF]\)\{0,1\}$# --ozone-platform=x11\1# }' "$dst"
+    echo "Notion set to open through XWayland ($dst)"
+  done
+
+  # Proton VPN's tray menu won't open in the bar: its tray code sends the menu in a
+  # format the bar rejects (see share/fix-proton-tray). Offer the one-word fix, kept
+  # in place after Proton updates by an apt hook.
+  proton_tray=/usr/lib/python3/dist-packages/proton/vpn/app/gtk/widgets/main/tray_icon.py
+  if [[ -f $proton_tray && ! -f /etc/apt/apt.conf.d/99-hypr-nameplate-proton-tray ]]; then
+    read -rp "Fix Proton VPN's tray menu so right-click works? It edits one line of Proton's app and needs sudo. [Y/n] " answer
+    if [[ ${answer,,} != n* ]]; then
+      sudo install -D -m 755 "$SRC/share/fix-proton-tray" /usr/local/lib/hypr-nameplate/fix-proton-tray &&
+        echo 'DPkg::Post-Invoke { "/usr/local/lib/hypr-nameplate/fix-proton-tray || true"; };' |
+          sudo tee /etc/apt/apt.conf.d/99-hypr-nameplate-proton-tray >/dev/null &&
+        sudo /usr/local/lib/hypr-nameplate/fix-proton-tray &&
+        echo "Proton VPN tray menu fixed (restart Proton to see it)" || failed+=("proton tray fix")
+    fi
+  fi
+
   # GNOME Settings refuses to open outside GNOME; telling it it is on GNOME makes it work
   # (Wi-Fi, Bluetooth, sound and most panels do; Displays does not, Hyprland owns the screen).
   src=/usr/share/applications/org.gnome.Settings.desktop
