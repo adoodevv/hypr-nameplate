@@ -1,0 +1,499 @@
+#!/usr/bin/python3
+"""The dock along the bottom, like Omarchy 4's: the app grid button, your pinned apps and
+whatever else is open, as large icons floating over the desktop.
+
+It tucks itself away while windows are open: push the pointer against the bottom edge
+under it and it slides up. On an empty workspace it just stays. Click an app to open it,
+or to jump to its window when it's already open (click again for its next window).
+Right-click for pin, new window and quit.
+
+    dock                 run it (started at login)
+    dock pin ID          pin an app (ID: its .desktop name, e.g. firefox_firefox.desktop)
+    dock unpin ID
+    dock pinned          list the pinned apps
+
+Pinned apps live in ~/.config/nameplate/dock.json.
+"""
+import json
+import os
+import signal
+import socket
+import subprocess
+import sys
+import threading
+
+HOME = os.path.expanduser("~")
+CONFIG = os.path.join(HOME, ".config", "nameplate", "dock.json")
+BIN = os.path.join(HOME, ".config", "nameplate", "bin")
+PIDFILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "nameplate-dock.pid")
+# Pinned to start with: the first of each group that's installed
+DEFAULT_PINS = (
+    ("firefox_firefox.desktop", "firefox.desktop", "google-chrome.desktop", "chromium_chromium.desktop", "brave-browser.desktop"),
+    ("Alacritty.desktop", "alacritty.desktop", "org.gnome.Terminal.desktop"),
+    ("org.gnome.Nautilus.desktop", "nautilus.desktop"),
+    ("code.desktop", "code_code.desktop"),
+    ("spotify_spotify.desktop", "spotify.desktop"),
+    ("notion-snap-reborn_notion-snap-reborn.desktop", "notion-app.desktop"),
+)
+
+
+def load_pins():
+    try:
+        with open(CONFIG) as f:
+            pins = json.load(f).get("pinned")
+            if isinstance(pins, list):
+                return [p for p in pins if isinstance(p, str)]
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def save_pins(pins):
+    os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+    with open(CONFIG + ".tmp", "w") as f:
+        json.dump({"pinned": pins}, f, indent=1)
+    os.replace(CONFIG + ".tmp", CONFIG)
+
+
+def poke():
+    """Tell a running dock to read its pins again."""
+    try:
+        with open(PIDFILE) as f:
+            os.kill(int(f.read().strip()), signal.SIGUSR1)
+    except (OSError, ValueError):
+        pass
+
+
+def cli(args):
+    pins = load_pins()
+    if pins is None:
+        pins = default_pins()
+    if args[0] == "pinned":
+        print("\n".join(pins))
+    elif args[0] in ("pin", "unpin") and len(args) == 2:
+        app = args[1] if args[1].endswith(".desktop") else args[1] + ".desktop"
+        pins = [p for p in pins if p != app] + ([app] if args[0] == "pin" else [])
+        save_pins(pins)
+        poke()
+    else:
+        print(__doc__.strip(), file=sys.stderr)
+        sys.exit(1)
+
+
+def default_pins():
+    try:
+        import gi
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio
+        have = {a.get_id() for a in Gio.AppInfo.get_all()}
+    except Exception:
+        return []
+    return [next(c for c in group if c in have) for group in DEFAULT_PINS if any(c in have for c in group)]
+
+
+if len(sys.argv) > 1:
+    cli(sys.argv[1:])
+    sys.exit(0)
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, GtkLayerShell  # noqa: E402
+
+ICON, INSET, GAP = 36, 8, 6
+SLOT = ICON + INSET * 2
+HOVER = 1.15
+
+
+def hyprctl(*args):
+    try:
+        p = subprocess.run(("hyprctl",) + args, capture_output=True, text=True, timeout=5)
+        return p.stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def hypr_json(what):
+    try:
+        return json.loads(hyprctl("-j", what) or "null")
+    except ValueError:
+        return None
+
+
+def theme_colors():
+    colors = {"background": "#1a1b26", "foreground": "#a9b1d6", "accent": "#7aa2f7", "muted": "#414868",
+              "selection": "#292e42"}
+    try:
+        import re
+        with open(os.path.join(HOME, ".config", "nameplate", "colors.toml")) as f:
+            for line in f:
+                m = re.match(r'\s*(\w+)\s*=\s*"([^"]*)"', line)
+                if m:
+                    colors[m.group(1)] = m.group(2)
+    except OSError:
+        pass
+    return colors
+
+
+class Apps:
+    """Installed apps, and which one a window belongs to."""
+
+    def __init__(self):
+        self.reload()
+
+    def reload(self):
+        self.all = {a.get_id(): a for a in Gio.AppInfo.get_all() if a.get_id()}
+        self.by_class = {}
+        for app_id, a in self.all.items():
+            keys = {app_id[:-8].lower(), app_id[:-8].split("_")[-1].lower(), app_id[:-8].split(".")[-1].lower()}
+            wm = a.get_startup_wm_class() if hasattr(a, "get_startup_wm_class") else None
+            if wm:
+                keys.add(wm.lower())
+            exe = a.get_executable()
+            if exe:
+                keys.add(os.path.basename(exe).lower())
+            for k in keys:
+                if k and (k not in self.by_class or a.should_show()):
+                    self.by_class[k] = app_id
+
+    def for_window(self, client):
+        for name in (client.get("class"), client.get("initialClass")):
+            if not name:
+                continue
+            for key in (name.lower(), name.lower().split(".")[-1], name.lower().replace(" ", "-")):
+                if key in self.by_class:
+                    return self.by_class[key]
+        return None
+
+
+class Dock:
+    def __init__(self):
+        self.apps = Apps()
+        self.pins = load_pins()
+        if self.pins is None:
+            self.pins = default_pins()
+            save_pins(self.pins)
+        self.windows = {}          # app id -> [clients]
+        self.unknown = []          # windows with no app found: [(class, clients)]
+        self.revealed = False
+        self.empty = True
+        self.fullscreen = False
+        self.hide_timer = None
+        self.cycle = {}
+        self.colors = theme_colors()
+        self.css()
+        self.build()
+        self.refresh()
+        threading.Thread(target=self.events, daemon=True).start()
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self.reload)
+
+    def css(self):
+        c = self.colors
+        css = Gtk.CssProvider()
+        css.load_from_data(("""
+window.np-dock { background-color: transparent; }
+.np-dock button { background-image: none; background-color: transparent; border: none; box-shadow: none;
+  padding: 0; margin: 0; min-width: 0; min-height: 0; outline: none; }
+.np-dock image { -gtk-icon-shadow: 0 2px 6px rgba(0,0,0,0.55); }
+.np-dock .np-dot { background-color: %s; min-width: 4px; min-height: 4px; border-radius: 2px; }
+.np-dock .np-dot.np-focused { background-color: %s; min-width: 12px; }
+.np-dock menu, .np-dock .menu { background-color: %s; border: 2px solid %s; padding: 4px; }
+.np-dock menuitem { color: %s; padding: 6px 12px; font-family: "JetBrainsMono Nerd Font", monospace; }
+.np-dock menuitem:hover { background-color: %s; }
+""" % (c["foreground"], c["accent"], c["background"], c["accent"], c["foreground"], c["selection"])).encode())
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css,
+                                                 Gtk.STYLE_PROVIDER_PRIORITY_USER)
+
+    def build(self):
+        w = self.win = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
+        w.get_style_context().add_class("np-dock")
+        visual = w.get_screen().get_rgba_visual()
+        if visual:
+            w.set_visual(visual)
+        GtkLayerShell.init_for_window(w)
+        GtkLayerShell.set_namespace(w, "nameplate-dock")
+        GtkLayerShell.set_layer(w, GtkLayerShell.Layer.TOP)
+        GtkLayerShell.set_anchor(w, GtkLayerShell.Edge.BOTTOM, True)
+        GtkLayerShell.set_exclusive_zone(w, 0)          # windows keep the whole screen
+        GtkLayerShell.set_keyboard_mode(w, GtkLayerShell.KeyboardMode.NONE)
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.revealer = Gtk.Revealer()
+        self.revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP)
+        self.revealer.set_transition_duration(180)
+        self.row = Gtk.Box(spacing=0)
+        self.row.set_margin_bottom(GAP)
+        self.revealer.add(self.row)
+        outer.pack_start(self.revealer, False, False, 0)
+        # The strip along the bottom edge that brings a tucked dock back
+        self.edge = Gtk.EventBox()
+        self.edge.set_size_request(-1, 2)
+        outer.pack_end(self.edge, False, False, 0)
+        hover = Gtk.EventBox()
+        hover.add(outer)
+        hover.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK)
+        hover.connect("enter-notify-event", lambda *_: self.reveal(True))
+        hover.connect("leave-notify-event", self.left)
+        w.add(hover)
+        w.show_all()
+
+    # -- the slots
+    def slot(self, child, on_click, on_menu=None, tip=None, dot=None):
+        b = Gtk.Button()
+        b.set_size_request(SLOT, SLOT + 4)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        holder = Gtk.Box()
+        holder.set_size_request(SLOT, SLOT)
+        holder.set_center_widget(child)
+        box.pack_start(holder, False, False, 0)
+        marks = Gtk.Box()
+        marks.set_halign(Gtk.Align.CENTER)
+        marks.set_size_request(-1, 4)
+        if dot:
+            d = Gtk.Box()
+            d.get_style_context().add_class("np-dot")
+            if dot == "focused":
+                d.get_style_context().add_class("np-focused")
+            marks.pack_start(d, False, False, 0)
+        box.pack_start(marks, False, False, 0)
+        b.add(box)
+        if tip:
+            b.set_tooltip_text(tip)
+        b.connect("clicked", lambda *_: on_click())
+        if on_menu:
+            def press(_b, event):
+                if event.button == 3:
+                    on_menu(event)
+                    return True
+                return False
+            b.connect("button-press-event", press)
+        return b
+
+    def icon(self, app):
+        theme = Gtk.IconTheme.get_default()
+        gicon = app.get_icon() if app else None
+        sizes = {}
+        for size in (ICON, round(ICON * HOVER)):
+            pix = None
+            try:
+                found = theme.lookup_by_gicon(gicon, size, Gtk.IconLookupFlags.FORCE_SIZE) if gicon else None
+                pix = found.load_icon() if found else None
+            except GLib.Error:
+                pix = None
+            if pix is None:
+                try:
+                    pix = theme.load_icon("application-x-executable", size, Gtk.IconLookupFlags.FORCE_SIZE)
+                except GLib.Error:
+                    pix = None
+            sizes[size] = pix
+        img = Gtk.Image.new_from_pixbuf(sizes[ICON])
+        img.set_size_request(round(ICON * HOVER), round(ICON * HOVER))   # growing on hover doesn't shift anything
+        img.set_valign(Gtk.Align.CENTER)
+        img.set_halign(Gtk.Align.CENTER)
+        img.sizes = sizes
+        return img
+
+    def grow(self, button, img, big):
+        pix = img.sizes.get(round(ICON * HOVER) if big else ICON)
+        if pix is not None:
+            img.set_from_pixbuf(pix)
+
+    def grid_icon(self):
+        """Omarchy's app grid mark: nine small squares."""
+        area = Gtk.DrawingArea()
+        area.set_size_request(ICON, ICON)
+        area.set_valign(Gtk.Align.CENTER)       # same spot as the app icons, not the top of the slot
+        area.set_halign(Gtk.Align.CENTER)
+        c = self.colors["foreground"].lstrip("#")
+        rgb = tuple(int(c[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+        def draw(_a, cr):
+            # App icons leave a margin inside their square, so the grid mark does too:
+            # it fills the same visible area as an icon's artwork, centred in the slot.
+            span = round(ICON * 0.84)
+            sq = round(span * 0.24)
+            gap = (span - 3 * sq) / 2
+            off = (ICON - span) / 2
+            cr.set_source_rgb(*rgb)
+            for r in range(3):
+                for k in range(3):
+                    cr.rectangle(off + k * (sq + gap), off + r * (sq + gap), sq, sq)
+            cr.fill()
+            return False
+        area.connect("draw", draw)
+        return area
+
+    def fill(self):
+        for child in self.row.get_children():
+            self.row.remove(child)
+        grid = self.slot(self.grid_icon(), lambda: subprocess.Popen([os.path.join(BIN, "panel"), "apps"]),
+                         tip="All apps")
+        self.row.pack_start(grid, False, False, 0)
+        shown = [p for p in self.pins if p in self.apps.all]
+        shown += [a for a in self.windows if a not in shown]
+        for app_id in shown:
+            app = self.apps.all.get(app_id)
+            clients = self.windows.get(app_id, [])
+            img = self.icon(app)
+            focused = any(c.get("address") == self.active for c in clients)
+            b = self.slot(img, lambda a=app_id: self.activate(a),
+                          on_menu=lambda e, a=app_id: self.menu(a, e),
+                          tip=app.get_display_name() if app else app_id,
+                          dot=("focused" if focused else "open") if clients else None)
+            b.connect("enter-notify-event", lambda btn, _e, i=img: self.grow(btn, i, True))
+            b.connect("leave-notify-event", lambda btn, _e, i=img: self.grow(btn, i, False))
+            self.row.pack_start(b, False, False, 0)
+        self.row.show_all()
+
+    # -- state from Hyprland
+    def refresh(self):
+        clients = hypr_json("clients") or []
+        ws = hypr_json("activeworkspace") or {}
+        active = hypr_json("activewindow") or {}
+        self.active = active.get("address") if isinstance(active, dict) else None
+        windows = {}
+        for c in clients:
+            if not c.get("mapped", True) or c.get("hidden") or (c.get("workspace") or {}).get("id", 1) < 0:
+                continue
+            app_id = self.apps.for_window(c)
+            if app_id:
+                windows.setdefault(app_id, []).append(c)
+        self.windows = windows
+        self.empty = not ws.get("windows")
+        self.fullscreen = bool(ws.get("hasfullscreen"))
+        self.fill()
+        self.update()
+        return False
+
+    def update(self):
+        show = not self.fullscreen and (self.empty or self.revealed)
+        self.revealer.set_reveal_child(show)
+        self.edge.set_visible(not self.fullscreen)
+
+    def reveal(self, on):
+        if self.hide_timer:
+            GLib.source_remove(self.hide_timer)
+            self.hide_timer = None
+        self.revealed = on
+        self.update()
+        return False
+
+    def left(self, _w, event):
+        if event.detail == Gdk.NotifyType.INFERIOR:     # still over the dock, just onto an icon
+            return False
+        if self.hide_timer:
+            GLib.source_remove(self.hide_timer)
+        self.hide_timer = GLib.timeout_add(350, lambda: self.reveal(False))
+        return False
+
+    def events(self):
+        """Hyprland's event socket: refresh when windows open, close or move."""
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+        path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr", sig, ".socket2.sock")
+        wanted = ("openwindow", "closewindow", "movewindow", "workspace", "focusedmon",
+                  "activewindowv2", "fullscreen", "changefloatingmode")
+        while True:
+            try:
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s.connect(path)
+                buf = b""
+                pending = [False]
+                while True:
+                    data = s.recv(4096)
+                    if not data:
+                        break
+                    buf += data
+                    *lines, buf = buf.split(b"\n")
+                    if any(line.split(b">>")[0].decode(errors="ignore") in wanted for line in lines) and not pending[0]:
+                        pending[0] = True
+
+                        def go():
+                            pending[0] = False
+                            return self.refresh()
+                        GLib.timeout_add(60, go)      # one refresh for a burst of events
+            except OSError:
+                pass
+            import time
+            time.sleep(2)
+
+    # -- actions
+    def activate(self, app_id):
+        clients = self.windows.get(app_id)
+        if not clients:
+            app = self.apps.all.get(app_id)
+            if app:
+                subprocess.Popen(["gtk-launch", app_id], start_new_session=True,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        clients = sorted(clients, key=lambda c: c.get("focusHistoryID", 0))
+        if any(c.get("address") == self.active for c in clients) and len(clients) > 1:
+            i = (self.cycle.get(app_id, 0) + 1) % len(clients)   # already there: the next window
+        else:
+            i = 0
+        self.cycle[app_id] = i
+        hyprctl("dispatch", 'hl.dsp.focus({ window = "address:%s" })' % clients[i]["address"])
+
+    def menu(self, app_id, event):
+        m = Gtk.Menu()
+        m.get_style_context().add_class("np-dock")
+        app = self.apps.all.get(app_id)
+        pinned = app_id in self.pins
+
+        def item(text, fn):
+            it = Gtk.MenuItem(label=text)
+            it.connect("activate", lambda *_: fn())
+            m.append(it)
+        if app:
+            item("New window", lambda: subprocess.Popen(["gtk-launch", app_id], start_new_session=True,
+                                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        item("Unpin from dock" if pinned else "Pin to dock", lambda: self.toggle_pin(app_id))
+        if self.windows.get(app_id):
+            n = len(self.windows[app_id])
+            item("Quit" if n == 1 else "Quit all %d windows" % n, lambda: self.quit_app(app_id))
+        m.show_all()
+        m.attach_to_widget(self.row, None)
+        self.reveal(True)
+        m.connect("deactivate", lambda *_: self.left(None, type("E", (), {"detail": None})()))
+        m.popup_at_pointer(event)
+
+    def toggle_pin(self, app_id):
+        self.pins = [p for p in self.pins if p != app_id] + ([] if app_id in self.pins else [app_id])
+        save_pins(self.pins)
+        self.fill()
+
+    def quit_app(self, app_id):
+        for c in self.windows.get(app_id, []):
+            hyprctl("dispatch", 'hl.dsp.window.close({ window = "address:%s" })' % c["address"])
+
+    def reload(self):
+        self.pins = load_pins() or []
+        self.apps.reload()
+        self.refresh()
+        return True
+
+
+def main():
+    if not GtkLayerShell.is_supported():
+        sys.exit("dock: needs a layer-shell desktop (Hyprland)")
+    try:                                   # one dock at a time
+        with open(PIDFILE) as f:
+            other = int(f.read().strip())
+        with open("/proc/%d/cmdline" % other, "rb") as f:
+            running = b"bin/dock" in f.read()
+        if other != os.getpid() and running:
+            sys.exit(0)
+    except (OSError, ValueError):
+        pass
+    with open(PIDFILE, "w") as f:
+        f.write(str(os.getpid()))
+    Dock()
+    # New apps installed: pick them up
+    monitor = Gio.AppInfoMonitor.get()
+    monitor.connect("changed", lambda *_: poke())
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    main()

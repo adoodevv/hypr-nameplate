@@ -1,25 +1,24 @@
 #!/bin/bash
-# Volume and brightness as one bar item (Waybar custom module, JSON output).
-# Refreshed every few seconds, and at once by the volume/brightness keys (signal 9).
+# Volume in the bar (Waybar custom module, JSON output), with Omarchy's icons.
+# Refreshed every few seconds, and at once by the volume keys (signal 9).
 raw=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)
 vol=$(awk '{ printf "%d", $2 * 100 + 0.5 }' <<<"$raw")
-if [[ $raw == *MUTED* ]]; then
-  vicon='󰝟'; vtext="Volume: muted (${vol}%)"; cls=muted
-elif [[ -z $raw ]]; then
-  vicon='󰕾'; vtext="Volume: unavailable"; cls=""
-else
-  if (( vol >= 66 )); then vicon='󰕾'; elif (( vol >= 33 )); then vicon='󰖀'; else vicon='󰕿'; fi
-  vtext="Volume: ${vol}%"; cls=""
-fi
-bright=$(brightnessctl -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; exit }')
-if [[ -n $bright ]]; then
-  text="$vicon  󰃠"; tip="$vtext\nBrightness: ${bright}%\nClick for sliders, scroll for volume"
-else
-  text="$vicon"; tip="$vtext\nClick for sliders, scroll for volume"
+sink=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -iE 'node.name|device.form-factor|device.icon-name' | tr 'A-Z' 'a-z')
+cls=""
+if [[ -z $raw ]]; then
+  icon=$'\ueee8'
+elif [[ $raw == *MUTED* ]]; then
+  icon=$'\ueee8'; cls=muted
+elif [[ $sink == *headphone* || $sink == *headset* ]]; then
+  icon='󰋋'
+elif (( vol >= 67 )); then icon=$'\uf028'
+elif (( vol >= 34 )); then icon=$'\uf027'
+elif (( vol > 0 )); then icon=$'\uf026'
+else icon=$'\ueee8'
 fi
 # "open" draws the accent line under the item while the sound panel shows (bin/panel)
 kind=""
 [[ -r ${XDG_RUNTIME_DIR:-/tmp}/nameplate-panel-open ]] && read -r kind _ <"${XDG_RUNTIME_DIR:-/tmp}/nameplate-panel-open"
 [[ $kind == sound ]] && cls="${cls:+$cls }open"
-printf '{"text": "%s", "tooltip": "%s", "class": [%s]}\n' "$text" "$tip" \
+printf '{"text": "%s", "tooltip": "Volume: %s%%", "class": [%s]}\n' "$icon" "$vol" \
   "$(for c in $cls; do printf '"%s",' "$c"; done | sed 's/,$//')"

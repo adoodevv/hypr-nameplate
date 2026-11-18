@@ -1,0 +1,149 @@
+#!/usr/bin/python3
+"""Screen settings for the display panel (the monitor icon in the bar), kept across logins.
+
+    display                         each screen as JSON (for the panel)
+    display set NAME KEY VALUE      change one screen now and remember it:
+                                    KEY is scale, mode (1920x1080@60) or position
+    display restore                 put the remembered settings back (at login)
+    display text [PX]               text size, 9-20 px like Omarchy (12 is normal):
+                                    GTK apps' text scaling plus the terminal font
+
+Remembered settings live in ~/.config/nameplate/monitors.json.
+"""
+import json
+import os
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+SAVED = os.path.join(HOME, ".config", "nameplate", "monitors.json")
+BIN = os.path.join(HOME, ".config", "nameplate", "bin")
+INTERNAL = ("eDP", "LVDS", "DSI")
+TEXT_MIN, TEXT_MAX, TEXT_NORMAL = 9, 20, 12
+
+
+def run(*args, timeout=10):
+    try:
+        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        return p.returncode, p.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return 1, ""
+
+
+def screens():
+    rc, text = run("hyprctl", "-j", "monitors", "all")
+    try:
+        return json.loads(text) if rc == 0 else []
+    except ValueError:
+        return []
+
+
+def saved():
+    try:
+        with open(SAVED) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save(data):
+    os.makedirs(os.path.dirname(SAVED), exist_ok=True)
+    with open(SAVED + ".tmp", "w") as f:
+        json.dump(data, f, indent=1)
+    os.replace(SAVED + ".tmp", SAVED)
+
+
+def number(v):
+    return ("%.2f" % v).rstrip("0").rstrip(".")
+
+
+def rule(m, changes):
+    """hl.monitor(...) for screen m (from hyprctl) with changes applied on top."""
+    mode = changes.get("mode") or "%dx%d@%s" % (m["width"], m["height"], number(m["refreshRate"]))
+    position = changes.get("position") or "%dx%d" % (m["x"], m["y"])
+    scale = changes.get("scale") or number(m["scale"])
+    return 'hl.monitor({ output = "%s", mode = "%s", position = "%s", scale = %s })' % (
+        m["name"], mode, position, scale)
+
+
+def apply(m, changes):
+    rc, text = run("hyprctl", "eval", rule(m, changes))
+    return rc == 0 and (not text or text.startswith("ok"))
+
+
+def bright():
+    """Built-in screen brightness in %, or None when there's no backlight to control."""
+    rc, text = run("brightnessctl", "-m", "-c", "backlight", timeout=5)
+    parts = text.split(",") if rc == 0 else []
+    return int(parts[3].rstrip("%")) if len(parts) > 3 and parts[3].rstrip("%").isdigit() else None
+
+
+def text_size():
+    rc, text = run("gsettings", "get", "org.gnome.desktop.interface", "text-scaling-factor", timeout=5)
+    try:
+        return max(TEXT_MIN, min(TEXT_MAX, round(float(text) * TEXT_NORMAL)))
+    except ValueError:
+        return TEXT_NORMAL
+
+
+def set_text_size(px):
+    """One knob like Omarchy's: GTK text scaling and the terminal font, in step (12px = 1.0 = 9pt)."""
+    px = max(TEXT_MIN, min(TEXT_MAX, int(px)))
+    factor = px / TEXT_NORMAL
+    run("gsettings", "set", "org.gnome.desktop.interface", "text-scaling-factor", "%.4f" % factor, timeout=5)
+    run(os.path.join(BIN, "font"), "size", number(round(px * 9 / TEXT_NORMAL * 2) / 2), timeout=20)
+    return px
+
+
+def info():
+    out = []
+    for m in screens():
+        modes = []
+        for spec in m.get("availableModes", []):
+            size, _, hz = spec.partition("@")
+            modes.append((size, hz.rstrip("Hz")))
+        out.append({
+            "name": m["name"],
+            "title": "Built-in display" if m["name"].startswith(INTERNAL)
+                     else (m.get("description") or m["name"]).split("(")[0].strip() or m["name"],
+            "internal": m["name"].startswith(INTERNAL),
+            "disabled": bool(m.get("disabled")),
+            "size": "%dx%d" % (m["width"], m["height"]),
+            "hz": number(m["refreshRate"]),
+            "scale": number(m["scale"]),
+            "x": m["x"], "y": m["y"],
+            "modes": modes,
+        })
+    return {"screens": out, "brightness": bright(), "text": text_size()}
+
+
+def main():
+    args = sys.argv[1:]
+    cmd = args[0] if args else ""
+    if cmd == "":
+        print(json.dumps(info()))
+    elif cmd == "set" and len(args) == 4:
+        name, key, value = args[1:]
+        m = next((m for m in screens() if m["name"] == name), None)
+        if m is None or key not in ("scale", "mode", "position"):
+            sys.exit("display: no screen %s, or unknown setting %s" % (name, key))
+        data = saved()
+        mine = data.setdefault(name, {})
+        if not apply(m, {**mine, key: value}):
+            sys.exit("display: Hyprland didn't accept %s = %s" % (key, value))
+        mine[key] = value
+        save(data)
+    elif cmd == "restore":
+        data = saved()
+        for m in screens():
+            if data.get(m["name"]):
+                apply(m, data[m["name"]])
+    elif cmd == "text":
+        print(set_text_size(args[1]) if len(args) > 1 else text_size())
+    else:
+        print(__doc__.strip(), file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

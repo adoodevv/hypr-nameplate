@@ -2,32 +2,68 @@
 {
   "layer": "top",
   "position": "top",
-  "height": 30,
+  "height": 26,
   "spacing": 0,
+  // Laid out like Omarchy 4: menu and workspaces | indicators, clock, weather,
+  // updates | tray (behind the chevron), agents, Bluetooth, network, sound,
+  // display, battery
   "modules-left": [
     "custom/logo",
     "hyprland/workspaces"
   ],
-  // Like Omarchy: toggles that are on sit before the clock, info after it
   "modules-center": [
-    "custom/recording",
-    "custom/dnd",
-    "custom/awake",
-    "custom/nightlight",
+    "group/indicators",
     "group/datetime",
     "custom/weather",
     "custom/updates"
   ],
   "modules-right": [
-    "tray",
+    "group/tray-drawer",
     "custom/agents",
     "custom/bluetooth",
     "custom/network",
     "custom/sound",
-    "custom/mic",
-    "custom/battery",
-    "custom/power"
+    "custom/monitor",
+    "custom/battery"
   ],
+  // Toggles: the ones that are on stay lit; hover the space before the clock to
+  // see the rest faded, then click one to switch it on (style.css)
+  "group/indicators": {
+    "orientation": "inherit",
+    "modules": [
+      "custom/recording",
+      "custom/dnd",
+      "custom/awake",
+      "custom/nightlight",
+      "custom/mic"
+    ]
+  },
+  // App icons tucked behind a chevron; hover it to slide them out
+  "group/tray-drawer": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 250,
+      "transition-left-to-right": false,
+      "children-class": "tray-child"
+    },
+    "modules": [
+      "custom/tray-chevron",
+      "tray"
+    ]
+  },
+  "custom/tray-chevron": {
+    "format": "\uf053",
+    "tooltip": false
+  },
+  "custom/monitor": {
+    "exec": "~/.config/nameplate/bin/bar-status monitor",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false,
+    "on-click": "~/.config/nameplate/bin/panel display --bar"
+  },
   "custom/logo": {
     "exec": "~/.config/nameplate/bin/bar-status logo",
     "return-type": "json",
@@ -36,7 +72,7 @@
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel menu --bar",
-    "on-click-right": "pkill fuzzel || fuzzel"
+    "on-click-right": "~/.config/nameplate/bin/panel apps"
   },
   "hyprland/workspaces": {
     "format": "{icon}",
@@ -59,8 +95,8 @@
     "on-click": "~/.config/nameplate/bin/panel calendar --bar"
   },
   "tray": {
-    "icon-size": 16,
-    "spacing": 10
+    "icon-size": 12,
+    "spacing": 8
   },
   "custom/bluetooth": {
     "exec": "~/.config/nameplate/bin/bar-status bluetooth",
@@ -90,15 +126,6 @@
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel power --bar"
-  },
-  "custom/power": {
-    "exec": "~/.config/nameplate/bin/bar-status power",
-    "return-type": "json",
-    "interval": "once",
-    "signal": 12,
-    "format": "{}",
-    "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel menu system --bar"
   },
   "custom/media": {
     "exec": "~/.config/nameplate/bin/media-status",

@@ -1,5 +1,8 @@
 #!/bin/bash
-# Red dot in the bar while a screen recording runs (signal 10 refreshes it)
-pgrep -x wf-recorder >/dev/null &&
-  printf '{"text": "󰑋", "tooltip": "Recording. Click to stop", "class": "recording"}\n'
-exit 0
+# Screen recording indicator (signal 10 refreshes it). Like Omarchy's: lit while a
+# recording runs; otherwise hidden until you hover the indicators, then click to record.
+if pgrep -x wf-recorder >/dev/null; then
+  printf '{"text": "󰻂", "tooltip": "Recording. Click to stop", "class": "on"}\n'
+else
+  printf '{"text": "󰻂", "tooltip": "Record the screen", "class": "off"}\n'
+fi

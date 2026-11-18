@@ -1,4 +1,5 @@
-/* Top bar - flat Omarchy-style. Colours come from the block below, which
+/* Top bar, laid out and sized like Omarchy 4's: 26px tall and opaque, 12px text,
+   13px icons each in a 27px slot. Colours come from the block below, which
    'theme set NAME' rewrites (SUPER + CTRL + SHIFT + SPACE picks a theme). */
 
 /* theme:begin colors */
@@ -11,13 +12,13 @@
 @define-color red #f7768e;
 @define-color yellow #e0af68;
 @define-color green #9ece6a;
-@define-color bar_bg alpha(@bg, 0.82);
+@define-color bar_bg @bg;
 @define-color hover alpha(@accent, 0.12);
 /* theme:end */
 
 * {
   font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   border: none;
   border-radius: 0;
@@ -35,18 +36,24 @@ tooltip {
   color: @fg;
 }
 
-#custom-logo {
-  color: @accent;
-  font-weight: 800;
-  padding: 0 14px 0 16px;
+/* Every icon item: a 13px glyph centred in a 27px slot */
+#custom-logo, #custom-agents, #custom-bluetooth, #custom-network, #custom-sound,
+#custom-monitor, #custom-battery, #custom-weather, #custom-updates,
+#custom-tray-chevron, #custom-media {
+  font-size: 13px;
+  min-width: 27px;
+  padding: 0;
 }
+
+/* Menu button on the left */
+#custom-logo { color: @fg; margin-left: 6px; }
 
 /* Workspaces the Omarchy way: numbers, a square on the one you're on,
    empty ones faded, all in the normal text colour */
 #workspaces button {
   color: @fg;
   padding: 0 6px;
-  margin: 0 1.5px;
+  margin: 0 1px;
   min-width: 9px;
   background: transparent;
   box-shadow: none;
@@ -56,96 +63,55 @@ tooltip {
 #workspaces button.urgent { color: @red; }
 #workspaces button:hover { background-color: @hover; color: @fg_bright; }
 
-#custom-clock { color: @fg_bright; font-weight: 700; }
+/* Clock: "Tuesday 12:02", music icon beside it while something plays */
+#datetime { padding: 0 10px; }
+#datetime #custom-clock { color: @fg; padding: 0; }
+#datetime #custom-media { color: @accent; min-width: 0; padding: 0 2px 0 9px; }
+#custom-media.paused { color: @fg_dim; }
 
-#tray, #custom-bluetooth, #custom-network, #pulseaudio, #custom-battery, #custom-power, #custom-sound {
-  padding: 0 11px;
-}
+/* Indicators before the clock (21px slots). The ones that are on stay lit; the
+   rest are hidden until the pointer is over them, then shown faded so you can
+   click one on. */
+#custom-recording, #custom-dnd, #custom-awake, #custom-nightlight, #custom-mic { font-size: 13px; min-width: 21px; padding: 0; color: @fg; }
+#indicators .off { opacity: 0; }
+#indicators:hover .off { opacity: 0.45; }
+#indicators .off:hover { opacity: 0.8; }
+#custom-recording.on, #custom-mic.on { color: @red; }
 
-#custom-network.disconnected,
-#pulseaudio.muted,
+/* Tray: tucked behind the chevron; hovering it slides the app icons out */
+#custom-tray-chevron { color: @fg_dim; min-width: 21px; }
+#tray { padding: 0 6px; }
+#tray > .needs-attention { color: @red; }
+
+#custom-network.disconnected, #custom-network.disabled,
+#custom-sound.muted,
 #custom-bluetooth.off, #custom-bluetooth.disabled { color: @fg_dim; }
 
-#custom-battery.charging, #custom-battery.plugged { color: @green; }
 #custom-battery.warning:not(.charging) { color: @yellow; }
 #custom-battery.critical:not(.charging) { color: @red; }
+#custom-battery { margin-right: 6px; }
 
-#custom-power { color: @red; padding-right: 16px; }
+#custom-updates { color: @fg; }
 
-#custom-logo:hover, #custom-clock:hover, #custom-network:hover, #pulseaudio:hover,
-#custom-bluetooth:hover, #custom-battery:hover, #custom-power:hover {
-  background-color: @hover;
-}
-
-/* Music icon beside the clock while something plays */
-#custom-media { color: @accent; padding: 0 10px; }
-#custom-media.paused { color: @fg_dim; }
-#custom-media:hover { background-color: @hover; }
-
-/* Volume and brightness: one item */
-#custom-sound { padding: 0 11px; }
-#custom-sound.muted { color: @fg_dim; }
-#custom-sound:hover { background-color: @hover; }
-#custom-network.disabled { color: @fg_dim; }
-
-/* Recent Waybar versions put the hover state on a box around custom modules,
-   not on the module itself; match both so custom items highlight like Wi-Fi. */
-box:hover > #custom-logo, box:hover > #custom-sound, box:hover > #custom-media,
-box:hover > #custom-power, box:hover > #custom-network, box:hover > #custom-bluetooth,
-box:hover > #custom-battery, box:hover > #custom-mic, box:hover > #custom-weather,
-box:hover > #custom-updates, box:hover > #custom-awake, box:hover > #custom-nightlight,
-box:hover > #custom-agents, #custom-agents:hover,
-#custom-mic:hover, #custom-weather:hover, #custom-updates:hover,
-#custom-awake:hover, #custom-nightlight:hover { background-color: @hover; }
-
-/* Clock and music icon: one item with one hover highlight, padded like the others */
-#datetime:hover { background-color: @hover; }
-#datetime #custom-clock { padding: 0; }
-/* Nerd Font icons draw a little wider than the space Waybar measures for them;
-   room on the right stops the music icon being clipped */
-#datetime #custom-media { padding: 0 3px 0 10px; }
-#datetime { padding: 0 11px; }
+/* Hover: a soft accent wash. Recent Waybar versions put the hover state on a box
+   around custom modules, so match both. */
+#custom-logo:hover, #custom-network:hover, #custom-bluetooth:hover, #custom-battery:hover,
+#custom-sound:hover, #custom-monitor:hover, #custom-agents:hover, #custom-weather:hover,
+#custom-updates:hover, #custom-tray-chevron:hover, #datetime:hover,
+box:hover > #custom-logo, box:hover > #custom-network, box:hover > #custom-bluetooth,
+box:hover > #custom-battery, box:hover > #custom-sound, box:hover > #custom-monitor,
+box:hover > #custom-agents, box:hover > #custom-weather, box:hover > #custom-updates,
+box:hover > #custom-tray-chevron { background-color: @hover; }
 #datetime #custom-clock:hover, #datetime #custom-media:hover,
 #datetime box:hover > #custom-media, #datetime box:hover > #custom-clock { background-color: transparent; }
 
-/* Recording dot and do-not-disturb bell (only shown while active) */
-#custom-recording { color: @red; padding: 0 10px; }
-#custom-dnd { color: @yellow; padding: 0 8px; }
-box:hover > #custom-recording, box:hover > #custom-dnd,
-#custom-recording:hover, #custom-dnd:hover { background-color: @hover; }
-
-/* Toggles before the clock: dim when off, lit when on. Click to switch. */
-#custom-awake { color: @accent; padding: 0 8px; }
-#custom-nightlight { color: @yellow; padding: 0 8px; }
-#custom-awake.off, #custom-nightlight.off, #custom-dnd.off { color: @fg_dim; }
-
-/* After the clock: weather, and updates when Ubuntu has some waiting */
-#custom-weather { padding: 0 11px; }
-#custom-updates { color: @green; padding: 0 11px; }
-
-/* AI agents (Claude Code, Grok): click for today's use and recent sessions */
-#custom-agents { padding: 0 11px; }
-
-/* Nerd Font icons draw past the right edge of the width Waybar measures for them
-   (Wi-Fi ~5px, the robot ~4px, Bluetooth and speaker ~2px, the same in every Nerd Font).
-   More padding on the right by that much keeps the hover highlight and the accent line
-   below centred on the icon you see, rather than on its measured box. */
-#custom-network { padding: 0 13px 0 8px; }
-#custom-network.ethernet { padding: 0 12px 0 9px; }
-#custom-agents { padding: 0 12px 0 8px; }
-#custom-bluetooth, #custom-sound { padding: 0 12px 0 10px; }
-
-/* Microphone: dim while on, red when muted */
-#custom-mic { color: @fg_dim; padding: 0 11px; }
-#custom-mic.muted { color: @red; }
-
 /* The item whose panel is open gets a short accent line under it, like Omarchy.
    bin/panel tells the bar which one; see bin/bar-status. */
-#custom-logo.open, #custom-clock.open, #custom-network.open, #custom-bluetooth.open,
-#custom-sound.open, #custom-battery.open, #custom-power.open, #custom-weather.open,
+#custom-clock.open, #custom-network.open, #custom-bluetooth.open,
+#custom-sound.open, #custom-battery.open, #custom-monitor.open, #custom-weather.open,
 #custom-agents.open {
   background-image: linear-gradient(@accent, @accent);
-  background-size: 16px 2px;
-  background-position: 50% 88%;
+  background-size: 14px 2px;
+  background-position: 50% 92%;
   background-repeat: no-repeat;
 }

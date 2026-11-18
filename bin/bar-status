@@ -1,6 +1,7 @@
 #!/bin/bash
 # Bar items that open a panel (Waybar custom modules, JSON output):
-#   bar-status logo | power | network | bluetooth | battery | clock
+#   bar-status logo | network | bluetooth | battery | monitor | clock | ...
+# Icons and sizes follow Omarchy 4's bar.
 # Each adds the "open" class while its panel is showing, which draws the accent
 # line under it (style.css). bin/panel writes which panel is open and sends the bar
 # signal 12, so the line appears at once. The clock runs continuously instead.
@@ -24,8 +25,8 @@ mark() { is_open "$@" && echo open; }
 
 case $1 in
   logo)
-    name=$(cat "$HOME/.config/nameplate/name" 2>/dev/null)
-    emit "${name:-menu}" "" "$(mark menu)"
+    # Omarchy puts its logo here; this is Ubuntu, so the Ubuntu logo
+    emit $'\uf31b' ""                 # no line under it: the menu opens mid-screen, as in Omarchy
     ;;
 
   power)
@@ -37,7 +38,7 @@ case $1 in
     if nmcli -t -f TYPE,STATE dev 2>/dev/null | grep -q '^ethernet:connected'; then
       emit "󰈀" "" ethernet "$(mark wifi)"
     elif [[ $(nmcli radio wifi 2>/dev/null) != enabled ]]; then
-      emit "󰖪" "" disabled "$(mark wifi)"
+      emit "󰤮" "" disabled "$(mark wifi)"
     else
       signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi list --rescan no 2>/dev/null | awk -F: '$1 == "*" { print $2; exit }')
       if [[ -n $signal ]]; then
@@ -63,19 +64,33 @@ case $1 in
     fi
     ;;
 
-  battery)
+  battery)            # Omarchy's power item: the battery, or the power profile on a desktop
     bat=$(ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1)
-    [[ -z $bat ]] && { echo; exit 0; }              # a desktop: hide the item
+    if [[ -z $bat ]]; then
+      case $(powerprofilesctl get 2>/dev/null) in
+        power-saver) emit "󰌪" "" "$(mark power)" ;;
+        performance) emit "󰓅" "" "$(mark power)" ;;
+        *) emit "󰊚" "" "$(mark power)" ;;
+      esac
+      exit 0
+    fi
     level=$(<"$bat/capacity") status=$(<"$bat/status")
-    icons=(󰁺 󰁺 󰁻 󰁼 󰁽 󰁾 󰁿 󰂀 󰂁 󰂂 󰁹)
+    icons=(󰁺 󰁻 󰁼 󰁽 󰁾 󰁿 󰂀 󰂁 󰂂 󰁹)
+    charging=(󰢜 󰂆 󰂇 󰂈 󰢝 󰂉 󰢞 󰂊 󰂋 󰂅)
+    step=$(( (level - 1) / 10 )); (( step < 0 )) && step=0; (( step > 9 )) && step=9
     state=""
-    (( level <= 25 )) && state=warning
+    (( level <= 20 )) && state=warning
     (( level <= 10 )) && state=critical
     case $status in
-      Charging) emit "󰂄" "" charging "$(mark power)" ;;
-      Full|"Not charging") emit "󰚥" "" plugged "$(mark power)" ;;
-      *) emit "${icons[level / 10]}" "" "$state" "$(mark power)" ;;
+      Charging) emit "${charging[step]}" "" charging "$(mark power)" ;;
+      Full|"Not charging") emit "󰂅" "" plugged "$(mark power)" ;;
+      *) emit "${icons[step]}" "" "$state" "$(mark power)" ;;
     esac
+    ;;
+
+  monitor)            # Omarchy's display item: opens the display panel
+    n=$(hyprctl monitors -j 2>/dev/null | grep -c '"name"')
+    if (( n > 1 )); then emit "󰍺" "" "$(mark display)"; else emit "󰍹" "" "$(mark display)"; fi
     ;;
 
   clock)
@@ -83,7 +98,7 @@ case $1 in
     # open state changes. Cheap: bash built-ins plus a short sleep.
     last=""
     while :; do
-      printf -v now '%(%a %d %b   %H:%M)T' -1
+      printf -v now '%(%A %H:%M)T' -1          # Omarchy: "Tuesday 12:02"
       kind="" route=""
       [[ -r $open_file ]] && read -r kind route <"$open_file"
       cls=""
@@ -99,9 +114,9 @@ case $1 in
 
   awake)              # coffee cup: lit while "stay awake" is on (bin/stay-awake)
     if pgrep -f "[s]ystemd-inhibit --what=idle --who=hypr-nameplate stay awake" >/dev/null; then
-      emit "󰅶" "Staying awake: no screensaver or lock. Click to turn off" on
+      emit $'\uef59' "Staying awake: no screensaver or lock. Click to turn off" on
     else
-      emit "󰅶" "Stay awake: click to keep the screensaver and lock away" off
+      emit $'\uef59' "Stay awake: click to keep the screensaver and lock away" off
     fi
     ;;
 
@@ -117,7 +132,7 @@ case $1 in
     if makoctl mode 2>/dev/null | grep -qx do-not-disturb; then
       emit "󰂛" "Do not disturb is on. Click to turn it off" on
     else
-      emit "󰂚" "Do not disturb: click to silence notifications" off
+      emit "󰂛" "Do not disturb: click to silence notifications" off
     fi
     ;;
 
@@ -126,9 +141,9 @@ case $1 in
     if [[ -z $raw ]]; then
       echo                                          # no microphone
     elif [[ $raw == *MUTED* ]]; then
-      emit "󰍭" "Microphone muted. Click to unmute" muted
+      emit "󰍭" "Microphone muted. Click to unmute" on
     else
-      emit "󰍬" "Microphone on. Click to mute" on
+      emit "󰍭" "Mute the microphone" off
     fi
     ;;
 
@@ -138,14 +153,14 @@ case $1 in
     # so that count wouldn't drop after updating.
     n=$(apt-get -s -o Debug::NoLocking=true full-upgrade 2>/dev/null | grep -c '^Inst ')
     if (( n > 0 )); then
-      emit "󰚰 $n" "$n update$( ((n > 1)) && echo s) waiting. Click to install" waiting
+      emit $'\uf021' "$n update$( ((n > 1)) && echo s) waiting. Click to install" waiting
     else
       echo
     fi
     ;;
 
   *)
-    echo "usage: bar-status logo|power|network|bluetooth|battery|clock|awake|nightlight|dnd|mic|updates" >&2
+    echo "usage: bar-status logo|power|network|bluetooth|battery|monitor|clock|awake|nightlight|dnd|mic|updates" >&2
     exit 1
     ;;
 esac

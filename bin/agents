@@ -434,7 +434,7 @@ def main():
             is_open = OPEN_FILE.read_text().split()[:1] == ["agents"]
         except OSError:
             is_open = False
-        print(json.dumps({"text": "\U000F06A9", "tooltip": "", "class": ["open"] if is_open else []},
+        print(json.dumps({"text": "\U000F16A3", "tooltip": "", "class": ["open"] if is_open else []},
                          ensure_ascii=False))
     elif cmd == "stats":
         print(json.dumps(summarise(collect())))

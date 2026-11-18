@@ -4,9 +4,9 @@
 
   APPS
     SUPER + Return          Terminal
-    SUPER + ALT + SPACE     Main menu: everything in one place (or click your name in the bar).
+    SUPER + ALT + SPACE     Main menu: everything in one place (or click the logo in the bar).
                             Type to search, Enter to pick, Escape or Backspace goes back.
-    SUPER + Space           App launcher (type a name, Enter)
+    SUPER + Space           App grid (start typing to search, arrows to move, Enter)
     SUPER + E               Files
     SUPER + K               This cheat sheet
     SUPER + Escape          Power options (lock, log out, restart, shut down)

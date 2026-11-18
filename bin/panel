@@ -94,7 +94,7 @@ PIDFILE = os.path.join(RUN, "nameplate-panel.pid")
 OPEN_FILE = os.path.join(RUN, "nameplate-panel-open")      # read by bin/bar-status
 BIN = os.path.expanduser("~/.config/nameplate/bin")
 PANELS = ("calendar", "media", "sound", "wifi", "bluetooth", "display", "power", "wallpapers",
-          "clipboard", "emoji", "menu", "themes", "weather", "agents")
+          "clipboard", "emoji", "menu", "themes", "weather", "agents", "apps")
 
 
 def g(code):
@@ -182,6 +182,41 @@ window.np-popup {
 .np-popup button.np-selected label { color: @fg_bright; }
 .np-popup button.np-back { padding: 0 6px; }
 .np-popup button.np-back label { font-size: 13pt; color: @accent; }
+/* Wallpaper and theme pickers: a carousel floating over the desktop */
+window.np-popup.np-bare { background-color: transparent; border: none; }
+.np-popup .np-picker-name { font-size: 15pt; font-weight: bold; color: @fg_bright; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+.np-popup .np-picker-hint { font-size: 9pt; color: @fg; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+/* App launcher, like Omarchy 4's app grid */
+.np-popup .np-apps { padding: 6px; }
+.np-popup entry.np-apps-search {
+  background-color: alpha(@fg, 0.06); border: none; padding: 9px 12px;
+  font-size: 13pt; color: @fg_bright;
+}
+.np-popup flowboxchild.np-app { padding: 14px 4px 6px 4px; border-radius: 0; }
+.np-popup flowboxchild.np-app:hover { background-color: alpha(@fg, 0.05); }
+.np-popup flowboxchild.np-app .np-app-name { padding: 2px 8px; }
+.np-popup flowboxchild.np-app:selected { background-color: transparent; }
+.np-popup flowboxchild.np-app:selected .np-app-name { background-color: @selection; color: @fg_bright; }
+/* Agents panel, like Omarchy 4's */
+.np-popup .np-agents-head { padding: 6px 0 18px 0; }
+.np-popup button.np-chip { background-color: alpha(@fg, 0.06); padding: 6px 4px; }
+.np-popup button.np-chip:hover { background-color: @selection; }
+.np-popup button.np-chip.np-current { background-color: @selection; }
+.np-popup button.np-chip.np-current label { color: @accent; font-weight: bold; }
+.np-popup scale marks mark indicator { color: @muted; min-height: 4px; min-width: 1px; }
+.np-popup .np-agents-mark { font-size: 26pt; color: @fg; }
+.np-popup .np-agents-title { font-size: 13pt; font-weight: bold; color: @fg; }
+.np-popup .np-agents-phrase { font-size: 9pt; letter-spacing: 2px; color: @fg_dim; }
+.np-popup button.np-agents-add { background-color: @selection; padding: 10px 16px; }
+.np-popup button.np-agents-add label { font-size: 13pt; color: @accent; }
+.np-popup button.np-agents-add:hover { background-color: @muted; }
+.np-popup .np-agent { padding: 16px 0; }
+.np-popup .np-agent-name { font-size: 11pt; font-weight: bold; color: @fg; }
+.np-popup button.np-agent-btn { padding: 2px 6px; }
+.np-popup button.np-agent-btn label { font-size: 12pt; color: @fg; }
+.np-popup progressbar.np-meter trough { background-color: @selection; min-height: 6px; border: none; border-radius: 3px; }
+.np-popup progressbar.np-meter progress { background-color: @fg; min-height: 6px; border: none; border-radius: 3px; }
+.np-popup progressbar.np-meter text { font-size: 0; }
 """
 
 
@@ -533,7 +568,7 @@ class SoundPanel(Panel):
         line.pack_start(self.vol_label, False, False, 0)
         self.box.pack_start(line, False, False, 0)
 
-        bright = self.brightness()
+        bright = None              # brightness lives in the display panel now, like Omarchy
         if bright is not None:
             self.box.pack_start(label("Brightness", "np-title"), False, False, 2)
             self.bright_scale, self.bright_label = self.slider(bright, 1, 100, self.set_brightness)
@@ -1083,36 +1118,187 @@ class BluetoothPanel(Panel):
 
 
 class DisplayPanel(Panel):
-    width = 300
+    """Screens (the monitor icon in the bar), laid out like Omarchy 4's display panel:
+    which screen, brightness (only when the screen has a backlight), text size,
+    scale, resolution, refresh rate, and the layout when a second screen is plugged in.
+    Changes apply at once and are remembered (bin/display)."""
+    width = 360
+    TEXT_STOPS = (9, 10, 11, 12, 14, 16, 20)
+    SCALES = ("1", "1.25", "1.6", "2")
 
-    def __init__(self, app):
+    def __init__(self, app, route=None):
         super().__init__(app)
-        import json
-        try:
-            screens = json.loads(out("hyprctl", "-j", "monitors", "all", timeout=5) or "[]")
-        except ValueError:
-            screens = []
-        internal = [m for m in screens if m["name"].startswith(("eDP", "LVDS", "DSI"))]
-        external = [m for m in screens if m not in internal]
-        self.box.pack_start(label("Screens", "np-title"), False, False, 0)
-        if not internal or not external:
-            self.box.pack_start(label("Only one screen is connected.", "np-dim"), False, False, 4)
-            self.box.pack_start(row(I["refresh"], "Reset screen layout", on_click=self.reset), False, False, 0)
+        self.box.set_spacing(10)
+        self.chosen = route
+        self.body = vbox(10)
+        self.box.pack_start(self.body, False, False, 0)
+        self.load()
+
+    def load(self):
+        def work():
+            rc, text = run(os.path.join(BIN, "display"), timeout=15)
+            try:
+                return json.loads(text) if rc == 0 else None
+            except ValueError:
+                return None
+        in_background(work, self.show)
+
+    def show(self, data):
+        clear(self.body)
+        if not data or not data["screens"]:
+            self.body.pack_start(label("Couldn't read the screens.", "np-dim"), False, False, 6)
+            self.body.show_all()
             return
-        self.lap, self.ext = internal[0]["name"], external[0]["name"]
-        ext_desc = (external[0].get("description") or self.ext).split("(")[0].strip()
+        self.data = data
+        live = [m for m in data["screens"] if not m["disabled"]] or data["screens"]
+        cur = next((m for m in live if m["name"] == self.chosen), None) \
+            or next((m for m in live if m["internal"]), live[0])
+        self.cur = cur
+
+        # Header: the screen and what it's running at; a picker when there are several
+        head = vbox(2)
+        head.pack_start(label(cur["title"], "np-title"), False, False, 0)
+        head.pack_start(label("%s  ·  %s Hz  ·  %s×" % (cur["size"].replace("x", "×"), cur["hz"], cur["scale"]),
+                              "np-dim"), False, False, 0)
+        self.body.pack_start(head, False, False, 0)
+        if len(live) > 1:
+            self.body.pack_start(self.chips([(m["title"], m["name"]) for m in live], cur["name"],
+                                            self.pick), False, False, 0)
+
+        if data.get("brightness") is not None and cur["internal"]:
+            self.body.pack_start(self.heading("Brightness", "%d%%" % data["brightness"]), False, False, 0)
+            sc = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1)
+            sc.set_draw_value(False)
+            sc.set_value(data["brightness"])
+            sc.connect("value-changed", lambda s: self.debounce(
+                "bright", lambda v=int(s.get_value()): run("brightnessctl", "-q", "-c", "backlight", "set", "%d%%" % v, timeout=5)))
+            sc.connect("value-changed", lambda s: self.value_label.set_text("%d%%" % int(s.get_value())))
+            self.value_label = self.last_value
+            self.body.pack_start(sc, False, False, 0)
+
+        # Text size: Omarchy's stops, one notch per step
+        stops = self.TEXT_STOPS
+        now = min(range(len(stops)), key=lambda i: abs(stops[i] - data["text"]))
+        self.body.pack_start(self.heading("Text size", "%d px" % stops[now]), False, False, 0)
+        text_label = self.last_value
+        ts = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, len(stops) - 1, 1)
+        ts.set_draw_value(False)
+        ts.set_round_digits(0)
+        for i in range(len(stops)):
+            ts.add_mark(i, Gtk.PositionType.BOTTOM, None)
+        ts.set_value(now)
+        def text_changed(s):
+            px = stops[int(round(s.get_value()))]
+            text_label.set_text("%d px" % px)
+            self.debounce("text", lambda: run(os.path.join(BIN, "display"), "text", str(px), timeout=20))
+        ts.connect("value-changed", text_changed)
+        self.body.pack_start(ts, False, False, 0)
+
+        self.body.pack_start(self.heading("Scale"), False, False, 0)
+        scales = list(self.SCALES)
+        if cur["scale"] not in scales:
+            scales.append(cur["scale"])
+        self.body.pack_start(self.chips([(v + "×", v) for v in scales], cur["scale"],
+                                        lambda v: self.set("scale", v)), False, False, 0)
+
+        sizes = []
+        for size, _hz in cur["modes"]:
+            if size not in sizes:
+                sizes.append(size)
+        sizes.sort(key=lambda t: -int(t.split("x")[0]) * int(t.split("x")[1]))
+        if len(sizes) > 1:
+            shown = sizes[:6] if cur["size"] in sizes[:6] else sizes[:5] + [cur["size"]]
+            self.body.pack_start(self.heading("Resolution"), False, False, 0)
+            self.body.pack_start(self.chips([(t.replace("x", "×"), t) for t in shown], cur["size"],
+                                            lambda t: self.set_mode(t, None), per_line=3), False, False, 0)
+        rates = sorted({hz for size, hz in cur["modes"] if size == cur["size"]},
+                       key=lambda h: -float(h))
+        rates = [("%.0f Hz" % float(h), h) for h in rates]
+        if len(rates) > 1:
+            near = min(rates, key=lambda r: abs(float(r[1]) - float(cur["hz"])))[1]
+            self.body.pack_start(self.heading("Refresh rate"), False, False, 0)
+            self.body.pack_start(self.chips(rates[:5], near, lambda h: self.set_mode(cur["size"], h)),
+                                 False, False, 0)
+
+        if len(data["screens"]) > 1:
+            self.body.pack_start(self.heading("Layout"), False, False, 0)
+            self.layout_rows(data["screens"])
+        self.body.show_all()
+
+    # -- pieces
+    def heading(self, text, value=""):
+        line = hbox()
+        line.pack_start(label(text, "np-dim"), True, True, 0)
+        self.last_value = label(value, "np-dim", xalign=1.0)
+        line.pack_end(self.last_value, False, False, 0)
+        return line
+
+    def chips(self, items, current, on_pick, per_line=4):
+        flow = Gtk.FlowBox()
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_homogeneous(True)
+        flow.set_min_children_per_line(min(per_line, len(items)))
+        flow.set_max_children_per_line(per_line)
+        flow.set_column_spacing(6)
+        flow.set_row_spacing(6)
+        for text, value in items:
+            b = Gtk.Button(label=text)
+            b.get_style_context().add_class("np-chip")
+            if value == current:
+                b.get_style_context().add_class("np-current")
+            b.connect("clicked", lambda _b, v=value: on_pick(v))
+            flow.add(b)
+        return flow
+
+    def debounce(self, key, fn, ms=250):
+        timers = self.__dict__.setdefault("_timers", {})
+        if timers.get(key):
+            GLib.source_remove(timers[key])
+        def fire():
+            timers[key] = None
+            fn()
+            return False
+        timers[key] = GLib.timeout_add(ms, fire)
+
+    def pick(self, name):
+        self.chosen = name
+        self.show(self.data)
+
+    def set(self, key, value):
+        def work():
+            return run(os.path.join(BIN, "display"), "set", self.cur["name"], key, value, timeout=15)
+        def done(result):
+            rc, text = result
+            if rc != 0:
+                spawn("notify-send", "-a", "Display", "Couldn't change the screen", text)
+            self.load()
+        in_background(work, done)
+
+    def set_mode(self, size, hz):
+        rates = [h for s, h in self.cur["modes"] if s == size]
+        if hz is None:          # a new resolution: its fastest refresh rate
+            hz = max(rates, key=float) if rates else self.cur["hz"]
+        self.set("mode", "%s@%s" % (size, hz))
+
+    def layout_rows(self, screens):
+        internal = [m["name"] for m in screens if m["internal"]]
+        external = [m for m in screens if not m["internal"]]
+        if not internal or not external:
+            return
+        lap, ext = internal[0], external[0]["name"]
+        ext_desc = external[0]["title"]
         options = [
-            (I["extend"], "Extend to the right", [self.on(self.lap, "auto"), self.on(self.ext, "auto-right")]),
-            (I["extend"], "Extend to the left", [self.on(self.lap, "auto"), self.on(self.ext, "auto-left")]),
-            (I["mirror"], "Mirror (same picture on both)",
-             [self.on(self.lap, "auto"), self.on(self.ext, "auto", f', mirror = "{self.lap}"')]),
-            (I["monitor"], f"{ext_desc} only", [self.on(self.ext, "auto"), self.off(self.lap)]),
-            (I["laptop"], "Laptop screen only", [self.on(self.lap, "auto"), self.off(self.ext)]),
+            ("Extend right", [self.on(lap, "auto"), self.on(ext, "auto-right")]),
+            ("Extend left", [self.on(lap, "auto"), self.on(ext, "auto-left")]),
+            ("Mirror", [self.on(lap, "auto"), self.on(ext, "auto", f', mirror = "{lap}"')]),
+            ("%s only" % ext_desc.split()[0], [self.on(ext, "auto"), self.off(lap)]),
+            ("Laptop only", [self.on(lap, "auto"), self.off(ext)]),
+            ("Reset", None),
         ]
-        for icon, text, rules in options:
-            self.box.pack_start(row(icon, text, on_click=lambda r=rules: self.apply(r)), False, False, 0)
-        self.box.pack_start(Gtk.Separator(), False, False, 0)
-        self.box.pack_start(row(I["refresh"], "Reset screen layout", on_click=self.reset), False, False, 0)
+        rules = dict(options)
+        self.body.pack_start(self.chips([(t, t) for t, _ in options], None,
+                                        lambda t: self.reset() if rules[t] is None else self.apply(rules[t]),
+                                        per_line=3), False, False, 0)
 
     @staticmethod
     def on(name, pos, extra=""):
@@ -1130,6 +1316,7 @@ class DisplayPanel(Panel):
 
     def reset(self):
         run("hyprctl", "reload", timeout=10)
+        run(os.path.join(BIN, "display"), "restore", timeout=15)
         self.close()
 
 
@@ -1245,71 +1432,261 @@ def battery_text(status):
     return "Plugged in, not charging" if status == "Not charging" else status
 
 
-class WallpaperPanel(Panel):
-    """Thumbnails of the wallpaper collection (double-click the desktop)."""
-    width = 760
-    anchor = "middle"
-    THUMB_W, THUMB_H = 168, 95
+class Carousel(Gtk.DrawingArea):
+    """Omarchy 4's picker carousel, drawn with cairo: the chosen image big in the middle,
+    the others as tall slanted slices behind it on both sides, dimmed and overlapping.
+    Moving slides everything along smoothly. items: [(key, title, draw_source)], where
+    draw_source is an image path, or a function(cr, w, h) that paints a preview."""
+    W, H = 768, 475             # the chosen one
+    SW, SH = 108, 432           # the slices
+    SPACING, SKEW, RADIUS = -30, 28, 16
 
-    def __init__(self, app):
-        super().__init__(app)
-        head = hbox()
-        head.pack_start(label("Wallpapers", "np-title"), True, True, 0)
-        folder = os.path.expanduser("~/Pictures/Wallpapers")
-        head.pack_end(row(I["folder"], "Add your own", on_click=lambda: self.open_folder(folder)), False, False, 0)
-        self.box.pack_start(head, False, False, 0)
-        self.images = out(f"{BIN}/wallpaper", "list", timeout=10).splitlines()
-        self.current = read(os.path.expanduser("~/.config/nameplate/wallpaper-current")) or \
-            os.path.expanduser("~/.config/nameplate/wallpaper.png")
-        if len(self.images) <= 1:
-            self.box.pack_start(label("Put images in ~/Pictures/Wallpapers (folders are fine) and they show up here.\n"
-                                      "For Omarchy's collection run:  ~/.config/nameplate/bin/get-omarchy-wallpapers",
-                                      "np-dim"), False, False, 4)
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_min_content_height(min(440, 115 * max(1, math.ceil(len(self.images) / 4))))
-        self.flow = Gtk.FlowBox()
-        self.flow.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.flow.set_max_children_per_line(4)
-        self.flow.set_min_children_per_line(4)
-        self.flow.set_homogeneous(True)
-        self.flow.set_row_spacing(6)
-        self.flow.set_column_spacing(6)
-        scroll.add(self.flow)
-        self.box.pack_start(scroll, True, True, 0)
-        self.box.pack_start(label("Click to apply  ·  SUPER + CTRL + SPACE for the next one", "np-dim", xalign=0.5),
-                            False, False, 0)
-        self.buttons = {}
-        self.queue = list(self.images)
+    def __init__(self, items, selected, on_select, on_apply, width):
+        super().__init__()
+        self.items, self.sel, self.pos = items, selected, float(selected)
+        self.on_select, self.on_apply = on_select, on_apply
+        self.width = width
+        self.pix = {}                     # key -> GdkPixbuf at the big size
+        self.queue = []
+        self.ticking = False
+        self.colors = theme_colors()
+        self.set_size_request(width, self.H + 8)
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.SCROLL_MASK
+                        | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+        self.connect("draw", self.draw)
+        self.connect("button-press-event", self.clicked)
+        self.connect("scroll-event", self.scrolled)
+        self.load_around()
+
+    # -- images: the chosen one first, then its neighbours, one per idle tick
+    def load_around(self):
+        order = sorted(range(len(self.items)), key=lambda i: abs(i - self.sel))
+        self.queue = [i for i in order if abs(i - self.sel) <= self.RADIUS and self.items[i][0] not in self.pix]
         GLib.idle_add(self.load_next)
 
     def load_next(self):
-        """Thumbnails load one at a time so the panel opens instantly."""
-        if not self.queue:
+        while self.queue:
+            i = self.queue.pop(0)
+            key, _title, source = self.items[i]
+            if key in self.pix:
+                continue
+            self.pix[key] = thumbnail(source, self.W, self.H) if isinstance(source, str) else None
+            self.queue_draw()
+            return True
+        return False
+
+    # -- moving
+    def select(self, i, animate=True):
+        i = max(0, min(len(self.items) - 1, i))
+        if i == self.sel:
+            return
+        self.sel = i
+        self.on_select(i)
+        self.load_around()
+        if not animate:
+            self.pos = float(i)
+        if not self.ticking:
+            self.ticking = True
+            GLib.timeout_add(16, self.tick)
+        self.queue_draw()
+
+    def tick(self):
+        gap = self.sel - self.pos
+        if abs(gap) < 0.01:
+            self.pos = float(self.sel)
+            self.ticking = False
+            self.queue_draw()
             return False
-        path = self.queue.pop(0)
-        b = Gtk.Button()
-        b.get_style_context().add_class("np-thumb")
-        if path == self.current:
-            b.get_style_context().add_class("np-current")
-        b.set_tooltip_text(os.path.splitext(os.path.basename(path))[0])
-        pix = thumbnail(path, self.THUMB_W, self.THUMB_H)
-        b.add(Gtk.Image.new_from_pixbuf(pix) if pix else label(I["image"], "np-huge", xalign=0.5))
-        b.connect("clicked", lambda *_: self.apply(path))
-        self.buttons[path] = b
-        self.flow.add(b)
-        b.show_all()
+        self.pos += gap * 0.22            # ease out: quick at first, settling gently
+        self.queue_draw()
         return True
 
-    def apply(self, path):
-        run(f"{BIN}/wallpaper", "set", path, timeout=10)
-        for p, b in self.buttons.items():
-            (b.get_style_context().add_class if p == path else b.get_style_context().remove_class)("np-current")
-        self.current = path
+    # -- layout: where an item sits at a (fractional) distance r from the middle
+    def slot(self, r):
+        step = self.SW + self.SPACING
+        px = (self.width - self.W) / 2
+        def far(k):
+            if k < 0:
+                return (px + k * step, (self.H - self.SH) / 2, self.SW, self.SH)
+            return (px + self.W + self.SPACING + (k - 1) * step, (self.H - self.SH) / 2, self.SW, self.SH)
+        if abs(r) >= 1:
+            return far(r)
+        a, b, t = (px, 0, self.W, self.H), far(1 if r > 0 else -1), abs(r)
+        return tuple(a[n] + (b[n] - a[n]) * t for n in range(4))
 
-    def open_folder(self, folder):
-        os.makedirs(folder, exist_ok=True)
-        spawn("xdg-open", folder)
+    @staticmethod
+    def rgb(hexcolor, alpha=1.0):
+        h = hexcolor.lstrip("#")
+        try:
+            return tuple(int(h[n:n + 2], 16) / 255 for n in (0, 2, 4)) + (alpha,)
+        except ValueError:
+            return (0.5, 0.5, 0.5, alpha)
+
+    def outline(self, cr, x, y, w, h):
+        k = self.SKEW
+        cr.move_to(x + k, y)
+        cr.line_to(x + w, y)
+        cr.line_to(x + w - k, y + h)
+        cr.line_to(x, y + h)
+        cr.close_path()
+
+    def draw(self, _w, cr):
+        visible = [(i, i - self.pos) for i in range(len(self.items)) if abs(i - self.pos) <= self.RADIUS + 1]
+        visible.sort(key=lambda v: -abs(v[1]))          # far ones first, the chosen one on top
+        self.hits = []
+        for i, r in visible:
+            x, y, w, h = self.slot(r)
+            y += 4
+            if x + w < 0 or x > self.width:
+                continue
+            key, _title, source = self.items[i]
+            near = max(0.0, 1 - abs(r))                   # 1 for the chosen one, 0 for a slice
+            cr.save()
+            self.outline(cr, x, y, w, h)
+            cr.clip()
+            cr.set_source_rgba(*self.rgb(self.colors["background"]))
+            cr.paint()
+            pix = self.pix.get(key)
+            if pix is not None:
+                pw, ph = pix.get_width(), pix.get_height()
+                sc = max(w / pw, h / ph)
+                cr.save()
+                cr.translate(x + (w - pw * sc) / 2, y + (h - ph * sc) / 2)
+                cr.scale(sc, sc)
+                Gdk.cairo_set_source_pixbuf(cr, pix, 0, 0)
+                cr.paint()
+                cr.restore()
+            elif callable(source):
+                cr.save()
+                cr.translate(x, y)
+                source(cr, w, h)
+                cr.restore()
+            cr.set_source_rgba(*self.rgb(self.colors["background"], 0.42 * (1 - near)))
+            cr.paint()
+            cr.restore()
+            self.outline(cr, x, y, w, h)
+            if near > 0.5:
+                cr.set_source_rgba(*self.rgb(self.colors["accent"]))
+                cr.set_line_width(3)
+            else:
+                cr.set_source_rgba(*self.rgb(self.colors["muted"]))
+                cr.set_line_width(1)
+            cr.stroke()
+            self.hits.append((i, x, y, w, h))
+        return False
+
+    def clicked(self, _w, event):
+        for i, x, y, w, h in reversed(self.hits):       # the topmost first
+            if x <= event.x <= x + w and y <= event.y <= y + h:
+                if i == self.sel:
+                    self.on_apply(i)
+                else:
+                    self.select(i)
+                return True
+        return False
+
+    def scrolled(self, _w, event):
+        ok, dx, dy = event.get_scroll_deltas()
+        step = None
+        if event.direction in (Gdk.ScrollDirection.DOWN, Gdk.ScrollDirection.RIGHT):
+            step = 1
+        elif event.direction in (Gdk.ScrollDirection.UP, Gdk.ScrollDirection.LEFT):
+            step = -1
+        elif ok and (dx or dy):
+            step = 1 if (dx or dy) > 0 else -1
+        if step:
+            self.select(self.sel + step)
+        return True
+
+    def key(self, event):
+        k = event.keyval
+        if k in (Gdk.KEY_Left, Gdk.KEY_h, Gdk.KEY_Up, Gdk.KEY_ISO_Left_Tab):
+            self.select(self.sel - 1)
+        elif k in (Gdk.KEY_Right, Gdk.KEY_l, Gdk.KEY_Down, Gdk.KEY_Tab):
+            self.select(self.sel + 1)
+        elif k == Gdk.KEY_Home:
+            self.select(0)
+        elif k == Gdk.KEY_End:
+            self.select(len(self.items) - 1)
+        elif k in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
+            self.on_apply(self.sel)
+        else:
+            return False
+        return True
+
+
+def screen_width():
+    """Width of the screen the panels open on (the one with the pointer)."""
+    display = Gdk.Display.get_default()
+    try:
+        seat = display.get_default_seat()
+        _screen, x, y = seat.get_pointer().get_position()
+        mon = display.get_monitor_at_point(x, y)
+    except Exception:
+        mon = display.get_monitor(0)
+    return mon.get_geometry().width if mon else 1366
+
+
+class PickerPanel(Panel):
+    """Base for the wallpaper and theme pickers: a carousel floating over the desktop,
+    with the chosen one's name under it. Arrows or scrolling move, Enter or a click on
+    the big one applies, Escape closes."""
+    anchor = "middle"
+    bare = True                   # no box around it: it floats over the desktop
+
+    def build(self, items, selected, hint):
+        width = min(screen_width() - 80, Carousel.W + 13 * (Carousel.SW + Carousel.SPACING) + 40)
+        self.width = width
+        self.items = items
+        self.box.set_spacing(14)
+        try:
+            gi.require_foreign("cairo")       # the carousel draws with cairo
+        except ImportError:
+            items, hint = [], "The picker needs one more package:  sudo apt install python3-gi-cairo"
+        if not items:
+            self.box.pack_start(label(hint, "np-picker-name", xalign=0.5), False, False, 0)
+            return
+        self.carousel = Carousel(items, selected, self.selected, self.apply, width)
+        self.box.pack_start(self.carousel, False, False, 0)
+        self.name = label(items[selected][1], "np-picker-name", xalign=0.5)
+        self.box.pack_start(self.name, False, False, 0)
+        self.box.pack_start(label(hint, "np-picker-hint", xalign=0.5), False, False, 0)
+
+    def selected(self, i):
+        self.name.set_text(self.items[i][1])
+
+    def on_key(self, event):
+        return bool(getattr(self, "carousel", None)) and self.carousel.key(event)
+
+    def apply(self, i):
+        raise NotImplementedError
+
+
+class WallpaperPanel(PickerPanel):
+    """Wallpapers (double-click the desktop): Omarchy 4's slanted carousel."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        images = out(f"{BIN}/wallpaper", "list", timeout=10).splitlines()
+        current = read(os.path.expanduser("~/.config/nameplate/wallpaper-current")) or \
+            os.path.expanduser("~/.config/nameplate/wallpaper.png")
+        if current not in images and os.path.exists(current):
+            images.insert(0, current)
+        items = [(p, self.title(p), p) for p in images]
+        sel = images.index(current) if current in images else 0
+        self.build(items, sel, "Enter or click to use it  ·  arrows or scroll to browse  ·  "
+                   "add your own in ~/Pictures/Wallpapers" if len(images) > 1 else
+                   "Put images in ~/Pictures/Wallpapers, or get Omarchy's: ~/.config/nameplate/bin/get-omarchy-wallpapers")
+
+    @staticmethod
+    def title(path):
+        name = os.path.splitext(os.path.basename(path))[0]
+        name = re.sub(r"^\d+[-_ ]*", "", name) or name           # Omarchy's "1-name" numbering
+        return name.replace("-", " ").replace("_", " ").strip().capitalize()
+
+    def apply(self, i):
+        path = self.items[i][0]
+        in_background(lambda: run(f"{BIN}/wallpaper", "set", path, timeout=10))
         self.close()
 
 
@@ -1553,51 +1930,40 @@ class EmojiPanel(Panel):
         spawn("notify-send", "-a", "Emoji", "-t", "1500", f"Copied {ch}  Paste with Ctrl+V")
         self.close()
 
-class ThemePanel(Panel):
-    """Colour themes (SUPER + CTRL + SHIFT + SPACE), Omarchy's palettes. Click one to switch."""
-    width = 640
-    anchor = "middle"
-    CARD_W, CARD_H = 146, 86
+class ThemePanel(PickerPanel):
+    """Colour themes (SUPER + CTRL + SHIFT + SPACE): Omarchy 4's slanted carousel. Each
+    theme shows its own wallpaper if you downloaded Omarchy's, otherwise a preview
+    painted in its colours."""
+    DOTS = ("red", "yellow", "green", "cyan", "blue", "magenta")
 
     def __init__(self, app):
         super().__init__(app)
-        self.providers = []
-        head = hbox()
-        head.pack_start(label("Themes", "np-title"), True, True, 0)
-        self.box.pack_start(head, False, False, 0)
         listing = out(f"{BIN}/theme", "list", timeout=10).splitlines()
-        self.names = [n.lstrip("* ").strip() for n in listing if n.strip()]   # "* " marks the current one
-        self.now = next((n.lstrip("* ").strip() for n in listing if n.startswith("*")), None)
-        if not self.names:
-            self.box.pack_start(label("No themes found. Run the installer again.", "np-dim"), False, False, 6)
-            return
-        flow = Gtk.FlowBox()
-        flow.set_selection_mode(Gtk.SelectionMode.NONE)
-        flow.set_max_children_per_line(4)
-        flow.set_min_children_per_line(4)
-        flow.set_homogeneous(True)
-        flow.set_row_spacing(6)
-        flow.set_column_spacing(6)
+        names = [n.lstrip("* ").strip() for n in listing if n.strip()]   # "* " marks the current one
+        now = next((n.lstrip("* ").strip() for n in listing if n.startswith("*")), None)
         themes = os.path.expanduser("~/.config/nameplate/themes")
-        for name in self.names:
-            b = Gtk.Button()
-            b.get_style_context().add_class("np-thumb")
-            if name == self.now:
-                b.get_style_context().add_class("np-current")
+        walls = os.path.expanduser("~/Pictures/Wallpapers")
+        items = []
+        for name in names:
             path = os.path.join(themes, name + ".toml")
             if not os.path.exists(path):
                 path = os.path.join(os.path.dirname(themes), "user-themes", name + ".toml")
-            b.add(self.card(name, self.palette(path)))
-            b.connect("clicked", lambda *_, n=name: self.choose(n))
-            flow.add(b)
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_min_content_height(min(470, 96 * math.ceil(len(self.names) / 4)))
-        scroll.add(flow)
-        self.box.pack_start(scroll, True, True, 0)
-        self.status = label("Click to apply. Wallpapers change too if you downloaded Omarchy's collection.",
-                            "np-dim", xalign=0.5)
-        self.box.pack_start(self.status, False, False, 0)
+            image = self.wallpaper(walls, name)
+            items.append((name, self.pretty(name), image or self.painter(self.palette(path), self.pretty(name))))
+        sel = names.index(now) if now in names else 0
+        self.build(items, sel, "Enter or click to switch  ·  arrows or scroll to browse"
+                   if items else "No themes found. Run the installer again.")
+
+    @staticmethod
+    def wallpaper(walls, name):
+        for folder in (os.path.join(walls, "omarchy", name), os.path.join(walls, name)):
+            try:
+                images = sorted(f for f in os.listdir(folder) if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))
+            except OSError:
+                continue
+            if images:
+                return os.path.join(folder, images[0])
+        return None
 
     @staticmethod
     def palette(path):
@@ -1617,44 +1983,44 @@ class ThemePanel(Panel):
         special = {"rose-pine": "Rosé Pine", "retro-82": "Retro 82"}
         return special.get(name, name.replace("-", " ").title())
 
-    DOTS = ("red", "yellow", "green", "cyan", "blue", "magenta")
+    def painter(self, c, title):
+        """A preview in the theme's colours: a little window with code-like lines."""
+        rgb = Carousel.rgb
+        def paint(cr, w, h):
+            cr.set_source_rgba(*rgb(c.get("background", "#202020")))
+            cr.paint()
+            cr.set_source_rgba(*rgb(c.get("accent", "#808080")))
+            cr.rectangle(0, 0, w, 5)
+            cr.fill()
+            pad, line = w * 0.08, max(6, h * 0.035)
+            keys = ("accent",) + self.DOTS + ("foreground",)
+            for n in range(12):
+                y = h * 0.14 + n * line * 2
+                if y > h * 0.86:
+                    break
+                x = pad + (n % 3) * w * 0.03
+                for m in range(3):
+                    seg = w * (0.12 + ((n * 7 + m * 5) % 9) / 30)
+                    cr.set_source_rgba(*rgb(c.get(keys[(n + m * 3) % len(keys)], "#808080"), 0.9))
+                    cr.rectangle(x, y, min(seg, w - pad - x), line)
+                    cr.fill()
+                    x += seg + w * 0.02
+                    if x > w - pad:
+                        break
+            for k, key in enumerate(self.DOTS):
+                cr.set_source_rgba(*rgb(c.get(key, "#808080")))
+                cr.arc(pad + k * w * 0.05 + w * 0.012, h * 0.92, max(4, w * 0.012), 0, 6.2832)
+                cr.fill()
+        return paint
 
-    def cleanup(self):
-        for css in self.providers:      # the process stays running, so don't let them pile up
-            Gtk.StyleContext.remove_provider_for_screen(Gdk.Screen.get_default(), css)
-
-    def card(self, name, c):
-        """A small preview in the theme's own colours: its name and six colour dots."""
-        wid = "np-theme-" + re.sub(r"\W", "-", name)
-        rules = ["#%s { background-color: %s; border-top: 4px solid %s; padding: 10px 10px 8px 10px; }"
-                 % (wid, c.get("background", "#808080"), c.get("accent", "#808080")),
-                 "#%s label { color: %s; font-weight: bold; }" % (wid, c.get("foreground", "#808080"))]
-        rules += ["#%s label.np-dot%d { color: %s; font-size: 15pt; font-weight: normal; }"
-                  % (wid, i, c.get(key, "#808080")) for i, key in enumerate(self.DOTS)]
-        css = Gtk.CssProvider()
-        css.load_from_data("\n".join(rules).encode())
-        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css,
-                                                 Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
-        self.providers.append(css)
-        box = vbox(10)
-        box.set_name(wid)
-        box.set_size_request(self.CARD_W, self.CARD_H)
-        box.pack_start(label(self.pretty(name), ellipsize=True, width=16), False, False, 0)
-        dots = hbox(4)
-        for i in range(len(self.DOTS)):
-            dots.pack_start(label(g(0xF0765), "np-dot%d" % i), False, False, 0)   # filled circle
-        box.pack_end(dots, False, False, 0)
-        return box
-
-    def choose(self, name):
-        self.status.set_text("Applying %s..." % self.pretty(name))
-
+    def apply(self, i):
+        name = self.items[i][0]
+        self.close()
         def done(_result):
-            self.close()                      # reopen, so the panel itself wears the new colours
             if DAEMON:
-                install_css()
-            open_panel("themes")
+                install_css()           # the panels wear the new colours from now on
         in_background(lambda: run(f"{BIN}/theme", "set", name, timeout=30), done)
+
 
 # ----------------------------------------------------------------- weather --
 
@@ -1809,27 +2175,194 @@ def ago(moment):
     return "%d days" % (minutes // 1440)
 
 
-class AgentsPanel(Panel):
-    """AI coding agents (the robot in the bar): today's use, the week, recent sessions."""
-    width = 360
-    BLOCKS = " ▁▂▃▄▅▆▇█"
+class AppsPanel(Panel):
+    """App launcher (SUPER + SPACE), laid out like Omarchy 4's app grid: a big card in
+    the middle of the screen, seven columns of large icons, and a search line on top.
+    Just start typing to search; arrows move, Enter opens, Escape clears or closes."""
+    anchor = "middle"
+    COLUMNS, ROWS = 7, 4
+    ICON, CELL_W, CELL_H = 56, 124, 128
 
     def __init__(self, app):
         super().__init__(app)
-        head = hbox()
-        head.pack_start(label("AI agents", "np-title"), True, True, 0)
-        head.pack_end(icon_button(I["refresh"], self.load, tooltip="Refresh"), False, False, 0)
+        from gi.repository import Gio
+        self.width = self.COLUMNS * self.CELL_W + 16
+        self.box.set_spacing(18)
+        self.box.get_style_context().add_class("np-apps")
+        self.search = Gtk.Entry()
+        self.search.get_style_context().add_class("np-apps-search")
+        self.search.set_placeholder_text("Search apps")
+        self.search.connect("changed", lambda *_: self.refilter())
+        self.search.connect("activate", lambda *_: self.launch(self.selected()))
+        self.box.pack_start(self.search, False, False, 0)
+
+        self.grid = Gtk.FlowBox()
+        self.grid.set_homogeneous(True)
+        self.grid.set_min_children_per_line(self.COLUMNS)
+        self.grid.set_max_children_per_line(self.COLUMNS)
+        self.grid.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.grid.set_activate_on_single_click(True)
+        self.grid.set_can_focus(False)
+        self.grid.set_filter_func(self.matches)
+        self.grid.connect("child-activated", lambda _g, child: self.launch(child))
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_size_request(-1, self.ROWS * self.CELL_H)
+        scroll.add(self.grid)
+        self.box.pack_start(scroll, True, True, 0)
+        self.empty = label("No apps match", "np-dim", xalign=0.5)
+        self.empty.set_no_show_all(True)
+        self.box.pack_start(self.empty, False, False, 0)
+
+        theme = Gtk.IconTheme.get_default()
+        apps = [a for a in Gio.AppInfo.get_all() if a.should_show()]
+        apps.sort(key=lambda a: (a.get_display_name() or "").lower())
+        for info in apps:
+            self.grid.add(self.cell(info, theme))
+        self.visible = []
+
+    def cell(self, info, theme):
+        child = Gtk.FlowBoxChild()
+        child.info = info
+        child.words = " ".join(filter(None, (info.get_display_name(), info.get_name(),
+                                             info.get_description() or "",
+                                             " ".join(info.get_keywords() or []) if hasattr(info, "get_keywords") else "",
+                                             info.get_executable() or ""))).lower()
+        child.set_size_request(self.CELL_W, self.CELL_H)
+        child.get_style_context().add_class("np-app")
+        box = vbox(8)
+        box.set_valign(Gtk.Align.START)
+        img = Gtk.Image()
+        icon = info.get_icon()
+        pix = None
+        if icon is not None:
+            try:
+                found = theme.lookup_by_gicon(icon, self.ICON, Gtk.IconLookupFlags.FORCE_SIZE)
+                pix = found.load_icon() if found else None
+            except GLib.Error:
+                pix = None
+        if pix is None:
+            try:
+                pix = theme.load_icon("application-x-executable", self.ICON, Gtk.IconLookupFlags.FORCE_SIZE)
+            except GLib.Error:
+                pix = None
+        if pix is not None:
+            img.set_from_pixbuf(pix)
+        img.set_size_request(self.ICON, self.ICON)
+        box.pack_start(img, False, False, 0)
+        name = label(info.get_display_name() or info.get_name(), "np-app-name", xalign=0.5)
+        name.set_justify(Gtk.Justification.CENTER)
+        name.set_line_wrap(True)
+        name.set_lines(2)
+        from gi.repository import Pango
+        name.set_ellipsize(Pango.EllipsizeMode.END)
+        name.set_max_width_chars(12)
+        name.set_halign(Gtk.Align.CENTER)
+        box.pack_start(name, False, False, 0)
+        events = Gtk.EventBox()
+        events.add(box)
+        events.connect("button-press-event", lambda _w, e, i=info: self.menu(i, e) if e.button == 3 else False)
+        child.add(events)
+        child.set_tooltip_text(info.get_description() or info.get_display_name())
+        return child
+
+    def menu(self, info, event):
+        """Right-click an app: pin it to the dock or take it off, like Omarchy's grid."""
+        pinned = info.get_id() in out(os.path.join(BIN, "dock"), "pinned", timeout=5).split()
+        m = Gtk.Menu()
+        it = Gtk.MenuItem(label="Unpin from dock" if pinned else "Pin to dock")
+        it.connect("activate", lambda *_: run(os.path.join(BIN, "dock"), "unpin" if pinned else "pin",
+                                               info.get_id(), timeout=5))
+        m.append(it)
+        m.show_all()
+        m.attach_to_widget(self.grid, None)
+        m.popup_at_pointer(event)
+        return True
+
+    def matches(self, child):
+        query = self.search.get_text().strip().lower()
+        return all(word in child.words for word in query.split())
+
+    def refilter(self):
+        self.grid.invalidate_filter()
+        self.visible = [c for c in self.grid.get_children() if self.matches(c)]
+        self.empty.set_visible(not self.visible)
+        if self.visible:
+            self.grid.select_child(self.visible[0])
+        else:
+            self.grid.unselect_all()
+
+    def shown(self):
+        self.refilter()
+        self.search.grab_focus()
+
+    def selected(self):
+        chosen = self.grid.get_selected_children()
+        return chosen[0] if chosen else None
+
+    def on_key(self, event):
+        key = event.keyval
+        if key == Gdk.KEY_Escape and self.search.get_text():
+            self.search.set_text("")
+            return True
+        steps = {Gdk.KEY_Left: -1, Gdk.KEY_Right: 1, Gdk.KEY_Up: -self.COLUMNS, Gdk.KEY_Down: self.COLUMNS,
+                 Gdk.KEY_Tab: 1, Gdk.KEY_ISO_Left_Tab: -1}
+        if key in steps and self.visible:
+            now = self.selected()
+            i = self.visible.index(now) if now in self.visible else 0
+            i = max(0, min(len(self.visible) - 1, i + steps[key]))
+            self.grid.select_child(self.visible[i])
+            self.visible[i].grab_focus()
+            self.search.grab_focus_without_selecting()
+            return True
+        return False
+
+    def launch(self, child):
+        if child is None:
+            return
+        info = child.info
+        if shutil.which("gtk-launch") and info.get_id():
+            spawn("gtk-launch", info.get_id())     # a session of its own, not a child of this panel
+        else:
+            info.launch([], None)
+        self.close()
+
+
+class AgentsPanel(Panel):
+    """AI coding agents (the robot in the bar), laid out like Omarchy 4's Agents panel:
+    a header whose line cycles through what the week adds up to, then one row per
+    agent with its logo, today's use, a meter, and buttons to resume or start one."""
+    width = 380
+    LOGOS = os.path.expanduser("~/.config/nameplate/agents")
+    # Agents the + button offers to install, with their official install commands
+    INSTALL = (("claude", "Claude Code", "curl -fsSL https://claude.ai/install.sh | bash"),
+               ("opencode", "opencode", "curl -fsSL https://opencode.ai/install | bash"))
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.box.set_spacing(0)
+        head = hbox(14)
+        head.get_style_context().add_class("np-agents-head")
+        head.pack_start(label(g(0xF16A3), "np-agents-mark"), False, False, 0)
+        titles = vbox(2)
+        titles.set_valign(Gtk.Align.CENTER)
+        titles.pack_start(label("Agents", "np-agents-title"), False, False, 0)
+        self.phrase = label("READING YOUR HISTORY", "np-agents-phrase")
+        titles.pack_start(self.phrase, False, False, 0)
+        head.pack_start(titles, True, True, 0)
+        self.add = icon_button(g(0xF0415), self.toggle_add, "np-agents-add", tooltip="Add an agent")
+        self.add.set_valign(Gtk.Align.CENTER)
+        self.add.set_no_show_all(True)
+        head.pack_end(self.add, False, False, 0)
         self.box.pack_start(head, False, False, 0)
-        self.body = vbox(6)
+        self.box.pack_start(Gtk.Separator(), False, False, 0)
+        self.body = vbox(0)
         self.box.pack_start(self.body, False, False, 0)
-        self.body.pack_start(label("Reading your history…", "np-dim"), False, False, 6)
-        note = label("From the history on this computer. For plan limits, type /usage "
-                     "inside the app.", "np-dim")
-        note.set_line_wrap(True)
-        note.set_max_width_chars(44)
-        self.box.pack_start(note, False, False, 4)
+        self.phrases, self.turn, self.agents, self.adding = [], 0, None, False
+        self.live(4000, self.next_phrase)
         self.load()
 
+    # -- data
     def load(self):
         def work():
             rc, text = run(os.path.join(BIN, "agents"), "stats", timeout=120)
@@ -1839,54 +2372,146 @@ class AgentsPanel(Panel):
                 return None
         in_background(work, self.show)
 
+    def summary(self, agents):
+        """What the week adds up to, across every agent (Omarchy's rotating line)."""
+        week, today, prompts, sessions, by_day, models = 0, 0, 0, 0, {}, {}
+        for a in agents.values():
+            for d in a["week"]:
+                week += d["tokens"]
+                by_day[d["date"]] = by_day.get(d["date"], 0) + d["tokens"]
+            today += a["today"]["tokens"]
+            prompts += a["today"]["prompts"]
+            sessions += a["today"]["sessions"]
+            if a.get("top_model"):
+                models[a["top_model"]] = models.get(a["top_model"], 0) + sum(d["tokens"] for d in a["week"])
+        out_ = []
+        if week:
+            out_.append("%s tokens this week" % short_number(week))
+        if today:
+            out_.append("%s tokens today" % short_number(today))
+        if models:
+            out_.append("Mostly %s" % max(models, key=models.get))
+        if by_day and max(by_day.values()) > 0:
+            out_.append("Busiest day: %s" % datetime.date.fromisoformat(max(by_day, key=by_day.get)).strftime("%A"))
+        if prompts:
+            out_.append("%d prompt%s today" % (prompts, "" if prompts == 1 else "s"))
+        if sessions:
+            out_.append("%d session%s today" % (sessions, "" if sessions == 1 else "s"))
+        return [p.upper() for p in out_] or ["NOTHING YET THIS WEEK"]
+
+    def next_phrase(self):
+        if self.phrases:
+            self.turn = (self.turn + 1) % len(self.phrases)
+            self.phrase.set_text(self.phrases[self.turn])
+
+    # -- drawing
+    def logo(self, key):
+        light = not Gtk.Settings.get_default().get_property("gtk-application-prefer-dark-theme")
+        for name in ((key + "-light", key) if light else (key,)):
+            path = os.path.join(self.LOGOS, name + ".svg")
+            if os.path.exists(path):
+                try:
+                    from gi.repository import GdkPixbuf
+                    pix = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 20, 20, True)
+                    img = Gtk.Image.new_from_pixbuf(pix)
+                    img.set_size_request(22, 22)
+                    return img
+                except GLib.Error:
+                    pass
+        return label(g(0xF06A9), "np-icon")
+
     def show(self, agents):
+        self.agents = agents
         clear(self.body)
         if agents is None:
-            self.body.pack_start(label("Couldn't read the agents' history.", "np-dim"), False, False, 6)
+            self.body.pack_start(label("Couldn't read the agents' history.", "np-dim"), False, False, 14)
         elif not agents:
-            self.body.pack_start(label("No AI coding agents found (Claude Code, Grok, Muse or opencode).", "np-dim"), False, False, 6)
-        for key, a in (agents or {}).items():
-            if self.body.get_children():
-                self.body.pack_start(Gtk.Separator(), False, False, 4)
-            top = hbox()
-            top.pack_start(label(a["name"], "np-big"), True, True, 0)
-            if a.get("command"):
-                top.pack_end(icon_button(g(0xF018D), lambda c=a["command"]: self.start(c, ""),
-                                         tooltip="New session in your home folder"), False, False, 0)
-            self.body.pack_start(top, False, False, 0)
-            t = a["today"]
-            self.body.pack_start(label("Today: %s tokens · %d prompt%s · %d session%s" % (
-                short_number(t["tokens"]), t["prompts"], "" if t["prompts"] == 1 else "s",
-                t["sessions"], "" if t["sessions"] == 1 else "s")), False, False, 0)
-
-            week = a["week"]
-            peak = max([d["tokens"] for d in week] + [1])
-            bars = "".join(self.BLOCKS[min(8, math.ceil(8 * d["tokens"] / peak))] if d["tokens"] else "·"
-                           for d in week)
-            letters = "".join(datetime.date.fromisoformat(d["date"]).strftime("%a")[0] for d in week)
-            spark = hbox(10)
-            col = vbox(0)
-            col.pack_start(label("  ".join(bars), "np-spark"), False, False, 0)
-            col.pack_start(label("  ".join(letters), "np-dim"), False, False, 0)
-            spark.pack_start(col, False, False, 0)
-            info = vbox(0)
-            info.pack_start(label("%s tokens this week" % short_number(sum(d["tokens"] for d in week)),
-                                  "np-dim"), False, False, 0)
-            if a.get("top_model"):
-                info.pack_start(label("mostly %s" % a["top_model"], "np-dim", ellipsize=True, width=22),
-                                False, False, 0)
-            spark.pack_start(info, False, False, 0)
-            self.body.pack_start(spark, False, False, 2)
-
-            for s in a.get("recent", [])[:3]:
-                folder = os.path.basename(s.get("cwd", "").rstrip("/")) or "~"
-                title = s.get("title") or folder
-                b = row(g(0xF018D), title, ago(s["last"]),
-                        on_click=lambda k=key, s=s: self.resume(k, a.get("command"), s))
-                b.set_tooltip_text("%s\n%s tokens" % (s.get("cwd") or "", short_number(s.get("tokens", 0))))
-                self.body.pack_start(b, False, False, 0)
+            self.body.pack_start(label("No AI coding agents yet. Add one with +.", "np-dim"), False, False, 14)
+        else:
+            self.phrases = self.summary(agents)
+            self.turn = 0
+            self.phrase.set_text(self.phrases[0])
+            for i, (key, a) in enumerate(agents.items()):
+                if i:
+                    self.body.pack_start(Gtk.Separator(), False, False, 0)
+                self.body.pack_start(self.agent_row(key, a), False, False, 0)
+        if self.adding and self.missing():
+            self.body.pack_start(Gtk.Separator(), False, False, 0)
+            self.body.pack_start(self.add_rows(), False, False, 0)
+        self.add.set_visible(bool(self.missing()))
         self.body.show_all()
 
+    def agent_row(self, key, a):
+        box = vbox(12)
+        box.get_style_context().add_class("np-agent")
+        top = hbox(12)
+        top.pack_start(self.logo(key), False, False, 0)
+        top.pack_start(label(a["name"], "np-agent-name"), False, False, 0)
+        if a.get("top_model"):
+            top.pack_start(label(a["top_model"], "np-dim", ellipsize=True, width=16), False, False, 0)
+        if a.get("command"):
+            top.pack_end(icon_button(g(0xF07B7), lambda: self.start(a["command"], ""),
+                                     "np-agent-btn", tooltip="New session"), False, False, 0)
+            if a.get("recent"):
+                last = a["recent"][0]
+                tip = "Resume %s" % (last.get("title") or os.path.basename(last.get("cwd", "").rstrip("/")) or "the last session")
+                top.pack_end(icon_button(g(0xF040A), lambda: self.resume(key, a["command"], last),
+                                         "np-agent-btn", tooltip=tip), False, False, 0)
+        box.pack_start(top, False, False, 0)
+
+        t = a["today"]
+        if t["tokens"] or t["prompts"]:
+            facts = ["%s tokens" % short_number(t["tokens"]),
+                     "%d prompt%s" % (t["prompts"], "" if t["prompts"] == 1 else "s"),
+                     "%d session%s" % (t["sessions"], "" if t["sessions"] == 1 else "s")]
+        else:
+            week = sum(d["tokens"] for d in a["week"])
+            facts = ["Quiet today"] + (["%s tokens this week" % short_number(week)] if week else [])
+        box.pack_start(label("  ·  ".join(facts), "np-dim"), False, False, 0)
+
+        # Today against this agent's busiest day of the week
+        peak = max([d["tokens"] for d in a["week"]] + [1])
+        meter = hbox(14)
+        meter.pack_start(label("Today", "np-dim"), False, False, 0)
+        bar = Gtk.ProgressBar()
+        bar.get_style_context().add_class("np-meter")
+        bar.set_fraction(min(1.0, t["tokens"] / peak))
+        bar.set_valign(Gtk.Align.CENTER)
+        meter.pack_start(bar, True, True, 0)
+        pct = label("%d%%" % round(100 * t["tokens"] / peak), "np-dim", xalign=1.0)
+        pct.set_width_chars(4)
+        meter.pack_start(pct, False, False, 0)
+        meter.set_tooltip_text("Today's tokens against the busiest day this week")
+        box.pack_start(meter, False, False, 0)
+        return box
+
+    # -- the + button: install an agent that isn't here yet
+    def missing(self):
+        have = set(self.agents or {})
+        return [(k, n, c) for k, n, c in self.INSTALL if k not in have and not shutil.which(k)]
+
+    def toggle_add(self):
+        self.adding = not self.adding
+        self.show(self.agents)
+
+    def add_rows(self):
+        box = vbox(2)
+        box.get_style_context().add_class("np-agent")
+        box.pack_start(label("ADD AN AGENT", "np-agents-phrase"), False, False, 4)
+        for key, name, command in self.missing():
+            r = hbox(12)
+            r.pack_start(self.logo(key), False, False, 0)
+            r.pack_start(label(name, "np-agent-name"), True, True, 0)
+            r.pack_end(icon_button(g(0xF01DA), lambda c=command, n=name: self.install(n, c),
+                                   "np-agent-btn", tooltip="Install in a terminal"), False, False, 0)
+            box.pack_start(r, False, False, 4)
+        return box
+
+    def install(self, name, command):
+        spawn(*in_terminal("Install " + name, command))
+        self.close()
+
+    # -- launching
     @staticmethod
     def terminal(cwd, command):
         """Run the agent in a terminal, in the session's folder. bash -i so ~/.bashrc
@@ -2070,7 +2695,7 @@ class MenuPanel(Panel):
             {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenrecord", "full")},
             {"icon": g(0xF036C), "label": "Full screen with microphone", **run_(B + "screenrecord", "full", "mic")}])
         return [
-            {"icon": g(0xF003B), "label": "Apps", **run_("fuzzel")},
+            {"icon": g(0xF003B), "label": "Apps", **panel("apps")},
             {"icon": g(0xF03D8), "label": "Appearance", "sub": [
                 {"icon": g(0xF03D8), "label": "Theme", **panel("themes")},
                 {"icon": g(0xF0B34), "label": "Font", "sub": font_items},
@@ -2258,7 +2883,7 @@ KINDS = {"calendar": CalendarPanel, "media": MediaPanel, "sound": SoundPanel,
          "power": PowerPanel, "wallpapers": WallpaperPanel,
          "clipboard": ClipboardPanel, "emoji": EmojiPanel, "menu": MenuPanel,
          "themes": ThemePanel, "weather": WeatherPanel,
-         "agents": AgentsPanel}
+         "agents": AgentsPanel, "apps": AppsPanel}
 
 
 # --------------------------------------------------------------------- app --
@@ -2286,7 +2911,12 @@ class App:
         win.get_style_context().add_class("np-popup")
         win.set_title(f"nameplate {kind}")
         frame = Gtk.Box()
-        frame.set_border_width(12)
+        frame.set_border_width(0 if getattr(panel, "bare", False) else 12)
+        if getattr(panel, "bare", False):
+            win.get_style_context().add_class("np-bare")
+            visual = win.get_screen().get_rgba_visual()
+            if visual:
+                win.set_visual(visual)
         panel.box.set_size_request(panel.width, -1)
         frame.add(panel.box)
         win.add(frame)

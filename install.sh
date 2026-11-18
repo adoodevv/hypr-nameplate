@@ -10,7 +10,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 PPA="ppa:cppiber/hyprland"
 BASE_PKGS="alacritty pipx curl fontconfig xz-utils"
 CORE_PKGS="hyprland hyprlock hypridle waybar xdg-desktop-portal-hyprland"
-EXTRA_PKGS="hyprsunset python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
+EXTRA_PKGS="hyprsunset python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
 export PATH="$BIN:$PATH"
 
 NAME="${USER:-nameplate}"
@@ -220,6 +220,9 @@ put "$SRC/config/starship.toml"              "$CFG/starship.toml"
 put "$BRAND/screensaver.txt"                 "$APP/screensaver.txt"
 rm -f "$APP/logo.png"   # older versions put the name on the lock screen
 put "$SRC/share/wallpaper.png"               "$APP/wallpaper.png"
+for f in "$SRC"/share/agents/*.svg; do       # agent logos for the agents panel (from Omarchy, MIT)
+  put "$f" "$APP/agents/$(basename "$f")"
+done
 render "$SRC/share/KEYS.txt"                 "$APP/KEYS.txt"
 printf '%s\n' "$NAME" > "$APP/name"
 for f in "$SRC"/bin/*; do
@@ -292,6 +295,11 @@ fi
 # The panels run in the background from login; stop the old copy so the next click
 # starts the new one
 pkill -f "nameplate/bin/panel daemon" 2>/dev/null || true
+# The dock: restart it with the new version (inside Hyprland)
+pkill -f "nameplate/bin/dock$" 2>/dev/null || true
+if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  sleep 0.3; setsid -f "$APP/bin/dock" >/dev/null 2>&1
+fi
 # hypridle reads its config only when it starts: restart it inside Hyprland
 if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && pgrep -x hypridle >/dev/null; then
   pkill -x hypridle; sleep 0.5; setsid -f hypridle >/dev/null 2>&1

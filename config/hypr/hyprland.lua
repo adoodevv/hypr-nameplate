@@ -7,7 +7,7 @@ local bin    = home .. "/.config/nameplate/bin/"
 
 local terminal    = "alacritty"
 local fileManager = "nautilus --new-window"
-local menu        = "pkill fuzzel || fuzzel"
+local menu        = bin .. "panel apps"   -- Omarchy-style app grid (bin/panel)
 
 -- Colours: this block is rewritten by 'theme set NAME' (SUPER + CTRL + SHIFT + SPACE)
 -- theme:begin colors
@@ -36,7 +36,9 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("hypridle")
   hl.exec_cmd(bin .. "battery-watch")
   hl.exec_cmd(bin .. "screen-added --init")   -- screens already plugged in at login aren't "new"
+  hl.exec_cmd(bin .. "display restore")       -- scale and resolution picked in the display panel
   hl.exec_cmd(bin .. "panel daemon")          -- keeps the panels ready, so bar clicks open instantly
+  hl.exec_cmd(bin .. "dock")                  -- app dock along the bottom, tucked away while windows are open
   hl.exec_cmd("wl-paste --type text --watch cliphist store")    -- clipboard history
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
   hl.exec_cmd("playerctld daemon")   -- lets the bar control whichever player was used last
@@ -74,16 +76,16 @@ hl.config({
   decoration = {
     rounding = 0, -- sharp corners, the Omarchy look. Try 8 for rounded.
 
+    -- Omarchy 4 draws no shadows or blur: flat, and lighter on integrated graphics
     shadow = {
-      enabled      = true,
+      enabled      = false,
       range        = 6,
       render_power = 3,
       color        = shadow,
     },
 
-    -- Kept light for integrated graphics. Set enabled = false if it ever feels slow.
     blur = {
-      enabled = true,
+      enabled = false,
       size    = 4,
       passes  = 1,
     },
@@ -142,9 +144,10 @@ hl.animation({ leaf = "layersIn",      enabled = true, speed = 3.2,  bezier = "e
 hl.animation({ leaf = "layersOut",     enabled = true, speed = 1.2,  bezier = "linear",       style = "fade" })
 hl.animation({ leaf = "fadeLayersIn",  enabled = true, speed = 1.43, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = true, speed = 1.11, bezier = "almostLinear" })
--- Omarchy switches workspaces instantly. A short slide is easier to follow when you're new to tiling;
--- change to { leaf = "workspaces", enabled = false } for the Omarchy behaviour.
-hl.animation({ leaf = "workspaces",    enabled = true, speed = 2.5,  bezier = "easeOutQuint", style = "slidefade 15%" })
+hl.animation({ leaf = "fadeSwitch",    enabled = false })
+-- Omarchy 4 switches workspaces instantly. For a short slide instead:
+-- { leaf = "workspaces", enabled = true, speed = 2.5, bezier = "easeOutQuint", style = "slidefade 15%" }
+hl.animation({ leaf = "workspaces",    enabled = false })
 
 ---------------
 ---- INPUT ----
