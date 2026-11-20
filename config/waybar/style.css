@@ -69,12 +69,15 @@ tooltip {
 #datetime #custom-media { color: @accent; min-width: 0; padding: 0 2px 0 9px; }
 #custom-media.paused { color: @fg_dim; }
 
-/* Indicators before the clock (21px slots). The ones that are on stay lit; the
-   rest are hidden until the pointer is over them, then shown faded so you can
-   click one on. */
+/* Indicators before the clock (21px slots). Like Omarchy's indicators widget:
+   the ones that are on sit packed against the date; the rest take no space
+   until the pointer is over the group, then open faded so you can click one
+   on. The group keeps a narrow hover strip so there is always something to
+   point at, even with everything off. */
+#indicators { min-width: 14px; }
 #custom-recording, #custom-dnd, #custom-awake, #custom-nightlight, #custom-mic { font-size: 13px; min-width: 21px; padding: 0; color: @fg; }
-#indicators .off { opacity: 0; }
-#indicators:hover .off { opacity: 0.45; }
+#indicators .off { opacity: 0; min-width: 0; font-size: 0; }
+#indicators:hover .off { opacity: 0.45; min-width: 21px; font-size: 13px; }
 #indicators .off:hover { opacity: 0.8; }
 #custom-recording.on, #custom-mic.on { color: @red; }
 

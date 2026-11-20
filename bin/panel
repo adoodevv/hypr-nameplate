@@ -2173,11 +2173,39 @@ class WeatherPanel(Panel):
 # ------------------------------------------------------------------ agents --
 
 def short_number(n):
+    """Compact count the way Omarchy's agents panel formats token counts."""
+    if n >= 1_000_000_000:
+        return "%.1fB" % (n / 1_000_000_000)
     if n >= 1_000_000:
         return "%.1fM" % (n / 1_000_000)
     if n >= 1000:
-        return "%dk" % round(n / 1000)
+        return "%.1fK" % (n / 1000)
     return str(n)
+
+
+def friendly_model(model_id):
+    """A model id made readable the way Omarchy's agents panel shows it:
+    `claude-opus-4-6` becomes `Opus 4.6`, `muse-spark-1.3-contributor`
+    becomes `Muse Spark 1.3 Contributor`."""
+    if not model_id:
+        return ""
+    name = re.sub(r"^claude-", "", str(model_id))
+    name = re.sub(r"-\d{8}$", "", name)
+    words, version = [], []
+    for part in name.split("-"):
+        if not part:
+            continue
+        if part[0].isdigit():
+            version.append(part)
+            continue
+        if version:
+            words.append(".".join(version))
+            version = []
+        low = part.lower()
+        words.append({"gpt": "GPT", "deepseek": "DeepSeek"}.get(low, part[:1].upper() + part[1:]))
+    if version:
+        words.append(".".join(version))
+    return " ".join(words) if words else str(model_id)
 
 
 def ago(moment):
@@ -2407,7 +2435,7 @@ class AgentsPanel(Panel):
         if today:
             out_.append("%s tokens today" % short_number(today))
         if models:
-            out_.append("Mostly %s" % max(models, key=models.get))
+            out_.append("Mostly %s" % friendly_model(max(models, key=models.get)))
         if by_day and max(by_day.values()) > 0:
             out_.append("Busiest day: %s" % datetime.date.fromisoformat(max(by_day, key=by_day.get)).strftime("%A"))
         if prompts:
@@ -2465,7 +2493,7 @@ class AgentsPanel(Panel):
         top.pack_start(self.logo(key), False, False, 0)
         top.pack_start(label(a["name"], "np-agent-name"), False, False, 0)
         if a.get("top_model"):
-            top.pack_start(label(a["top_model"], "np-dim", ellipsize=True, width=16), False, False, 0)
+            top.pack_start(label(friendly_model(a["top_model"]), "np-dim", ellipsize=True, width=16), False, False, 0)
         if a.get("command"):
             top.pack_end(icon_button(g(0xF07B7), lambda: self.start(a["command"], ""),
                                      "np-agent-btn", tooltip="New session"), False, False, 0)

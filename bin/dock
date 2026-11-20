@@ -211,6 +211,12 @@ window.np-dock { background-color: transparent; }
     def build(self):
         w = self.win = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         w.get_style_context().add_class("np-dock")
+        # Never zero-size: with the revealer closed the row requests 0 px
+        # wide, and the compositor then never maps the surface at all - the
+        # dock looks dead until a restart, even on an empty workspace.
+        # A minimum width keeps it mapped and hoverable; it grows past this
+        # as soon as icons are in it.
+        w.set_size_request(240, -1)
         visual = w.get_screen().get_rgba_visual()
         if visual:
             w.set_visual(visual)
