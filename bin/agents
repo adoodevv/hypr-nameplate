@@ -27,7 +27,7 @@ MUSE = DATA / "muse"
 OPENCODE = DATA / "opencode"
 CACHE = HOME / ".cache" / "nameplate" / "agents.json"
 OPEN_FILE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "nameplate-panel-open"
-VERSION = 2
+VERSION = 3
 # (key, name, command, where its history lives)
 AGENTS = (("claude", "Claude Code", "claude", CLAUDE), ("grok", "Grok", "grok", GROK),
           ("muse", "Muse", "muse", MUSE), ("opencode", "opencode", "opencode", OPENCODE))
@@ -253,53 +253,186 @@ def read_muse_session(folder):
     return [part]
 
 
+def opencode_model_name(raw):
+    """The model id without any provider prefix or thinking-level ':variant'
+    suffix, the way Omarchy's opencode collector shows it."""
+    value = str(raw or "").rstrip("/").split("/")[-1].split(":")[0]
+    if value[:3].lower() == "glm":
+        value = "GLM" + value[3:]
+    return value
+
+
+def opencode_tokens(entry):
+    """(input, output, cache read, cache write) of an opencode `tokens`
+    object. opencode keeps thinking tokens out of `output`, so `reasoning`
+    counts as generated too, as Omarchy's collector does."""
+    tokens = entry.get("tokens") if isinstance(entry.get("tokens"), dict) else {}
+    cache = tokens.get("cache") if isinstance(tokens.get("cache"), dict) else {}
+    return (number(tokens.get("input")),
+            number(tokens.get("output")) + number(tokens.get("reasoning")),
+            number(cache.get("read")), number(cache.get("write")))
+
+
 def read_opencode(db_path):
-    """opencode's database: one part per session. It has changed shape between
-    versions, so this reads whichever tables are there and skips what it can't."""
+    """opencode's database: one part per session, read the way Omarchy's
+    opencode collector does. It has changed shape between versions, so this
+    reads whichever tables are there and skips what it can't. Both message
+    stores are deduplicated by message id, fork copies (older than their
+    session) are left out, and compaction counts like any reply. The model
+    comes from the top level or the nested `model` object, where V2 keeps it
+    with the provider. One prompt is booked per answered user message - the
+    first reply after it - not one per stored row; a user message no reply
+    answered books itself, and subagent sessions book none (their prompts
+    are the model's, not typed).
+
+    One deliberate difference: Omarchy only keeps its own Zen providers on
+    this card and bills other providers to its other cards. This project has
+    one card per app, so every provider in opencode's database stays on the
+    opencode card, with the model shown beside it."""
     parts = {}
     db = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
     try:
+        try:
+            db.execute("PRAGMA query_only = ON")
+        except sqlite3.Error:
+            pass
         tables = {n for (n,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         cols = lambda t: {r[1] for r in db.execute("PRAGMA table_info(%s)" % t)}
-        helpers = set()
+        helpers = set()     # subagent sessions: tokens yes, prompts no, not your session
+        if "session" in tables and {"id", "parent_id"} <= cols("session"):
+            helpers = {str(sid) for (sid,) in db.execute("SELECT id FROM session WHERE parent_id IS NOT NULL")}
+        if "session_v2" in tables and {"id", "parent_id"} <= cols("session_v2"):
+            helpers |= {str(sid) for (sid,) in db.execute("SELECT id FROM session_v2 WHERE parent_id IS NOT NULL")}
+        born = {}           # when each session started, to recognise fork copies
+        if "session" in tables and {"id", "time_created"} <= cols("session"):
+            for sid, tc in db.execute("SELECT id, time_created FROM session"):
+                born[str(sid)] = number(tc)
+        if "session_v2" in tables and {"id", "time_created"} <= cols("session_v2"):
+            for sid, tc in db.execute("SELECT id, time_created FROM session_v2"):
+                born[str(sid)] = number(tc)
+        meta = {}           # titles and folders
         if "session" in tables:
             c = cols("session")
-            picks = [x for x in ("id", "title", "directory", "parent_id") if x in c]
+            picks = [x for x in ("id", "title", "directory") if x in c]
             if "id" in picks:
                 for row in db.execute("SELECT %s FROM session" % ", ".join(picks)):
                     info = dict(zip(picks, row))
-                    if info.get("parent_id"):
-                        helpers.add(str(info["id"]))     # a subagent: tokens yes, not your session
-                    part = parts.setdefault(str(info["id"]), new_part(str(info["id"])))
-                    part["session"]["title"] = str(info.get("title") or "")[:80]
-                    part["session"]["cwd"] = str(info.get("directory") or "")
-        if "session_message" in tables and {"session_id", "type", "data"} <= cols("session_message"):
-            rows = db.execute("SELECT session_id, type, data FROM session_message")
-        elif "message" in tables and {"session_id", "data"} <= cols("message"):
-            rows = ((sid, None, data) for sid, data in db.execute("SELECT session_id, data FROM message"))
-        else:
-            rows = []
-        for sid, kind, raw in rows:
+                    meta[str(info["id"])] = info
+        if "session_v2" in tables:
+            c = cols("session_v2")
+            picks = [x for x in ("id", "title", "directory") if x in c]
+            if "id" in picks:
+                for row in db.execute("SELECT %s FROM session_v2" % ", ".join(picks)):
+                    info = dict(zip(picks, row))
+                    meta.setdefault(str(info["id"]), info)
+
+        def part_for(sid):
+            part = parts.get(sid)
+            if part is None:
+                part = parts[sid] = new_part(sid)
+                info = meta.get(sid, {})
+                part["session"]["title"] = str(info.get("title") or "")[:80]
+                part["session"]["cwd"] = str(info.get("directory") or "")
+            return part
+
+        seen = set()
+        events = {}         # sid -> [(order, is_user, day, moment, model, tokens)]
+        order_seq = 0
+
+        def take(sid, mid, kind, raw, fallback_day=None, fallback_moment=None):
+            """One message row from either store."""
+            nonlocal order_seq
             try:
                 data = json.loads(raw) if isinstance(raw, str) else {}
             except ValueError:
-                continue
+                return
             if not isinstance(data, dict):
-                continue
+                return
+            key = str(mid)
+            if key in seen:
+                return                    # migrated sessions sit in both stores
             role = kind or data.get("role")
+            if role == "user" and data.get("synthetic"):
+                return                    # opencode's own notes, not typed
+            if role not in ("user", "assistant", "compaction"):
+                return
             t = data.get("time") if isinstance(data.get("time"), dict) else {}
             day, moment = local_day(t.get("created"))
-            part = parts.setdefault(str(sid), new_part(str(sid)))
-            if moment:
-                part["session"]["last"] = max(part["session"]["last"], moment)
-            if role == "user" and not data.get("synthetic") and str(sid) not in helpers:
-                add(part, day, "", 0, 1)
-            elif role == "assistant":
-                tk = data.get("tokens") if isinstance(data.get("tokens"), dict) else {}
-                cache = tk.get("cache") if isinstance(tk.get("cache"), dict) else {}
-                tokens = sum(number(tk.get(k)) for k in ("input", "output", "reasoning")) + \
-                    number(cache.get("read")) + number(cache.get("write"))
-                add(part, day, str(data.get("modelID") or ""), tokens)
+            if day is None and fallback_day is not None:
+                day, moment = fallback_day, fallback_moment
+            if day is None:                # no date to trust: still today's session
+                day, moment = local_day(datetime.datetime.now().astimezone().isoformat())
+            if role == "user":
+                created = number(t.get("created"))
+                if created and created < born.get(sid, 0):
+                    return                # a fork copy, spent in its source session
+                seen.add(key)
+                order_seq += 1
+                events.setdefault(sid, []).append((order_seq, True, day, moment, "", 0))
+                return
+            spent = opencode_tokens(data) if role != "user" else (0, 0, 0, 0)
+            created = number(t.get("created"))
+            if created and created < born.get(sid, 0):
+                return                    # a fork copy, spent in its source session
+            seen.add(key)
+            nested = data.get("model") if isinstance(data.get("model"), dict) else {}
+            model = opencode_model_name(data.get("modelID") or nested.get("id") or nested.get("modelID"))
+            order_seq += 1
+            tokens = sum(spent)
+            events.setdefault(sid, []).append((order_seq, False, day, moment, model, tokens))
+
+        if "session_message" in tables and {"id", "session_id", "type", "data"} <= cols("session_message"):
+            c = cols("session_message")
+            created = "time_created" if "time_created" in c else "NULL"
+            order = "seq" if "seq" in c else created
+            for mid, sid, kind, tc, raw in db.execute(
+                    "SELECT id, session_id, type, %s, data FROM session_message ORDER BY %s, id" % (created, order)):
+                fday = local_day(tc) if isinstance(tc, (int, float)) and tc else (None, None)
+                take(str(sid), mid, kind, raw, fday[0], fday[1])
+        if "message" in tables and {"session_id", "data"} <= cols("message"):
+            c = cols("message")
+            if "id" in c:     # same ids as the V2 store: shared dedup, as Omarchy does
+                for mid, sid, raw in db.execute("SELECT id, session_id, data FROM message"):
+                    take(str(sid), mid, None, raw)
+            else:
+                for rowid, sid, raw in db.execute("SELECT rowid, session_id, data FROM message"):
+                    take(str(sid), ("legacy:%s" % rowid), None, raw)
+
+        for sid, evs in events.items():
+            part = part_for(sid)
+            helper = sid in helpers
+            users = [e for e in evs if e[1]]
+            if not users and not helper:
+                # No typed prompts in this session: each reply that spent
+                # tokens books its own, as Omarchy's collector does.
+                for e in evs:
+                    if not e[1] and e[5]:
+                        add(part, e[2], e[4], e[5], prompts=1)
+                    if e[3]:
+                        part["session"]["last"] = max(part["session"]["last"], e[3])
+                continue
+            pending = 0
+            for e in sorted(evs):
+                if e[1]:
+                    pending += 1
+                    if e[3]:
+                        part["session"]["last"] = max(part["session"]["last"], e[3])
+                else:
+                    if e[3]:
+                        part["session"]["last"] = max(part["session"]["last"], e[3])
+                    if pending and not helper:
+                        # The first reply answering a user message books it,
+                        # even when the reply itself failed and spent nothing.
+                        add(part, e[2], e[4], e[5], prompts=1)
+                        pending -= 1
+                    elif e[5]:
+                        # A later step: its tokens, but no new prompt.
+                        add(part, e[2], e[4], e[5], prompts=0)
+            for e in sorted(evs):
+                # A typed prompt no reply answered (failed or cut off) books itself.
+                if e[1] and pending and not helper:
+                    add(part, e[2], "", 0, prompts=1)
+                    pending -= 1
         for sid in helpers:
             if sid in parts:
                 parts[sid]["session"]["last"] = 0.0

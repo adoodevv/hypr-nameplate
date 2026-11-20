@@ -1439,7 +1439,7 @@ class Carousel(Gtk.DrawingArea):
     draw_source is an image path, or a function(cr, w, h) that paints a preview."""
     W, H = 768, 475             # the chosen one
     SW, SH = 108, 432           # the slices
-    SPACING, SKEW, RADIUS = -30, 28, 16
+    SPACING, SKEW, RADIUS = -30, 28, 8
 
     def __init__(self, items, selected, on_select, on_apply, width):
         super().__init__()
@@ -1447,7 +1447,7 @@ class Carousel(Gtk.DrawingArea):
         self.on_select, self.on_apply = on_select, on_apply
         self.width = width
         self.pix = {}                     # key -> GdkPixbuf at the big size
-        self.queue = []
+        self.gen = 0                      # thumbnail passes: only the latest one stores
         self.ticking = False
         self.colors = theme_colors()
         self.set_size_request(width, self.H + 8)
@@ -1458,21 +1458,37 @@ class Carousel(Gtk.DrawingArea):
         self.connect("scroll-event", self.scrolled)
         self.load_around()
 
-    # -- images: the chosen one first, then its neighbours, one per idle tick
+    # -- images: the chosen one first, then its neighbours, decoded in a worker
+    # thread. Decoding on the main loop used to freeze the picker on every
+    # move, with 4K wallpapers taking hundreds of ms each.
     def load_around(self):
+        self.gen = getattr(self, "gen", 0) + 1
+        gen = self.gen
         order = sorted(range(len(self.items)), key=lambda i: abs(i - self.sel))
-        self.queue = [i for i in order if abs(i - self.sel) <= self.RADIUS and self.items[i][0] not in self.pix]
-        GLib.idle_add(self.load_next)
+        want = [i for i in order if abs(i - self.sel) <= self.RADIUS and self.items[i][0] not in self.pix]
+        if not want:
+            return
 
-    def load_next(self):
-        while self.queue:
-            i = self.queue.pop(0)
-            key, _title, source = self.items[i]
-            if key in self.pix:
-                continue
-            self.pix[key] = thumbnail(source, self.W, self.H) if isinstance(source, str) else None
+        def work():
+            for i in want:
+                if gen != self.gen:
+                    return            # moved on; a newer pass owns loading now
+                try:
+                    key, _title, source = self.items[i]
+                except IndexError:
+                    return
+                if key in self.pix:
+                    continue
+                pix = thumbnail(source, self.W, self.H) if isinstance(source, str) else None
+                if gen == self.gen:
+                    GLib.idle_add(self.store, key, pix)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def store(self, key, pix):
+        if key not in self.pix:
+            self.pix[key] = pix     # None too: don't retry a broken file forever
             self.queue_draw()
-            return True
         return False
 
     # -- moving
@@ -1487,7 +1503,7 @@ class Carousel(Gtk.DrawingArea):
             self.pos = float(i)
         if not self.ticking:
             self.ticking = True
-            GLib.timeout_add(16, self.tick)
+            GLib.timeout_add(33, self.tick)
         self.queue_draw()
 
     def tick(self):
@@ -2358,6 +2374,7 @@ class AgentsPanel(Panel):
         self.box.pack_start(Gtk.Separator(), False, False, 0)
         self.body = vbox(0)
         self.box.pack_start(self.body, False, False, 0)
+        self.body.pack_start(label("Reading your history…", "np-dim"), False, False, 14)
         self.phrases, self.turn, self.agents, self.adding = [], 0, None, False
         self.live(4000, self.next_phrase)
         self.load()
@@ -3108,7 +3125,7 @@ def take_over(kind):
             pid, current = f.read().split()[:2]
         pid = int(pid)
         with open(f"/proc/{pid}/cmdline", "rb") as f:
-            alive_ = b"panel" in f.read()
+            alive_ = b"bin/panel" in f.read()
     except (OSError, ValueError):
         alive_, current = False, None
     if alive_:

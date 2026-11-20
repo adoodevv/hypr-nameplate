@@ -89,7 +89,10 @@ def set_wallpaper(path):
             os.kill(int(f.read().strip()), signal.SIGUSR1)
     except (OSError, ValueError):
         pass
-    lock_image()
+    # The lock screen copy follows in the background: the desktop switches at
+    # once instead of waiting on a 4K decode + PNG save.
+    subprocess.Popen([sys.executable, os.path.abspath(__file__), "lock"], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def next_wallpaper():
@@ -135,7 +138,7 @@ def serve():
         with open(PIDFILE) as f:
             pid = int(f.read().strip())
         with open(f"/proc/{pid}/cmdline", "rb") as f:
-            if b"wallpaper" in f.read() and pid != os.getpid():
+            if b"bin/wallpaper" in f.read() and pid != os.getpid():
                 return
     except (OSError, ValueError):
         pass
