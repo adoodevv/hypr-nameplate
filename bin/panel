@@ -1984,9 +1984,7 @@ class ThemePanel(PickerPanel):
     """Colour themes (SUPER + CTRL + SHIFT + SPACE): Omarchy 4's slanted carousel.
     Each card is the theme's wallpaper (if you downloaded Omarchy's) with the
     top bar over it in the theme's colours, so you see how the bar will look,
-    not just the picture. The side cards carry only the palette's colour
-    circles, like Omarchy's."""
-    DOTS = ("red", "yellow", "green", "cyan", "blue", "magenta")
+    not just the picture. The side cards are bare wallpaper slices."""
 
     def __init__(self, app):
         super().__init__(app)
@@ -2043,11 +2041,10 @@ class ThemePanel(PickerPanel):
         """The theme's wallpaper with just the top bar over it, the way the bar
         really looks: the workspace numbers on the left (the one you're on
         underlined in the accent), the clock in the middle, and the right-hand
-        icons as small dots. On the carousel's narrow side slices only the bar
-        strip and dots are drawn - text at that width just turns to mush until
-        the card comes into focus. Called by the carousel with the wallpaper
-        pixbuf, which it has already drawn; with none, the theme background
-        stands in."""
+        icons as small dots. The cards to the sides get nothing drawn on them
+        at all - just their wallpaper slice, like Omarchy's. Called by the
+        carousel with the wallpaper pixbuf, which it has already drawn; with
+        none, the theme background stands in."""
         rgb = Carousel.rgb
         col = lambda key, fallback="#808080": rgb(c.get(key, fallback))
 
@@ -2055,23 +2052,12 @@ class ThemePanel(PickerPanel):
             if pix is None:
                 cr.set_source_rgba(*col("background", "#202020"))
                 cr.paint()
+            if w < 300:
+                return               # a side card: nothing on it at all
             bar_h = max(9.0, h * 0.052)
             cr.set_source_rgba(*col("background", "#202020"))
             cr.rectangle(0, 0, w, bar_h)
             cr.fill()
-            if w < 300:
-                # A side slice: nothing but the theme's colour circles, like
-                # Omarchy's cards - text and bar details just muffle at this
-                # width until the card comes into focus.
-                keys = self.DOTS
-                r = max(3.0, w * 0.055)
-                step = r * 2.7
-                x = w / 2 - step * (len(keys) - 1) / 2
-                for k, key in enumerate(keys):
-                    cr.set_source_rgba(*col(key))
-                    cr.arc(x + k * step, h / 2, r, 0, 6.2832)
-                    cr.fill()
-                return
             keys = ("red", "yellow", "green", "cyan", "magenta", "blue")
             for k, key in enumerate(keys):     # the bar's icons, as dots
                 cr.set_source_rgba(*col(key))
