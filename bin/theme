@@ -252,8 +252,62 @@ def theme_wallpaper(name):
     return None
 
 
+def lock_logo(c):
+    """Recolour the lock screen's name logo in the theme's accent, like
+    Omarchy's per-theme unlock.png. The art is the screensaver's block
+    lettering (~/.config/nameplate/screensaver.txt, made by the installer);
+    names that didn't get block lettering get no logo."""
+    import struct
+    import zlib
+    try:
+        with open(os.path.join(APP, "screensaver.txt"), encoding="utf-8") as f:
+            lines = [l.rstrip() for l in f.read().splitlines()]
+    except OSError:
+        return
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    blocks = {"█": (0.0, 1.0), "▀": (0.0, 0.5), "▄": (0.5, 1.0)}
+    chars = set("".join(lines)) - {" "}
+    if not lines or not chars or not chars <= set(blocks):
+        return
+    cell_w, cell_h = 12, 24
+    width = max(len(l) for l in lines) * cell_w
+    height = len(lines) * cell_h
+    try:
+        rgb = tuple(int(c["accent"].lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    except (KeyError, ValueError):
+        return
+    on, off = bytes(rgb) + b"\xff", b"\x00\x00\x00\x00"
+    raw = bytearray()
+    for line in lines:
+        cells = [blocks.get(ch) for ch in line.ljust(width // cell_w)]
+        for y in range(cell_h):
+            frac = y / cell_h
+            raw.append(0)
+            for cell in cells:
+                raw.extend((on if cell is not None and cell[0] <= frac < cell[1] else off) * cell_w)
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    path = os.path.join(APP, "logo.png")
+    try:
+        with open(path + ".tmp", "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
+            f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)))
+            f.write(chunk(b"IDAT", zlib.compress(bytes(raw), 9)))
+            f.write(chunk(b"IEND", b""))
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
 def apply(name, keep_wallpaper=False, announce=True):
     c = palette(name)
+    lock_logo(c)
     skipped = []
     for rel, blocks in BLOCKS.items():
         path = os.path.join(CFG, rel)

@@ -218,7 +218,8 @@ put "$SRC/config/alacritty/alacritty.toml"   "$CFG/alacritty/alacritty.toml"
 put "$SRC/config/alacritty/screensaver.toml" "$CFG/alacritty/screensaver.toml"
 put "$SRC/config/starship.toml"              "$CFG/starship.toml"
 put "$BRAND/screensaver.txt"                 "$APP/screensaver.txt"
-rm -f "$APP/logo.png"   # older versions put the name on the lock screen
+# The name in block letters for the lock screen; bin/theme recolours it per theme
+if [[ -f $BRAND/logo.png ]]; then put "$BRAND/logo.png" "$APP/logo.png"; else rm -f "$APP/logo.png"; fi
 put "$SRC/share/wallpaper.png"               "$APP/wallpaper.png"
 for f in "$SRC"/share/agents/*.svg; do       # agent logos for the agents panel (from Omarchy, MIT)
   put "$f" "$APP/agents/$(basename "$f")"
