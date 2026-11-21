@@ -1984,7 +1984,9 @@ class ThemePanel(PickerPanel):
     """Colour themes (SUPER + CTRL + SHIFT + SPACE): Omarchy 4's slanted carousel.
     Each card is the theme's wallpaper (if you downloaded Omarchy's) with the
     top bar over it in the theme's colours, so you see how the bar will look,
-    not just the picture."""
+    not just the picture. The side cards carry only the palette's colour
+    circles, like Omarchy's."""
+    DOTS = ("red", "yellow", "green", "cyan", "blue", "magenta")
 
     def __init__(self, app):
         super().__init__(app)
@@ -2057,19 +2059,25 @@ class ThemePanel(PickerPanel):
             cr.set_source_rgba(*col("background", "#202020"))
             cr.rectangle(0, 0, w, bar_h)
             cr.fill()
+            if w < 300:
+                # A side slice: nothing but the theme's colour circles, like
+                # Omarchy's cards - text and bar details just muffle at this
+                # width until the card comes into focus.
+                keys = self.DOTS
+                r = max(3.0, w * 0.055)
+                step = r * 2.7
+                x = w / 2 - step * (len(keys) - 1) / 2
+                for k, key in enumerate(keys):
+                    cr.set_source_rgba(*col(key))
+                    cr.arc(x + k * step, h / 2, r, 0, 6.2832)
+                    cr.fill()
+                return
             keys = ("red", "yellow", "green", "cyan", "magenta", "blue")
             for k, key in enumerate(keys):     # the bar's icons, as dots
                 cr.set_source_rgba(*col(key))
                 cr.arc(w - w * 0.012 - (len(keys) - k) * bar_h * 0.62, bar_h / 2,
                        bar_h * 0.13, 0, 6.2832)
                 cr.fill()
-            if w < 300:                        # a side slice: no text, it muffles
-                for k in range(5):
-                    cr.set_source_rgba(*col("accent") if k == 0 else col("dark_foreground"))
-                    s = bar_h * 0.3
-                    cr.rectangle(w * 0.06 + k * bar_h * 0.55, bar_h / 2 - s / 2, s, s)
-                    cr.fill()
-                return
             cr.select_font_face("monospace", 0, 0)   # cairo.FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL
             cr.set_font_size(bar_h * 0.44)
             base = bar_h * 0.68
