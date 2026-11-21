@@ -305,9 +305,62 @@ def lock_logo(c):
         pass
 
 
+def lock_icon(c):
+    """The lock screen's padlock, drawn as pixels in the theme's foreground
+    (like the logo, a PNG hyprlock shows beside the field). A drawn icon
+    can't be clipped the way a Nerd Font glyph in a label was - its right
+    side went missing - and it recolours with the theme."""
+    import struct
+    import zlib
+    rows = (
+        "......######......",
+        "....##......##....",
+        "...#..........#...",
+        "...#..........#...",
+        "...#..........#...",
+        "..##############..",
+        "..##############..",
+        "..######..######..",
+        "..######..######..",
+        "..######..######..",
+        "..##############..",
+        "..##############..",
+    )
+    cell = 5
+    width, height = len(rows[0]) * cell, len(rows) * cell
+    try:
+        rgb = tuple(int(c.get("bright_foreground", c["foreground"]).lstrip("#")[i:i + 2], 16)
+                    for i in (0, 2, 4))
+    except (KeyError, ValueError):
+        return
+    on, off = bytes(rgb) + b"\xff", b"\x00\x00\x00\x00"
+    raw = bytearray()
+    for row in rows:
+        for _ in range(cell):
+            raw.append(0)
+            for ch in row:
+                raw.extend((on if ch == "#" else off) * cell)
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    path = os.path.join(APP, "lock-icon.png")
+    try:
+        with open(path + ".tmp", "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
+            f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)))
+            f.write(chunk(b"IDAT", zlib.compress(bytes(raw), 9)))
+            f.write(chunk(b"IEND", b""))
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
 def apply(name, keep_wallpaper=False, announce=True):
     c = palette(name)
     lock_logo(c)
+    lock_icon(c)
     skipped = []
     for rel, blocks in BLOCKS.items():
         path = os.path.join(CFG, rel)

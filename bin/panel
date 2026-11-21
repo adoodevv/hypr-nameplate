@@ -1997,14 +1997,13 @@ class ThemePanel(PickerPanel):
         # current one, which is also what you'd get (theme set keeps it then).
         current = read(os.path.expanduser("~/.config/nameplate/wallpaper-current")) or \
             os.path.expanduser("~/.config/nameplate/wallpaper.png")
-        brand = read(os.path.expanduser("~/.config/nameplate/name")) or "nameplate"
         items = []
         for name in names:
             path = os.path.join(themes, name + ".toml")
             if not os.path.exists(path):
                 path = os.path.join(os.path.dirname(themes), "user-themes", name + ".toml")
             image = self.wallpaper(walls, name) or (current if os.path.exists(current) else None)
-            items.append((name, self.pretty(name), (image, self.painter(self.palette(path), brand))))
+            items.append((name, self.pretty(name), (image, self.painter(self.palette(path)))))
         sel = names.index(now) if now in names else 0
         self.build(items, sel, "Enter or click to switch  ·  arrows or scroll to browse"
                    if items else "No themes found. Run the installer again.")
@@ -2038,13 +2037,15 @@ class ThemePanel(PickerPanel):
         special = {"rose-pine": "Rosé Pine", "retro-82": "Retro 82"}
         return special.get(name, name.replace("-", " ").title())
 
-    def painter(self, c, brand="nameplate"):
+    def painter(self, c):
         """The theme's wallpaper with just the top bar over it, the way the bar
-        really looks: your name and the workspace numbers on the left (the one
-        you're on underlined in the accent), the clock in the middle, and the
-        right-hand icons as small dots. Called by the carousel with the
-        wallpaper pixbuf, which it has already drawn; with none, the theme
-        background stands in."""
+        really looks: the workspace numbers on the left (the one you're on
+        underlined in the accent), the clock in the middle, and the right-hand
+        icons as small dots. On the carousel's narrow side slices only the bar
+        strip and dots are drawn - text at that width just turns to mush until
+        the card comes into focus. Called by the carousel with the wallpaper
+        pixbuf, which it has already drawn; with none, the theme background
+        stands in."""
         rgb = Carousel.rgb
         col = lambda key, fallback="#808080": rgb(c.get(key, fallback))
 
@@ -2056,15 +2057,24 @@ class ThemePanel(PickerPanel):
             cr.set_source_rgba(*col("background", "#202020"))
             cr.rectangle(0, 0, w, bar_h)
             cr.fill()
+            keys = ("red", "yellow", "green", "cyan", "magenta", "blue")
+            for k, key in enumerate(keys):     # the bar's icons, as dots
+                cr.set_source_rgba(*col(key))
+                cr.arc(w - w * 0.012 - (len(keys) - k) * bar_h * 0.62, bar_h / 2,
+                       bar_h * 0.13, 0, 6.2832)
+                cr.fill()
+            if w < 300:                        # a side slice: no text, it muffles
+                for k in range(5):
+                    cr.set_source_rgba(*col("accent") if k == 0 else col("dark_foreground"))
+                    s = bar_h * 0.3
+                    cr.rectangle(w * 0.06 + k * bar_h * 0.55, bar_h / 2 - s / 2, s, s)
+                    cr.fill()
+                return
             cr.select_font_face("monospace", 0, 0)   # cairo.FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL
             cr.set_font_size(bar_h * 0.44)
             base = bar_h * 0.68
-            # Left, like the real bar: your name, then the workspace numbers
+            # Left, like the real bar: the workspace numbers
             x = w * 0.012
-            cr.set_source_rgba(*col("foreground"))
-            cr.move_to(x, base)
-            cr.show_text(brand[:12])
-            x += cr.text_extents(brand[:12]).width + bar_h * 0.55
             for k in range(5):
                 num = str(k + 1)
                 cr.set_source_rgba(*col("foreground") if k == 0 else col("dark_foreground"))
@@ -2083,13 +2093,6 @@ class ThemePanel(PickerPanel):
             cr.set_source_rgba(*col("foreground"))
             cr.move_to((w - cr.text_extents(clock).width) / 2, base)
             cr.show_text(clock)
-            # Right: the bar's icons, as dots in their colours
-            keys = ("red", "yellow", "green", "cyan", "magenta", "blue")
-            for k, key in enumerate(keys):
-                cr.set_source_rgba(*col(key))
-                cr.arc(w - w * 0.012 - (len(keys) - k) * bar_h * 0.62, bar_h / 2,
-                       bar_h * 0.13, 0, 6.2832)
-                cr.fill()
         return paint
 
     def apply(self, i):
