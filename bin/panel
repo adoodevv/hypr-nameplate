@@ -1982,10 +1982,9 @@ class EmojiPanel(Panel):
 
 class ThemePanel(PickerPanel):
     """Colour themes (SUPER + CTRL + SHIFT + SPACE): Omarchy 4's slanted carousel.
-    Like Omarchy's preview.png, each card is a little desktop in that theme: its
-    wallpaper (if you downloaded Omarchy's), the top bar, and tiled windows, all
-    in the theme's colours, so you see the bar and windows, not just the picture."""
-    DOTS = ("red", "yellow", "green", "cyan", "blue", "magenta")
+    Each card is the theme's wallpaper (if you downloaded Omarchy's) with the
+    top bar over it in the theme's colours, so you see how the bar will look,
+    not just the picture."""
 
     def __init__(self, app):
         super().__init__(app)
@@ -2040,10 +2039,12 @@ class ThemePanel(PickerPanel):
         return special.get(name, name.replace("-", " ").title())
 
     def painter(self, c, brand="nameplate"):
-        """Paint the little desktop over the wallpaper: the top bar and two tiled
-        windows in this theme's colours (Omarchy's theme cards are a screenshot
-        of exactly that). Called by the carousel with the wallpaper pixbuf,
-        which it has already drawn; with none, the theme background stands in."""
+        """The theme's wallpaper with just the top bar over it, the way the bar
+        really looks: your name and the workspace numbers on the left (the one
+        you're on underlined in the accent), the clock in the middle, and the
+        right-hand icons as small dots. Called by the carousel with the
+        wallpaper pixbuf, which it has already drawn; with none, the theme
+        background stands in."""
         rgb = Carousel.rgb
         col = lambda key, fallback="#808080": rgb(c.get(key, fallback))
 
@@ -2051,120 +2052,45 @@ class ThemePanel(PickerPanel):
             if pix is None:
                 cr.set_source_rgba(*col("background", "#202020"))
                 cr.paint()
-            u = max(1.0, min(w, h) / 100)          # a unit that survives the slices
-            bar_h = max(10.0, h * 0.062)
-
-            # -- the top bar: name and workspaces, indicators, clock, icons
+            bar_h = max(9.0, h * 0.052)
             cr.set_source_rgba(*col("background", "#202020"))
             cr.rectangle(0, 0, w, bar_h)
             cr.fill()
-            cr.set_source_rgba(*col("accent"))
-            cr.rectangle(0, bar_h, w, max(1.0, u * 0.35))
-            cr.fill()
-            cr.select_font_face("monospace", 0, 1)   # cairo.FONT_SLANT_NORMAL, FONT_WEIGHT_BOLD
-            cr.set_font_size(bar_h * 0.52)
-            name = brand
+            cr.select_font_face("monospace", 0, 0)   # cairo.FONT_SLANT_NORMAL, FONT_WEIGHT_NORMAL
+            cr.set_font_size(bar_h * 0.44)
+            base = bar_h * 0.68
+            # Left, like the real bar: your name, then the workspace numbers
+            x = w * 0.012
             cr.set_source_rgba(*col("foreground"))
-            cr.move_to(w * 0.015, bar_h * 0.72)
-            cr.show_text(name[:12])
-            for k in range(5):                     # workspace numbers: squares
-                x = w * 0.015 + cr.text_extents(name[:12]).width + w * 0.025 + k * bar_h * 0.85
-                if k == 0:
-                    cr.set_source_rgba(*col("accent"))
-                    cr.rectangle(x, bar_h * 0.22, bar_h * 0.56, bar_h * 0.56)
-                    cr.stroke()
+            cr.move_to(x, base)
+            cr.show_text(brand[:12])
+            x += cr.text_extents(brand[:12]).width + bar_h * 0.55
+            for k in range(5):
+                num = str(k + 1)
                 cr.set_source_rgba(*col("foreground") if k == 0 else col("dark_foreground"))
-                cr.move_to(x + bar_h * 0.14, bar_h * 0.68)
-                cr.show_text(str(k + 1))
-            clock = "Tuesday 20:25"
-            tw = cr.text_extents(clock).width
+                cr.move_to(x, base)
+                cr.show_text(num)
+                nw = cr.text_extents(num).width
+                if k == 0:                     # the workspace you're on
+                    cr.set_source_rgba(*col("accent"))
+                    cr.set_line_width(max(1.0, bar_h * 0.07))
+                    cr.move_to(x, bar_h * 0.86)
+                    cr.line_to(x + nw, bar_h * 0.86)
+                    cr.stroke()
+                x += nw + bar_h * 0.5
+            # Middle: the clock
+            clock = "Tue 20:25"
             cr.set_source_rgba(*col("foreground"))
-            cr.move_to((w - tw) / 2, bar_h * 0.72)
+            cr.move_to((w - cr.text_extents(clock).width) / 2, base)
             cr.show_text(clock)
+            # Right: the bar's icons, as dots in their colours
             keys = ("red", "yellow", "green", "cyan", "magenta", "blue")
-            for k, key in enumerate(keys):         # the right-hand icons, as dots
+            for k, key in enumerate(keys):
                 cr.set_source_rgba(*col(key))
-                cr.arc(w - w * 0.015 - (len(keys) - k) * bar_h * 0.8, bar_h / 2,
-                       bar_h * 0.17, 0, 6.2832)
+                cr.arc(w - w * 0.012 - (len(keys) - k) * bar_h * 0.62, bar_h / 2,
+                       bar_h * 0.13, 0, 6.2832)
                 cr.fill()
-
-            # -- two tiled windows under the bar, with the desktop's gaps
-            gap = max(3.0, u * 2.2)
-            top = bar_h + gap * 1.6
-            win_h = h - top - gap
-            left_w = w * 0.565
-            self.window(cr, gap, top, left_w, win_h, c, focus=True)
-            self.window(cr, gap * 2 + left_w, top, w - left_w - gap * 3, win_h, c, focus=False, files=True)
-            return
         return paint
-
-    def window(self, cr, x, y, w, h, c, focus, files=False):
-        """One tiled window: border in the border colour, body in the theme
-        background, a title strip, code-like lines, and the colour dots."""
-        rgb = Carousel.rgb
-        col = lambda key, fallback="#808080": rgb(c.get(key, fallback))
-        if w < 24 or h < 24:
-            cr.set_source_rgba(*col("background", "#202020"))
-            cr.rectangle(x, y, w, h)
-            cr.fill()
-            return
-        cr.set_source_rgba(*col("background", "#202020"))
-        cr.rectangle(x, y, w, h)
-        cr.fill()
-        cr.set_source_rgba(*col("selection"))
-        cr.rectangle(x, y, w, min(h * 0.11, 16))
-        cr.fill()
-        for k, key in enumerate(self.DOTS[:3]):    # window buttons in the strip
-            cr.set_source_rgba(*col(key))
-            cr.arc(x + 8 + k * 11, y + min(h * 0.055, 8), 3, 0, 6.2832)
-            cr.fill()
-        cr.set_line_width(2 if focus else 1)
-        cr.set_source_rgba(*col("accent") if focus else col("muted"))
-        cr.rectangle(x, y, w, h)
-        cr.stroke()
-        if files and w > 60:
-            # A files window: sidebar rows, then folders in the theme's colours
-            side = w * 0.3
-            cr.set_source_rgba(*col("selection"))
-            cr.rectangle(x, y + min(h * 0.11, 16), side, h - min(h * 0.11, 16))
-            cr.fill()
-            for n in range(5):
-                yy = y + h * 0.2 + n * h * 0.13
-                cr.set_source_rgba(*col("accent") if n == 0 else col("dark_foreground"))
-                cr.rectangle(x + w * 0.05, yy, side * (0.62 - n * 0.05), max(3.0, h * 0.03))
-                cr.fill()
-            fw, fh = w * 0.24, h * 0.2
-            for r in range(2):
-                for k in range(2):
-                    fx, fy = x + side + w * 0.07 + k * (fw + w * 0.07), y + h * 0.2 + r * (fh + h * 0.14)
-                    cr.set_source_rgba(*col(("magenta", "blue", "cyan", "accent")[(r * 2 + k) % 4], "#808080"))
-                    cr.rectangle(fx, fy, fw, fh * 0.72)
-                    cr.fill()
-                    cr.rectangle(fx, fy - fh * 0.12, fw * 0.45, fh * 0.16)
-                    cr.fill()
-                    cr.set_source_rgba(*col("foreground"))
-                    cr.rectangle(fx + fw * 0.1, fy + fh * 0.88, fw * 0.75, max(3.0, h * 0.028))
-                    cr.fill()
-            return
-        pad, line = w * 0.07, max(4.0, h * 0.032)
-        keys = ("accent",) + self.DOTS + ("foreground",)
-        for n in range(14):
-            yy = y + h * 0.2 + n * line * 1.9
-            if yy > y + h * 0.82:
-                break
-            xx = x + pad + (n % 3) * w * 0.03
-            for m in range(3):
-                seg = w * (0.1 + ((n * 7 + m * 5) % 9) / 34)
-                cr.set_source_rgba(*rgb(c.get(keys[(n + m * 3) % len(keys)], "#808080"), 0.9))
-                cr.rectangle(xx, yy, min(seg, x + w - pad - xx), line)
-                cr.fill()
-                xx += seg + w * 0.025
-                if xx > x + w - pad:
-                    break
-        for k, key in enumerate(self.DOTS):        # the palette, along the bottom
-            cr.set_source_rgba(*col(key))
-            cr.arc(x + pad + k * w * 0.055, y + h * 0.93, max(2.5, w * 0.011), 0, 6.2832)
-            cr.fill()
 
     def apply(self, i):
         name = self.items[i][0]

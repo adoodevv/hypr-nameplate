@@ -21,7 +21,7 @@ bash install.sh --name yourname
 | | |
 |---|---|
 | **Screensaver** | Your name in block letters, cycling through random [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) animations after 2.5 minutes idle. Works on GNOME and Hyprland. |
-| **Lock screen** | Omarchy style: your current wallpaper, heavily blurred, with just a password box (hyprlock). Follows the wallpaper picker. |
+| **Lock screen** | Like the latest Omarchy's: the theme's solid background, your name in block letters in the theme's accent, and a padlock beside a small password box (hyprlock). Recolours with the theme. |
 | **Top bar** | Your name, workspaces, date and time, a music icon while something plays, Bluetooth, Wi-Fi, volume, brightness, battery and a power menu (Waybar). Clicking an icon opens a small panel under it: a calendar with the player (seek bar, previous / play / next) underneath while something plays, volume and brightness sliders with output selection, Wi-Fi networks, Bluetooth devices. Click anywhere outside to close it. |
 | **Main menu** | <kbd>Super</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd> or click your name in the bar, like Omarchy's menu: apps, appearance, screenshots and recording, setup panels, config files, updates (apt, snap, firmware), about this computer, and power options. Type to search everything at once. |
 | **Animations** | Omarchy's window open, close and fade timings on Hyprland. |
