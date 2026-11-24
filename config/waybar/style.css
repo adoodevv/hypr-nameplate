@@ -125,3 +125,13 @@ box:hover > #custom-keyboard-layout, box:hover > #custom-tray-chevron { backgrou
   background-position: 50% 92%;
   background-repeat: no-repeat;
 }
+/* Nerd Font glyphs draw wider than the advance Waybar centres them on (ink
+   starts at the advance's left edge and runs past its right), so a line centred
+   on the 27px slot sits left of the icon you see: Wi-Fi by ~2.5px, monitor,
+   agents and weather by ~2px, sound by ~1px at 13px, the same in JetBrains Mono
+   and Caskaydia Mono. Bluetooth and battery glyphs fit their advance, and the
+   clock is plain text, so those keep the centred line. Measured on the bar. */
+#custom-network.open, #custom-monitor.open, #custom-agents.open, #custom-weather.open {
+  background-position: calc(50% + 2px) 92%;
+}
+#custom-sound.open { background-position: calc(50% + 1px) 92%; }
