@@ -118,8 +118,8 @@ I = {
 
 CSS = """
 window.np-backdrop { background-color: rgba(0, 0, 0, 0); }
-/* Menus and the app grid dim the desktop behind them, like Omarchy's scrim.
-   Bar panels stay clear, so the desktop around them is unchanged. */
+/* The app grid dims the desktop behind it, like Omarchy's scrim. The main
+   menu and the bar panels stay clear, so the desktop around them is unchanged. */
 window.np-backdrop.np-dimmed { background-color: alpha(@bg, 0.5); }
 window.np-popup {
   background-color: @bg;
@@ -178,13 +178,31 @@ window.np-popup {
 .np-popup button.np-thumb { padding: 2px; border: 2px solid transparent; }
 .np-popup button.np-thumb:hover { border-color: @muted; background-color: transparent; }
 .np-popup button.np-thumb.np-current { border-color: @accent; }
+/* Main menu, like Omarchy's Walker menu (omarchy-menu --dmenu): a narrow box
+   with a 2px foreground border (Walker's @border is the foreground colour, not
+   the accent) on a 95% background, 20px inside, a plain search line prompted
+   with the menu's name ("Go…", "Style…"), then 18px rows with 14px
+   of air. The current row is a faint foreground wash with accent text. There
+   is no title, no back button and no chevron: Escape goes back. */
+window.np-popup.np-menu { background-color: alpha(@bg, 0.95); border-color: @fg; }
+.np-popup entry.np-menu-search {
+  background-image: none; background-color: @bg; color: @fg_bright;
+  border: none; box-shadow: none; padding: 10px; font-size: 18px;
+}
+.np-popup entry.np-menu-search:focus { border: none; }
+.np-popup .np-menu-prompt { font-size: 18px; color: @fg_dim; }
+.np-popup button.np-menu-item { padding: 14px; }
+.np-popup button.np-menu-item:hover { background-color: alpha(@fg, 0.07); }
+.np-popup button.np-menu-item label { font-size: 18px; }
+.np-popup button.np-menu-item label.np-dim { font-size: 10px; }
+.np-popup button.np-menu-item.np-selected { background-color: alpha(@fg, 0.07); }
+.np-popup button.np-menu-item.np-selected label { color: @accent; }
+.np-popup .np-menu-info label { font-size: 12px; }
 .np-popup button.np-emoji { padding: 2px 4px; }
 .np-popup button.np-emoji label { font-family: "Noto Color Emoji", sans-serif; font-size: 18pt; }
 .np-popup entry.np-search { margin-bottom: 4px; }
 .np-popup button.np-selected { background-color: @selection; }
 .np-popup button.np-selected label { color: @fg_bright; }
-.np-popup button.np-back { padding: 0 6px; }
-.np-popup button.np-back label { font-size: 13pt; color: @accent; }
 /* Wallpaper and theme pickers: a carousel floating over the desktop */
 window.np-popup.np-bare { background-color: transparent; border: none; }
 .np-popup .np-picker-name { font-size: 15pt; font-weight: bold; color: @fg_bright; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
@@ -2287,6 +2305,7 @@ class AppsPanel(Panel):
     the middle of the screen, seven columns of large icons, and a search line on top.
     Just start typing to search; arrows move, Enter opens, Escape clears or closes."""
     anchor = "middle"
+    dim_backdrop = True
     COLUMNS, ROWS = 7, 4
     ICON, CELL_W, CELL_H = 56, 124, 128
 
@@ -2699,7 +2718,7 @@ def in_terminal(title, command):
 
 
 def font_items():
-    """Appearance -> Font: installed Nerd Fonts, terminal size, and fonts to download."""
+    """Style -> Font: installed Nerd Fonts, terminal size, and fonts to download."""
     font = BIN + "/font"
     now = out(font, timeout=10)
     family, _, size = now.partition(", terminal size ")
@@ -2718,42 +2737,45 @@ def font_items():
 
 
 class MenuPanel(Panel):
-    """Everything in one place (SUPER + SPACE): type to search, Enter to pick,
-    arrows to move, Escape or Backspace to go back."""
-    width = 340
+    """Everything in one place (SUPER + SPACE, or click the logo in the bar),
+    laid out like Omarchy's Walker menu: a narrow centred box with a plain
+    search line on top whose placeholder names the menu you're in ("Go…" at
+    the top, "Style…", "System…" inside one), and big rows underneath. Type
+    to search everything at once, Enter to pick, arrows to move, Escape or
+    Backspace to go back a level (there is no back button, like Walker)."""
+    width = 275          # 315px with the padding below: Walker's --width 295 box
     anchor = "middle"
+    padding = 20         # Walker's .box-wrapper padding
+    window_classes = ("np-menu",)
+    dim_backdrop = False
     MAX_RESULTS = 12
 
     def __init__(self, app, route=None):
         super().__init__(app)
+        self.box.set_spacing(10)
         self.stack = []            # [(title, items)]
         self.buttons = []          # [(button, item)] currently shown
         self.selected = 0
-        head = hbox(6)
-        self.back = Gtk.Button(label=g(0xF0141))
-        self.back.get_style_context().add_class("np-back")
-        self.back.connect("clicked", lambda *_: self.go_back())
-        self.back.set_no_show_all(True)
-        head.pack_start(self.back, False, False, 0)
-        self.title = label("", "np-title")
-        head.pack_start(self.title, True, True, 0)
-        self.box.pack_start(head, False, False, 0)
-        self.search = Gtk.SearchEntry()
-        self.search.get_style_context().add_class("np-search")
-        self.search.set_placeholder_text("Search")
-        self.search.connect("search-changed", lambda *_: self.fill())
+        self.search = Gtk.Entry()
+        self.search.get_style_context().add_class("np-menu-search")
+        self.search.connect("changed", lambda *_: self.fill())
         self.search.connect("activate", lambda *_: self.activate())
-        self.box.pack_start(self.search, False, False, 0)
+        # Walker's prompt ("Go…") stays on show while you type, but GTK hides a
+        # focused entry's own placeholder, so the prompt is a label over the
+        # entry, shown whenever the entry is empty (fill() sets its text).
+        self.prompt = label("", "np-menu-prompt")
+        self.prompt.set_margin_start(11)
+        self.prompt.set_valign(Gtk.Align.CENTER)
+        overlay = Gtk.Overlay()
+        overlay.add(self.search)
+        overlay.add_overlay(self.prompt)
+        overlay.set_overlay_pass_through(self.prompt, True)
+        self.box.pack_start(overlay, False, False, 0)
         self.list = vbox(0)
         self.box.pack_start(self.list, False, False, 0)
 
-        try:
-            with open(os.path.expanduser("~/.config/nameplate/name")) as f:
-                name = f.read().strip()
-        except OSError:
-            name = ""
         self.root = self.tree()
-        self.stack.append((name or "Menu", self.root))
+        self.stack.append(("Go", self.root))
         for item in self.root:           # e.g. "panel menu system" opens System directly
             if route and item["label"].lower() == route.lower() and "sub" in item:
                 self.stack.append((item["label"], self.items_of(item)))
@@ -2761,13 +2783,6 @@ class MenuPanel(Panel):
 
     def shown(self):
         self.search.grab_focus()
-        self.back.set_visible(len(self.stack) > 1)
-        GLib.idle_add(self.keep_size)
-
-    def keep_size(self):
-        """Hold the first height, so the menu doesn't jump around while you search."""
-        self.list.set_size_request(-1, self.list.get_allocated_height())
-        return False
 
     # ---- what's in the menu ----
 
@@ -2801,25 +2816,25 @@ class MenuPanel(Panel):
         record = ([{"icon": g(0xF04DB), "label": "Stop recording", **run_(B + "screenrecord")}] if recording else [
             {"icon": g(0xF019E), "label": "Region", **run_(B + "screenrecord")},
             {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenrecord", "full")},
-            {"icon": g(0xF036C), "label": "Full screen with microphone", **run_(B + "screenrecord", "full", "mic")}])
+            {"icon": g(0xF036C), "label": "Full screen + mic", **run_(B + "screenrecord", "full", "mic")}])
+        # Omarchy's top level and order (omarchy-menu's "Go" menu). Its Install
+        # and Remove have no counterpart here: Ubuntu packages are the Update
+        # items below and GNOME Software.
         return [
             {"icon": g(0xF003B), "label": "Apps", **panel("apps")},
-            {"icon": g(0xF03D8), "label": "Appearance", "sub": [
-                {"icon": g(0xF03D8), "label": "Theme", **panel("themes")},
-                {"icon": g(0xF0B34), "label": "Font", "sub": font_items},
-                {"icon": I["image"], "label": "Background", **panel("wallpapers")},
-                {"icon": I["next"], "label": "Next background", "stay": True, **run_(B + "wallpaper", "next")},
-                {"icon": g(0xF0209), "label": "Show or hide the bar", **run_("pkill", "-SIGUSR1", "waybar")},
-                {"icon": I["refresh"], "label": "Restart the bar",
-                 **run_("sh", "-c", "pkill -x waybar; sleep 0.5; exec waybar")},
+            {"icon": g(0xF09D1), "label": "Learn", "sub": [
+                {"icon": g(0xF11C), "label": "Keybindings", **run_(B + "keys")},
+                {"icon": g(0xF359), "label": "Hyprland wiki", **run_("xdg-open", "https://wiki.hypr.land")},
+                {"icon": g(0xF02A4), "label": "hypr-nameplate on GitHub",
+                 **run_("xdg-open", "https://github.com/adoodevv/hypr-nameplate")},
             ]},
-            {"icon": g(0xF0241), "label": "Trigger", "sub": [
+            {"icon": g(0xF14DE), "label": "Trigger", "sub": [
                 {"icon": g(0xF0100), "label": "Screenshot", "sub": [
                     {"icon": g(0xF019E), "label": "Region", **run_(B + "screenshot", "region")},
                     {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenshot", "full")}]},
                 {"icon": g(0xF044A), "label": "Stop recording" if recording else "Screen recording",
                  **({"run": record[0]["run"]} if recording else {"sub": record})},
-                {"icon": I["clip"], "label": "Clipboard history", **panel("clipboard")},
+                {"icon": I["clip"], "label": "Clipboard", **panel("clipboard")},
                 {"icon": g(0xF06A9), "label": "AI agents", **panel("agents")},
                 {"icon": g(0xF01F5), "label": "Emoji", **panel("emoji")},
                 {"icon": g(0xF009B), "label": "Do not disturb", "right": "on" if dnd else "off",
@@ -2829,34 +2844,37 @@ class MenuPanel(Panel):
                 {"icon": g(0xF050E), "label": "Night light", "right": "on" if night else "off",
                  **run_(B + "nightlight")},
             ]},
-            {"icon": I["cog"], "label": "Setup", "sub": [
+            {"icon": g(0xEBCF), "label": "Style", "sub": [
+                {"icon": g(0xF0E0C), "label": "Theme", **panel("themes")},
+                {"icon": g(0xE659), "label": "Font", "sub": font_items},
+                {"icon": g(0xF03E), "label": "Background", **panel("wallpapers")},
+                {"icon": I["next"], "label": "Next background", "stay": True, **run_(B + "wallpaper", "next")},
+                {"icon": g(0xF0209), "label": "Show/hide the bar", **run_("pkill", "-SIGUSR1", "waybar")},
+                {"icon": I["refresh"], "label": "Restart the bar",
+                 **run_("sh", "-c", "pkill -x waybar; sleep 0.5; exec waybar")},
+            ]},
+            {"icon": g(0xE615), "label": "Setup", "sub": [
+                {"icon": g(0xE638), "label": "Audio", **panel("sound")},
                 {"icon": I["wifi"][-1], "label": "Wi-Fi", **panel("wifi")},
                 {"icon": I["bt"], "label": "Bluetooth", **panel("bluetooth")},
-                {"icon": I["vol"][-1], "label": "Sound and brightness", **panel("sound")},
-                {"icon": I["monitor"], "label": "Displays", **panel("display")},
-                {"icon": I["balance"], "label": "Power profile", **panel("power")},
-                {"icon": g(0xF030C), "label": "Keybindings", **run_(B + "keys")},
+                {"icon": I["monitor"], "label": "Monitors", **panel("display")},
+                {"icon": g(0xF140B), "label": "Power profile", **panel("power")},
+                {"icon": g(0xF11C), "label": "Keybindings", **run_(B + "keys")},
                 {"icon": g(0xF0219), "label": "Config files", "sub": [
                     {"icon": g(0xF0219), "label": text, "run": edit(os.path.join(cfg, rel))}
                     for text, rel in configs if os.path.exists(os.path.join(cfg, rel))]},
                 {"icon": g(0xF062E), "label": "GNOME Settings",
                  **run_("env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center")},
             ]},
-            {"icon": g(0xF06B0), "label": "Update", "sub": updates},
-            {"icon": g(0xF05DA), "label": "Learn", "sub": [
-                {"icon": g(0xF030C), "label": "Keybindings", **run_(B + "keys")},
-                {"icon": g(0xF059F), "label": "Hyprland wiki", **run_("xdg-open", "https://wiki.hypr.land")},
-                {"icon": g(0xF02A4), "label": "hypr-nameplate on GitHub",
-                 **run_("xdg-open", "https://github.com/adoodevv/hypr-nameplate")},
-            ]},
-            {"icon": g(0xF02FD), "label": "About", "sub": info_rows},
-            {"icon": g(0xF0425), "label": "System", "sub": [
+            {"icon": g(0xF021), "label": "Update", "sub": updates},
+            {"icon": g(0xEA74), "label": "About", "sub": info_rows},
+            {"icon": g(0xF011), "label": "System", "sub": [
+                {"icon": g(0xF1104), "label": "Screensaver", **run_(B + "launch-screensaver")},
                 {"icon": I["lock"], "label": "Lock", **run_("loginctl", "lock-session")},
-                {"icon": I["monitor"], "label": "Screensaver", **run_(B + "launch-screensaver")},
                 {"icon": g(0xF04B2), "label": "Suspend", **run_("systemctl", "suspend")},
-                {"icon": g(0xF0343), "label": "Log out", **run_("hyprctl", "dispatch", "hl.dsp.exit()")},
+                {"icon": g(0xF0343), "label": "Logout", **run_("hyprctl", "dispatch", "hl.dsp.exit()")},
                 {"icon": g(0xF0709), "label": "Restart", **run_("systemctl", "reboot")},
-                {"icon": g(0xF0425), "label": "Shut down", **run_("systemctl", "poweroff")},
+                {"icon": g(0xF011), "label": "Shutdown", **run_("systemctl", "poweroff")},
             ]},
         ]
 
@@ -2880,7 +2898,8 @@ class MenuPanel(Panel):
         self.buttons = []
         query = self.search.get_text().strip().lower()
         title, items = self.stack[-1]
-        self.title.set_text(title)
+        self.prompt.set_text(title + "…")               # Walker's prompt: "Go…", "Style…"
+        self.prompt.set_visible(not query)
         if query:
             def words(item, path):   # "wifi" finds Wi-Fi, "shutdown" finds Shut down
                 text = (path + " " + item["label"]).lower().replace("-", "")
@@ -2894,19 +2913,20 @@ class MenuPanel(Panel):
         for item, right in shown:
             if item.get("info"):           # About: a plain line, not a button
                 line = hbox(10)
-                line.set_margin_start(8)
-                line.set_margin_end(8)
-                line.set_margin_top(4)
-                line.set_margin_bottom(4)
+                line.get_style_context().add_class("np-menu-info")
+                line.set_margin_start(14)
+                line.set_margin_end(14)
+                line.set_margin_top(8)
+                line.set_margin_bottom(8)
                 line.pack_start(label(item["label"], "np-dim"), False, False, 5)
                 line.pack_end(label(right, ellipsize=True, width=30, xalign=1.0), True, True, 5)
                 self.list.pack_start(line, False, False, 0)
                 continue
             if query:
                 right = right.split(" › ")[-1]          # just where it lives, e.g. "Config files"
-            more = "sub" in item
-            b = row(item["icon"], item["label"], right=right + (("  " if right else "") + g(0xF0142) if more else ""),
+            b = row(item["icon"], item["label"], right=right,
                     on_click=lambda it=item: self.choose(it))
+            b.get_style_context().add_class("np-menu-item")
             self.buttons.append((b, item))
             b.connect("enter-notify-event", lambda w, *_: self.select_button(w))
             self.list.pack_start(b, False, False, 0)
@@ -2939,7 +2959,6 @@ class MenuPanel(Panel):
         if "sub" in item:
             self.stack.append((item["label"], self.items_of(item)))
             self.search.set_text("")
-            self.back.set_visible(True)
             self.fill()
             self.search.grab_focus()
         elif "panel" in item:
@@ -2957,7 +2976,6 @@ class MenuPanel(Panel):
         if len(self.stack) > 1:
             self.stack.pop()
             self.search.set_text("")
-            self.back.set_visible(len(self.stack) > 1)
             self.fill()
             self.search.grab_focus()
             return True
@@ -3010,16 +3028,20 @@ class App:
         layered = GtkLayerShell is not None and GtkLayerShell.is_supported()
         monitor = self.monitor_at(mark_x)      # open on the screen whose bar was clicked
 
-        if layered:
-            self.windows.append(self.backdrop(monitor, kind in ("menu", "apps")))
-
         panel = KINDS[kind](self, route) if route else KINDS[kind](self)
         self.panel = panel
+
+        if layered:
+            self.windows.append(self.backdrop(monitor, getattr(panel, "dim_backdrop", False)))
+
         win = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         win.get_style_context().add_class("np-popup")
+        for cls in getattr(panel, "window_classes", ()):
+            win.get_style_context().add_class(cls)
         win.set_title(f"nameplate {kind}")
         frame = Gtk.Box()
-        frame.set_border_width(0 if getattr(panel, "bare", False) else 12)
+        frame.set_border_width(0 if getattr(panel, "bare", False)
+                               else getattr(panel, "padding", 12))
         if getattr(panel, "bare", False):
             win.get_style_context().add_class("np-bare")
             visual = win.get_screen().get_rgba_visual()
