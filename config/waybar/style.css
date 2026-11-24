@@ -31,7 +31,7 @@ window#waybar {
 }
 
 tooltip {
-  background: @bg;
+  background: alpha(@bg, 0.97);
   border: 2px solid @accent;
   color: @fg;
 }
@@ -39,7 +39,7 @@ tooltip {
 /* Every icon item: a 13px glyph centred in a 27px slot */
 #custom-logo, #custom-agents, #custom-bluetooth, #custom-network, #custom-sound,
 #custom-monitor, #custom-battery, #custom-weather, #custom-updates,
-#custom-tray-chevron, #custom-media {
+#custom-tray-chevron, #custom-media, #custom-keyboard-layout {
   font-size: 13px;
   min-width: 27px;
   padding: 0;
@@ -100,11 +100,11 @@ tooltip {
    around custom modules, so match both. */
 #custom-logo:hover, #custom-network:hover, #custom-bluetooth:hover, #custom-battery:hover,
 #custom-sound:hover, #custom-monitor:hover, #custom-agents:hover, #custom-weather:hover,
-#custom-updates:hover, #custom-tray-chevron:hover, #datetime:hover,
+#custom-updates:hover, #custom-tray-chevron:hover, #custom-keyboard-layout:hover, #datetime:hover,
 box:hover > #custom-logo, box:hover > #custom-network, box:hover > #custom-bluetooth,
 box:hover > #custom-battery, box:hover > #custom-sound, box:hover > #custom-monitor,
 box:hover > #custom-agents, box:hover > #custom-weather, box:hover > #custom-updates,
-box:hover > #custom-tray-chevron { background-color: @hover; }
+box:hover > #custom-keyboard-layout, box:hover > #custom-tray-chevron { background-color: @hover; }
 #datetime #custom-clock:hover, #datetime #custom-media:hover,
 #datetime box:hover > #custom-media, #datetime box:hover > #custom-clock { background-color: transparent; }
 

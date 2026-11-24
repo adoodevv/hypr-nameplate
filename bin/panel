@@ -118,6 +118,9 @@ I = {
 
 CSS = """
 window.np-backdrop { background-color: rgba(0, 0, 0, 0); }
+/* Menus and the app grid dim the desktop behind them, like Omarchy's scrim.
+   Bar panels stay clear, so the desktop around them is unchanged. */
+window.np-backdrop.np-dimmed { background-color: alpha(@bg, 0.5); }
 window.np-popup {
   background-color: @bg;
   border: 2px solid @accent;
@@ -3008,7 +3011,7 @@ class App:
         monitor = self.monitor_at(mark_x)      # open on the screen whose bar was clicked
 
         if layered:
-            self.windows.append(self.backdrop(monitor))
+            self.windows.append(self.backdrop(monitor, kind in ("menu", "apps", "themes")))
 
         panel = KINDS[kind](self, route) if route else KINDS[kind](self)
         self.panel = panel
@@ -3064,10 +3067,13 @@ class App:
                 return m
         return None
 
-    def backdrop(self, monitor):
-        """Invisible layer over everything except the bar: any click on it closes the panel."""
+    def backdrop(self, monitor, dim=False):
+        """Layer over everything except the bar: any click on it closes the panel.
+        Menus and the app grid also dim the desktop behind them (np-dimmed)."""
         w = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         w.get_style_context().add_class("np-backdrop")
+        if dim:
+            w.get_style_context().add_class("np-dimmed")
         visual = w.get_screen().get_rgba_visual()
         if visual:
             w.set_visual(visual)

@@ -159,8 +159,27 @@ case $1 in
     fi
     ;;
 
+  keyboard)           # Omarchy's keyboard-layout item: hidden with one layout
+    hyprctl devices -j 2>/dev/null | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except ValueError:
+    sys.exit()
+keyboards = [k for k in data.get("keyboards", []) if k.get("main")] or data.get("keyboards", [])
+if not keyboards:
+    sys.exit()
+keyboard = keyboards[0]
+layouts = [x for x in (keyboard.get("layout") or "").split(",") if x]
+if len(layouts) < 2:
+    sys.exit()
+name = (keyboard.get("active_keymap") or layouts[0]).split("(")[0].strip()
+print(json.dumps({"text": name, "tooltip": "Keyboard layout", "class": []}))
+'
+    ;;
+
   *)
-    echo "usage: bar-status logo|power|network|bluetooth|battery|monitor|clock|awake|nightlight|dnd|mic|updates" >&2
+    echo "usage: bar-status logo|power|network|bluetooth|battery|monitor|clock|awake|nightlight|dnd|mic|keyboard|updates" >&2
     exit 1
     ;;
 esac

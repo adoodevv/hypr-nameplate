@@ -19,10 +19,11 @@
   ],
   "modules-right": [
     "group/tray-drawer",
+    "custom/keyboard-layout",
     "custom/agents",
     "custom/bluetooth",
-    "custom/network",
     "custom/sound",
+    "custom/network",
     "custom/monitor",
     "custom/battery"
   ],
@@ -32,9 +33,9 @@
     "orientation": "inherit",
     "modules": [
       "custom/recording",
+      "custom/nightlight",
       "custom/dnd",
       "custom/awake",
-      "custom/nightlight",
       "custom/mic"
     ]
   },
@@ -223,5 +224,14 @@
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel agents --bar"
+  },
+  // Omarchy's keyboard-layout item: only appears once a second layout is set
+  "custom/keyboard-layout": {
+    "exec": "~/.config/nameplate/bin/bar-status keyboard",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 12,
+    "format": "{}",
+    "tooltip": false
   }
 }
