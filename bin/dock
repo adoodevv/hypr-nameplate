@@ -21,6 +21,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 
 HOME = os.path.expanduser("~")
 CONFIG = os.path.join(HOME, ".config", "nameplate", "dock.json")
@@ -95,6 +96,7 @@ if len(sys.argv) > 1:
     cli(sys.argv[1:])
     sys.exit(0)
 
+import cairo  # noqa: E402
 import gi  # noqa: E402
 
 gi.require_version("Gtk", "3.0")
@@ -105,6 +107,10 @@ from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, GtkLayerShell  # noqa:
 ICON, INSET, GAP = 36, 8, 6
 SLOT = ICON + INSET * 2
 HOVER = 1.15
+# Visible strip left on screen while the dock is tucked away. The window itself
+# stays full height; a short surface is what Hyprland stops hitting with the
+# pointer after the monitor is reconfigured at login.
+HOTSPOT = 12
 
 
 def hyprctl(*args):
@@ -180,15 +186,27 @@ class Dock:
         self.active = None         # address of the focused window
         self.seq = 0               # refresh answers: only the latest one counts
         self.revealed = False
-        self.empty = True
+        self.empty = True          # show until Hyprland says a window is open
         self.fullscreen = False
         self.hide_timer = None
         self.cycle = {}
+        self.margin = None
+        self.seen_h = None
+        self.height = SLOT + 4 + GAP + HOTSPOT
+        self.monitor_sig = None
+        self.rebuilt_at = 0
         self.colors = theme_colors()
         self.css()
+        # display restore runs in the same login burst and reconfigures the
+        # monitor. Mapping during that leaves a surface that never sees the
+        # pointer again, so the dock stays hidden until it is restarted.
+        self.wait_until_settled()
         self.build()
-        self.refresh()
+        self.refresh_now()
+        self.win.show_all()
+        self.rebuilt_at = time.time()
         threading.Thread(target=self.events, daemon=True).start()
+        GLib.timeout_add(3000, self.watch)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self.reload)
 
     def css(self):
@@ -196,6 +214,7 @@ class Dock:
         css = Gtk.CssProvider()
         css.load_from_data(("""
 window.np-dock { background-color: transparent; }
+.np-dock .np-hot { background-color: rgba(0,0,0,0.01); }
 .np-dock button { background-image: none; background-color: transparent; border: none; box-shadow: none;
   padding: 0; margin: 0; min-width: 0; min-height: 0; outline: none; }
 .np-dock image { -gtk-icon-shadow: 0 2px 6px rgba(0,0,0,0.55); }
@@ -211,12 +230,9 @@ window.np-dock { background-color: transparent; }
     def build(self):
         w = self.win = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         w.get_style_context().add_class("np-dock")
-        # Never zero-size: with the revealer closed the row requests 0 px
-        # wide, and the compositor then never maps the surface at all - the
-        # dock looks dead until a restart, even on an empty workspace.
-        # A minimum width keeps it mapped and hoverable; it grows past this
-        # as soon as icons are in it.
-        w.set_size_request(240, -1)
+        # Never zero-size: a collapsed window is mapped as a few pixels and
+        # the compositor then ignores it until the process is restarted.
+        w.set_size_request(240, self.height)
         visual = w.get_screen().get_rgba_visual()
         if visual:
             w.set_visual(visual)
@@ -228,26 +244,26 @@ window.np-dock { background-color: transparent; }
         GtkLayerShell.set_keyboard_mode(w, GtkLayerShell.KeyboardMode.NONE)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.revealer = Gtk.Revealer()
-        self.revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP)
-        self.revealer.set_transition_duration(180)
+        # Sliding the whole window down (negative bottom margin) hides the
+        # icons below the screen and leaves this strip on the edge. It has to
+        # be the top of the window: that is the part that stays on screen.
+        self.edge = Gtk.EventBox()
+        self.edge.set_size_request(-1, HOTSPOT)
+        self.edge.get_style_context().add_class("np-hot")
+        self.edge.connect("enter-notify-event", lambda *_: self.reveal(True))
+        outer.pack_start(self.edge, False, False, 0)
         self.row = Gtk.Box(spacing=0)
         self.row.set_margin_bottom(GAP)
-        self.revealer.add(self.row)
-        outer.pack_start(self.revealer, False, False, 0)
-        # The strip along the bottom edge that brings a tucked dock back.
-        # 6 px, not 2: at 2 the window is so thin that fast pointer movements
-        # miss it entirely and the dock looks dead.
-        self.edge = Gtk.EventBox()
-        self.edge.set_size_request(-1, 6)
-        outer.pack_end(self.edge, False, False, 0)
+        outer.pack_start(self.row, False, False, 0)
         hover = Gtk.EventBox()
         hover.add(outer)
         hover.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK)
         hover.connect("enter-notify-event", lambda *_: self.reveal(True))
         hover.connect("leave-notify-event", self.left)
         w.add(hover)
-        w.show_all()
+        w.connect("size-allocate", self.on_size)
+        self.seen_h = None
+        self.margin = None
 
     # -- the slots
     def slot(self, child, on_click, on_menu=None, tip=None, dot=None):
@@ -377,9 +393,9 @@ window.np-dock { background-color: transparent; }
 
         def work():
             try:
-                clients = hypr_json("clients") or []
-                ws = hypr_json("activeworkspace") or {}
-                active = hypr_json("activewindow") or {}
+                clients = hypr_json("clients")
+                ws = hypr_json("activeworkspace")
+                active = hypr_json("activewindow")
             except Exception:
                 return
             GLib.idle_add(lambda: self.apply_state(seq, clients, ws, active))
@@ -387,11 +403,31 @@ window.np-dock { background-color: transparent; }
         threading.Thread(target=work, daemon=True).start()
         return False
 
+    def refresh_now(self):
+        """One synchronous read, used before the window is mapped so the first
+        frame is already shown or tucked away. A failed read leaves the dock
+        showing: an empty desktop at login must not come up hidden."""
+        self.seq += 1
+        try:
+            clients = hypr_json("clients")
+            ws = hypr_json("activeworkspace")
+            active = hypr_json("activewindow")
+        except Exception:
+            clients = ws = active = None
+        self.apply_state(self.seq, clients, ws, active)
+
     def apply_state(self, seq, clients, ws, active):
         if seq != self.seq:
             return False
-        if not isinstance(ws, dict):
-            ws = {}
+        # Hyprland didn't answer (common in the first moments of login).
+        # Keep the last decision instead of treating that as "no windows",
+        # which would pop the dock up over a full screen, or as "windows",
+        # which would hide it on an empty desktop.
+        if not isinstance(ws, dict) or "id" not in ws:
+            if self.row.get_children() == []:
+                self.fill()
+                self.update()
+            return False
         if not isinstance(active, dict):
             active = {}
         if not isinstance(clients, list):
@@ -419,14 +455,154 @@ window.np-dock { background-color: transparent; }
         else:
             self.empty = mine == 0
         self.fullscreen = bool(ws.get("hasfullscreen"))
+        # Title ticks (a spinning terminal title) emit activewindow over and
+        # over. Rebuilding every icon each time pegs a core and the dock
+        # stops noticing the pointer until the titles go quiet.
+        sig = (
+            self.active, self.empty, self.fullscreen,
+            tuple(sorted(
+                (app_id, tuple(sorted((c.get("address") or "") for c in clients)))
+                for app_id, clients in windows.items()
+            )),
+        )
+        if sig == getattr(self, "state_sig", None):
+            return False
+        self.state_sig = sig
         self.fill()
         self.update()
         return False
 
     def update(self):
+        """Slide the dock down off the screen while windows are open, leaving
+        the hotspot. The surface stays full height either way, so the
+        compositor keeps delivering pointer events to it."""
+        if self.win is None:
+            return False
         show = not self.fullscreen and (self.empty or self.revealed)
-        self.revealer.set_reveal_child(show)
-        self.edge.set_visible(not self.fullscreen)
+        height = self.win.get_allocated_height()
+        if height < HOTSPOT + 20:
+            height = self.height
+        if self.fullscreen:
+            margin = -(height + 80)
+        elif show:
+            margin = 0
+        else:
+            margin = -(height - HOTSPOT)
+        if margin != self.margin:
+            self.margin = margin
+            GtkLayerShell.set_margin(self.win, GtkLayerShell.Edge.BOTTOM, margin)
+        return False
+
+    def on_size(self, *_):
+        h = self.win.get_allocated_height()
+        w = self.win.get_allocated_width()
+        if h < HOTSPOT + 10 or h == self.seen_h:
+            return
+        self.seen_h = h
+        self.height = h
+        gdk = self.win.get_window()
+        if gdk is not None and w > 1:
+            # A fully transparent strip can be given an empty input region.
+            # Claim the whole window so the hotspot keeps receiving the pointer.
+            try:
+                gdk.input_shape_combine_region(cairo.Region(cairo.RectangleInt(0, 0, w, h)), 0, 0)
+            except Exception:
+                pass
+        # The first margin was guessed from the size request. Now that the
+        # real height is known, slide to the right place.
+        self.margin = None
+        GLib.idle_add(self.update)
+
+    def wait_until_settled(self):
+        deadline = time.time() + 3
+        last = None
+        stable = 0
+        while time.time() < deadline and stable < 2:
+            sig = self.monitor_fingerprint()
+            ws = hypr_json("activeworkspace")
+            ready = isinstance(ws, dict) and ws.get("id") is not None
+            if sig and sig == last and ready:
+                stable += 1
+            else:
+                stable = 0
+                last = sig
+            if stable < 2:
+                time.sleep(0.35)
+        self.monitor_sig = last
+
+    def monitor_fingerprint(self):
+        mons = hypr_json("monitors")
+        if not isinstance(mons, list):
+            return None
+        return tuple(sorted(
+            (m.get("name"), m.get("width"), m.get("height"), str(m.get("scale")), m.get("x"), m.get("y"))
+            for m in mons if isinstance(m, dict) and not m.get("disabled")
+        ))
+
+    def our_layer(self):
+        """This dock's layer surface, None if it is gone, or 'unknown' when
+        hyprctl itself failed (that must not look like a missing dock)."""
+        data = hypr_json("layers")
+        if data is None:
+            return "unknown"
+        found = {}
+
+        def walk(obj):
+            if isinstance(obj, dict):
+                if obj.get("namespace") == "nameplate-dock" and obj.get("pid") == os.getpid():
+                    found.update(obj)
+                    return
+                for value in obj.values():
+                    walk(value)
+            elif isinstance(obj, list):
+                for item in obj:
+                    walk(item)
+
+        walk(data)
+        return found or None
+
+    def rebuild(self):
+        """New layer surface. The old one is what stays deaf to the pointer
+        after the monitor is reconfigured at login."""
+        self.seq += 1
+        self.rebuilt_at = time.time()
+        if self.win is not None:
+            self.win.destroy()
+            self.win = None
+        self.margin = None
+        self.seen_h = None
+        self.build()
+        self.fill()
+        self.update()
+        self.win.show_all()
+
+    def watch(self):
+        def work():
+            sig = self.monitor_fingerprint()
+            layer = self.our_layer()
+            GLib.idle_add(self.apply_watch, sig, layer)
+
+        threading.Thread(target=work, daemon=True).start()
+        return True
+
+    def apply_watch(self, sig, layer):
+        if sig is None or layer == "unknown":
+            return False
+        if time.time() - self.rebuilt_at < 2:
+            if self.monitor_sig is None:
+                self.monitor_sig = sig
+            return False
+        gtk_h = self.win.get_allocated_height() if self.win is not None else 0
+        layer_h = layer.get("h", 0) if isinstance(layer, dict) else 0
+        changed = self.monitor_sig is not None and sig != self.monitor_sig
+        missing = layer is None
+        # Compositor still has the tiny surface from before a slide, so the
+        # hotspot can never be hit. Build a new one.
+        short = gtk_h >= 40 and 0 < layer_h < gtk_h - 15
+        if changed or missing or short:
+            self.monitor_sig = sig
+            self.rebuild()
+        return False
 
     def reveal(self, on):
         if self.hide_timer:
@@ -449,11 +625,16 @@ window.np-dock { background-color: transparent; }
         sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
         path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr", sig, ".socket2.sock")
         wanted = ("openwindow", "closewindow", "movewindow", "workspace", "focusedmon",
-                  "activewindow", "fullscreen", "changefloatingmode")
+                  "activewindow", "fullscreen", "changefloatingmode",
+                  "monitoradded", "monitorremoved", "configreloaded")
         while True:
             try:
                 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 s.connect(path)
+                # Events from before this connect are gone. Re-read now, or a
+                # window that closed during login stays counted and the dock
+                # hides on an empty desktop for the rest of the session.
+                GLib.idle_add(self.refresh)
                 buf = b""
                 pending = [False]
                 while True:
@@ -464,6 +645,10 @@ window.np-dock { background-color: transparent; }
                     *lines, buf = buf.split(b"\n")
                     for line in lines:
                         name = line.split(b">>")[0].decode(errors="ignore")
+                        if name.startswith(("monitoradded", "monitorremoved", "configreloaded")):
+                            # watch() returns True so a timeout keeps it. An idle
+                            # source must not, or it would run flat out.
+                            GLib.idle_add(lambda: self.watch() and False)
                         if not pending[0] and any(name.startswith(w) for w in wanted):
                             pending[0] = True
 
@@ -474,7 +659,6 @@ window.np-dock { background-color: transparent; }
                             break
             except OSError:
                 pass
-            import time
             time.sleep(2)
 
     # -- actions
