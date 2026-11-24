@@ -1,0 +1,52 @@
+#!/usr/bin/python3
+"""Minimize the active window to the dock (SUPER + M).
+
+Only floating workspaces have the dock on them to bring a window back from.
+The window waits on special:minimized, tagged with the workspace it came
+from; clicking its dock icon moves it back there.
+"""
+import json
+import os
+import subprocess
+import sys
+
+BIN = os.path.join(os.path.expanduser("~"), ".config", "nameplate", "bin")
+
+
+def hypr_json(*args):
+    try:
+        out = subprocess.run(["hyprctl", "-j", *args], capture_output=True,
+                             text=True, timeout=5).stdout
+        return json.loads(out or "null")
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def dispatch(lua):
+    subprocess.run(["hyprctl", "dispatch", lua], capture_output=True, timeout=5)
+
+
+def main():
+    window = hypr_json("activewindow") or {}
+    address = window.get("address")
+    workspace = (window.get("workspace") or {}).get("id")
+    if not address or not isinstance(workspace, int) or workspace < 1:
+        return
+    try:
+        mode = subprocess.run([os.path.join(BIN, "workspace-layout"), "current", str(workspace)],
+                              capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        mode = ""
+    if mode != "floating":
+        return
+    target = f'window = "address:{address}"'
+    for tag in window.get("tags") or []:
+        if tag.startswith("nameplate-minimized-from-") and tag != f"nameplate-minimized-from-{workspace}":
+            dispatch(f'hl.dsp.window.tag({{ tag = "-{tag}", {target} }})')
+    dispatch(f'hl.dsp.window.tag({{ tag = "+nameplate-minimized-from-{workspace}", {target} }})')
+    dispatch(f'hl.dsp.window.move({{ workspace = "special:minimized", follow = false, {target} }})')
+    dispatch(f'hl.dsp.focus({{ workspace = "{workspace}" }})')
+
+
+if __name__ == "__main__":
+    main()

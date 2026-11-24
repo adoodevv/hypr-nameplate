@@ -2,15 +2,18 @@
 """The dock along the bottom, like Omarchy 4's: the app grid button, your pinned apps and
 whatever else is open, as large icons floating over the desktop.
 
-It tucks itself away while windows are open: push the pointer against the bottom edge
-under it and it slides up. On an empty workspace it just stays. Click an app to open it,
-or to jump to its window when it's already open (click again for its next window).
-Right-click for pin, new window and quit.
+Like Omarchy's, it lives on floating workspaces (SUPER + L): a maximized window
+tucks it to the bottom edge until the pointer touches there, a fullscreen one
+hides it, and right-clicking the grid button can make it always tuck away.
+Click an app to open it, or to jump to its window when it's already open (click
+again for its next window). Drag icons to reorder them. Right-click an app for
+pin, new window and quit; a minimized app (SUPER + M) waits here too.
 
     dock                 run it (started at login)
     dock pin ID          pin an app (ID: its .desktop name, e.g. firefox_firefox.desktop)
     dock unpin ID
     dock pinned          list the pinned apps
+    dock autohide [on|off]
 
 Pinned apps live in ~/.config/nameplate/dock.json.
 """
@@ -38,21 +41,39 @@ DEFAULT_PINS = (
 )
 
 
-def load_pins():
+def load_dock_config():
     try:
         with open(CONFIG) as f:
-            pins = json.load(f).get("pinned")
-            if isinstance(pins, list):
-                return [p for p in pins if isinstance(p, str)]
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
     except (OSError, ValueError):
         pass
+    return {}
+
+
+def load_pins():
+    pins = load_dock_config().get("pinned")
+    if isinstance(pins, list):
+        return [p for p in pins if isinstance(p, str)]
     return None
 
 
 def save_pins(pins):
+    data = load_dock_config()
+    data["pinned"] = pins
     os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
     with open(CONFIG + ".tmp", "w") as f:
-        json.dump({"pinned": pins}, f, indent=1)
+        json.dump(data, f, indent=1)
+    os.replace(CONFIG + ".tmp", CONFIG)
+
+
+def save_autohide(on):
+    data = load_dock_config()
+    data["autohide"] = bool(on)
+    os.makedirs(os.path.dirname(CONFIG), exist_ok=True)
+    with open(CONFIG + ".tmp", "w") as f:
+        json.dump(data, f, indent=1)
     os.replace(CONFIG + ".tmp", CONFIG)
 
 
@@ -65,12 +86,30 @@ def poke():
         pass
 
 
+def poke_layout():
+    """Tell a running dock its workspace layout or autohide setting changed."""
+    try:
+        with open(PIDFILE) as f:
+            os.kill(int(f.read().strip()), signal.SIGUSR2)
+    except (OSError, ValueError):
+        pass
+
+
 def cli(args):
     pins = load_pins()
     if pins is None:
         pins = default_pins()
     if args[0] == "pinned":
         print("\n".join(pins))
+    elif args[0] == "autohide":
+        if len(args) == 1:
+            print("on" if load_dock_config().get("autohide") is True else "off")
+        elif len(args) == 2 and args[1] in ("on", "off"):
+            save_autohide(args[1] == "on")
+            poke_layout()
+        else:
+            print(__doc__.strip(), file=sys.stderr)
+            sys.exit(1)
     elif args[0] in ("pin", "unpin") and len(args) == 2:
         app = args[1] if args[1].endswith(".desktop") else args[1] + ".desktop"
         pins = [p for p in pins if p != app] + ([app] if args[0] == "pin" else [])
@@ -104,7 +143,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, GtkLayerShell  # noqa: E402
 
-ICON, INSET, GAP = 36, 8, 6
+ICON, INSET, GAP = 36, 6, 3
 SLOT = ICON + INSET * 2
 HOVER = 1.15
 # Visible strip left on screen while the dock is tucked away. The window itself
@@ -181,18 +220,27 @@ class Dock:
         if self.pins is None:
             self.pins = default_pins()
             save_pins(self.pins)
-        self.windows = {}          # app id -> [clients]
+        self.windows = {}          # app id -> [clients] on a normal workspace
+        self.minimized = {}        # app id -> [clients] waiting in the dock
+        self.all_windows = {}      # both, for the icons
         self.unknown = []          # windows with no app found: [(class, clients)]
         self.active = None         # address of the focused window
         self.seq = 0               # refresh answers: only the latest one counts
         self.revealed = False
-        self.empty = True          # show until Hyprland says a window is open
+        self.floating = False      # the active workspace's layout is floating
+        self.mode = "dwindle"
+        self.workspace_id = None
+        self.fs_mode = 0           # 0 none, 1 maximized, 2+ fullscreen
         self.fullscreen = False
+        self.autohide = load_dock_config().get("autohide") is True
+        self.menu_open = False
+        self.order = []            # session order from dragging icons
+        self.shown_keys = []
         self.hide_timer = None
         self.cycle = {}
         self.margin = None
         self.seen_h = None
-        self.height = SLOT + 4 + GAP + HOTSPOT
+        self.height = SLOT + GAP + HOTSPOT
         self.monitor_sig = None
         self.rebuilt_at = 0
         self.colors = theme_colors()
@@ -208,6 +256,7 @@ class Dock:
         threading.Thread(target=self.events, daemon=True).start()
         GLib.timeout_add(3000, self.watch)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self.reload)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR2, self.reload_layout)
 
     def css(self):
         c = self.colors
@@ -266,28 +315,35 @@ window.np-dock { background-color: transparent; }
         self.margin = None
 
     # -- the slots
-    def slot(self, child, on_click, on_menu=None, tip=None, dot=None):
+    def slot(self, child, on_click, on_menu=None, tip=None, mark=None):
         b = Gtk.Button()
-        b.set_size_request(SLOT, SLOT + 4)
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        holder = Gtk.Box()
+        b.set_size_request(SLOT, SLOT)
+        holder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         holder.set_size_request(SLOT, SLOT)
-        holder.set_center_widget(child)
-        box.pack_start(holder, False, False, 0)
-        marks = Gtk.Box()
-        marks.set_halign(Gtk.Align.CENTER)
-        marks.set_size_request(-1, 4)
-        if dot:
-            d = Gtk.Box()
-            d.get_style_context().add_class("np-dot")
-            if dot == "focused":
-                d.get_style_context().add_class("np-focused")
-            marks.pack_start(d, False, False, 0)
-        box.pack_start(marks, False, False, 0)
-        b.add(box)
+        icon_box = Gtk.Box()
+        icon_box.set_size_request(SLOT, SLOT - 4 if mark else SLOT)
+        icon_box.set_center_widget(child)
+        holder.pack_start(icon_box, False, False, 0)
+        if mark:   # running apps get a dot, the focused one a wider accent bar
+            marks = Gtk.Box()
+            marks.set_halign(Gtk.Align.CENTER)
+            marks.set_size_request(-1, 4)
+            dot = Gtk.Box()
+            dot.get_style_context().add_class("np-dot")
+            if mark == "focused":
+                dot.get_style_context().add_class("np-focused")
+            marks.pack_start(dot, False, False, 0)
+            holder.pack_start(marks, False, False, 0)
+        b.add(holder)
         if tip:
             b.set_tooltip_text(tip)
-        b.connect("clicked", lambda *_: on_click())
+
+        def clicked(*_):
+            if getattr(b, "_dragging", False):
+                return      # a drag ended here; it was not a click
+            on_click()
+
+        b.connect("clicked", clicked)
         if on_menu:
             def press(_b, event):
                 if event.button == 3:
@@ -296,6 +352,50 @@ window.np-dock { background-color: transparent; }
                 return False
             b.connect("button-press-event", press)
         return b
+
+    def make_draggable(self, button, app_id):
+        """Drag an icon along the dock to reorder it. A plain click still
+        activates the app: GTK only starts the drag after the pointer has
+        moved past its threshold, and a drag that ends on a slot is not
+        reported as a click on the source (see the _dragging guard)."""
+        targets = [Gtk.TargetEntry.new("application/x-nameplate-dock", Gtk.TargetFlags.SAME_APP, 0)]
+        button.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, targets, Gdk.DragAction.MOVE)
+        button.drag_dest_set(Gtk.DestDefaults.ALL, targets, Gdk.DragAction.MOVE)
+        button.connect("drag-begin", lambda *_: setattr(button, "_dragging", True))
+
+        def end(*_):
+            # Clear after any release that follows the drag, so that release
+            # is not mistaken for a click; a later real click works as usual.
+            GLib.timeout_add(300, lambda: setattr(button, "_dragging", False) or False)
+
+        button.connect("drag-end", end)
+
+        def get(_b, _ctx, selection, _info, _time):
+            selection.set(selection.get_target(), 8, app_id.encode())
+
+        def received(_b, _ctx, _x, _y, selection, _info, _time):
+            key = selection.get_data().decode(errors="ignore")
+            if key:
+                # After the drop: rebuilding the row now would destroy the
+                # drag's own buttons underneath it.
+                GLib.idle_add(lambda: self.place(key, app_id) or False)
+
+        button.connect("drag-data-get", get)
+        button.connect("drag-data-received", received)
+
+    def place(self, key, target):
+        """Put key where target is. Session order, except pins, which save."""
+        keys = list(self.shown_keys)
+        if key not in keys or target not in keys or key == target:
+            return
+        keys.remove(key)
+        keys.insert(keys.index(target), key)
+        self.order = keys
+        pins = [k for k in keys if k in self.pins]
+        if set(pins) == set(self.pins) and pins != self.pins:
+            self.pins = pins
+            save_pins(pins)
+        self.fill()
 
     def icon(self, app):
         theme = Gtk.IconTheme.get_default()
@@ -342,17 +442,24 @@ window.np-dock { background-color: transparent; }
         rgb = tuple(int(c[i:i + 2], 16) / 255 for i in (0, 2, 4))
 
         def draw(_a, cr):
-            # App icons leave a margin inside their square, so the grid mark does too:
-            # it fills the same visible area as an icon's artwork, centred in the slot.
-            span = round(ICON * 0.84)
-            sq = round(span * 0.24)
-            gap = (span - 3 * sq) / 2
+            # Omarchy's mark: nine rounded squares filling most of the icon.
+            sq = round(ICON * 0.22)
+            gap = round(ICON * 0.1)
+            span = 3 * sq + 2 * gap
             off = (ICON - span) / 2
+            radius = max(1, round(sq * 0.2))
             cr.set_source_rgb(*rgb)
-            for r in range(3):
-                for k in range(3):
-                    cr.rectangle(off + k * (sq + gap), off + r * (sq + gap), sq, sq)
-            cr.fill()
+            for row in range(3):
+                for col in range(3):
+                    x = off + col * (sq + gap)
+                    y = off + row * (sq + gap)
+                    cr.new_sub_path()
+                    cr.arc(x + sq - radius, y + radius, radius, -1.5708, 0)
+                    cr.arc(x + sq - radius, y + sq - radius, radius, 0, 1.5708)
+                    cr.arc(x + radius, y + sq - radius, radius, 1.5708, 3.1416)
+                    cr.arc(x + radius, y + radius, radius, 3.1416, 4.7124)
+                    cr.close_path()
+                    cr.fill()
             return False
         area.connect("draw", draw)
         return area
@@ -361,20 +468,26 @@ window.np-dock { background-color: transparent; }
         for child in self.row.get_children():
             self.row.remove(child)
         grid = self.slot(self.grid_icon(), lambda: subprocess.Popen([os.path.join(BIN, "panel"), "apps"]),
-                         tip="All apps")
+                         on_menu=lambda e: self.dock_menu(e), tip="All apps")
         self.row.pack_start(grid, False, False, 0)
         shown = [p for p in self.pins if p in self.apps.all]
-        shown += [a for a in self.windows if a not in shown]
+        shown += [a for a in self.all_windows if a not in shown]
+        if self.order:
+            rank = {app_id: i for i, app_id in enumerate(self.order)}
+            shown.sort(key=lambda a: rank.get(a, len(rank)))
+        self.shown_keys = list(shown)
         for app_id in shown:
             try:
                 app = self.apps.all.get(app_id)
-                clients = self.windows.get(app_id, [])
+                clients = self.all_windows.get(app_id, [])
                 img = self.icon(app)
-                focused = any(c.get("address") == self.active for c in clients)
+                focused = any(c.get("address") == self.active and not c.get("_minimized")
+                              for c in clients)
                 b = self.slot(img, lambda a=app_id: self.activate(a),
                               on_menu=lambda e, a=app_id: self.menu(a, e),
                               tip=app.get_display_name() if app else app_id,
-                              dot=("focused" if focused else "open") if clients else None)
+                              mark=("focused" if focused else "open") if clients else None)
+                self.make_draggable(b, app_id)
                 b.connect("enter-notify-event", lambda btn, _e, i=img: self.grow(btn, i, True))
                 b.connect("leave-notify-event", lambda btn, _e, i=img: self.grow(btn, i, False))
                 self.row.pack_start(b, False, False, 0)
@@ -383,6 +496,23 @@ window.np-dock { background-color: transparent; }
         self.row.show_all()
 
     # -- state from Hyprland
+    @staticmethod
+    def workspace_mode(ws):
+        """The active workspace's layout, from bin/workspace-layout's files,
+        falling back to the tiled layout Hyprland reports."""
+        wid = ws.get("id")
+        state = os.path.join(os.environ.get("XDG_STATE_HOME") or
+                             os.path.join(HOME, ".local", "state"),
+                             "nameplate", "workspace-layouts", str(wid))
+        try:
+            with open(state) as f:
+                mode = f.read().strip()
+            if mode in ("dwindle", "scrolling", "floating"):
+                return mode
+        except OSError:
+            pass
+        return ws.get("tiledLayout") or "dwindle"
+
     def refresh(self):
         """Re-read Hyprland in a worker thread, then update the UI on the main
         loop. hyprctl can stall for seconds (its own timeouts), so running it
@@ -433,36 +563,56 @@ window.np-dock { background-color: transparent; }
         if not isinstance(clients, list):
             clients = []
         self.active = active.get("address")
-        windows = {}
+        windows, minimized = {}, {}
         wid = ws.get("id")
-        mine = 0
+        self.workspace_id = wid if isinstance(wid, int) else None
+        self.mode = self.workspace_mode(ws)
+        self.floating = self.mode == "floating"
+        fs_mode = 0
         for c in clients:
             if not isinstance(c, dict):
                 continue
             if not c.get("mapped", True) or c.get("hidden"):
                 continue
             w = c.get("workspace") or {}
-            if not isinstance(w, dict) or w.get("id", 1) < 0:
+            if not isinstance(w, dict):
+                continue
+            app_id = self.apps.for_window(c)
+            if not app_id:
+                continue
+            if w.get("name") == "special:minimized":
+                held = dict(c)
+                held["_minimized"] = True
+                minimized.setdefault(app_id, []).append(held)
+                continue
+            if w.get("id", 1) < 0:
                 continue
             if wid is None or w.get("id") == wid:
-                mine += 1
-            app_id = self.apps.for_window(c)
-            if app_id:
-                windows.setdefault(app_id, []).append(c)
+                try:
+                    fs_mode = max(fs_mode, int(c.get("fullscreen") or 0))
+                except (TypeError, ValueError):
+                    pass
+            windows.setdefault(app_id, []).append(c)
         self.windows = windows
-        if wid is None:   # older Hyprland without the workspace id: the old field
-            self.empty = not ws.get("windows")
-        else:
-            self.empty = mine == 0
-        self.fullscreen = bool(ws.get("hasfullscreen"))
+        self.minimized = minimized
+        self.all_windows = {a: list(cs) for a, cs in windows.items()}
+        for app_id, cs in minimized.items():
+            self.all_windows.setdefault(app_id, []).extend(cs)
+        self.fs_mode = fs_mode
+        self.fullscreen = fs_mode >= 2
         # Title ticks (a spinning terminal title) emit activewindow over and
         # over. Rebuilding every icon each time pegs a core and the dock
         # stops noticing the pointer until the titles go quiet.
         sig = (
-            self.active, self.empty, self.fullscreen,
+            self.active, self.mode, self.floating, self.fs_mode,
             tuple(sorted(
                 (app_id, tuple(sorted((c.get("address") or "") for c in clients)))
-                for app_id, clients in windows.items()
+                for app_id, clients in self.all_windows.items()
+            )),
+            tuple(sorted(
+                (c.get("address") or "", next((t for t in c.get("tags") or []
+                                                if t.startswith("nameplate-minimized-from-")), ""))
+                for cs in minimized.values() for c in cs
             )),
         )
         if sig == getattr(self, "state_sig", None):
@@ -473,21 +623,25 @@ window.np-dock { background-color: transparent; }
         return False
 
     def update(self):
-        """Slide the dock down off the screen while windows are open, leaving
-        the hotspot. The surface stays full height either way, so the
-        compositor keeps delivering pointer events to it."""
+        """Omarchy's show model: the dock lives on floating workspaces. It
+        stays put there unless autohide is on or a window is maximized, when
+        it tucks to the edge and the hotspot brings it back; a fullscreen
+        window hides it outright. The surface stays full height either way,
+        so the compositor keeps delivering pointer events to it."""
         if self.win is None:
             return False
-        show = not self.fullscreen and (self.empty or self.revealed)
+        visible = self.floating and self.fs_mode < 2
+        tucked = visible and (self.autohide or self.fs_mode == 1) \
+            and not (self.revealed or self.menu_open)
         height = self.win.get_allocated_height()
         if height < HOTSPOT + 20:
             height = self.height
-        if self.fullscreen:
+        if not visible:
             margin = -(height + 80)
-        elif show:
-            margin = 0
-        else:
+        elif tucked:
             margin = -(height - HOTSPOT)
+        else:
+            margin = 0
         if margin != self.margin:
             self.margin = margin
             GtkLayerShell.set_margin(self.win, GtkLayerShell.Edge.BOTTOM, margin)
@@ -662,13 +816,35 @@ window.np-dock { background-color: transparent; }
             time.sleep(2)
 
     # -- actions
+    def restore(self, client):
+        """Bring a minimized window back to the workspace it came from."""
+        back = self.workspace_id
+        for tag in client.get("tags") or []:
+            if tag.startswith("nameplate-minimized-from-"):
+                try:
+                    back = int(tag.rsplit("-", 1)[1])
+                except (ValueError, IndexError):
+                    pass
+        address = client.get("address")
+        if not address or not isinstance(back, int) or back < 1:
+            return
+        target = 'window = "address:%s"' % address
+        hyprctl("dispatch", 'hl.dsp.window.move({ workspace = "%d", follow = false, %s })' % (back, target))
+        hyprctl("dispatch", 'hl.dsp.focus({ window = "address:%s" })' % address)
+
     def activate(self, app_id):
-        clients = self.windows.get(app_id)
+        clients = self.all_windows.get(app_id)
         if not clients:
             app = self.apps.all.get(app_id)
             if app:
                 subprocess.Popen(["gtk-launch", app_id], start_new_session=True,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        held = [c for c in clients if c.get("_minimized")]
+        clients = [c for c in clients if not c.get("_minimized")]
+        if not clients:
+            if held:
+                self.restore(held[0])
             return
         clients = sorted(clients, key=lambda c: c.get("focusHistoryID", 0))
         if any(c.get("address") == self.active for c in clients) and len(clients) > 1:
@@ -676,7 +852,27 @@ window.np-dock { background-color: transparent; }
         else:
             i = 0
         self.cycle[app_id] = i
-        hyprctl("dispatch", "focuswindow", "address:%s" % clients[i]["address"])
+        hyprctl("dispatch", 'hl.dsp.focus({ window = "address:%s" })' % clients[i]["address"])
+
+    def dock_menu(self, event):
+        """Right-click the apps button: the dock's own settings."""
+        m = Gtk.Menu()
+        m.get_style_context().add_class("np-dock")
+        item = Gtk.CheckMenuItem(label="Auto-hide dock")
+        item.set_active(self.autohide)
+        item.connect("activate", lambda *_: self.toggle_autohide(item.get_active()))
+        m.append(item)
+        m.show_all()
+        m.attach_to_widget(self.row, None)
+        self.menu_open = True
+        self.reveal(True)
+        m.connect("deactivate", lambda *_: self.menu_closed())
+        m.popup_at_pointer(event)
+
+    def toggle_autohide(self, on):
+        self.autohide = bool(on)
+        save_autohide(on)
+        self.update()
 
     def menu(self, app_id, event):
         m = Gtk.Menu()
@@ -692,11 +888,12 @@ window.np-dock { background-color: transparent; }
             item("New window", lambda: subprocess.Popen(["gtk-launch", app_id], start_new_session=True,
                                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         item("Unpin from dock" if pinned else "Pin to dock", lambda: self.toggle_pin(app_id))
-        if self.windows.get(app_id):
-            n = len(self.windows[app_id])
+        if self.all_windows.get(app_id):
+            n = len(self.all_windows[app_id])
             item("Quit" if n == 1 else "Quit all %d windows" % n, lambda: self.quit_app(app_id))
         m.show_all()
         m.attach_to_widget(self.row, None)
+        self.menu_open = True
         self.reveal(True)
         m.connect("deactivate", lambda *_: self.menu_closed())
         m.popup_at_pointer(event)
@@ -713,6 +910,7 @@ window.np-dock { background-color: transparent; }
             return True
 
     def menu_closed(self):
+        self.menu_open = False
         if self.pointer_inside():
             self.reveal(True)    # still hovering: stay up, and drop any pending hide
         else:
@@ -724,12 +922,17 @@ window.np-dock { background-color: transparent; }
         self.fill()
 
     def quit_app(self, app_id):
-        for c in self.windows.get(app_id, []):
-            hyprctl("dispatch", "closewindow", "address:%s" % c["address"])
+        for c in self.all_windows.get(app_id, []):
+            hyprctl("dispatch", 'hl.dsp.window.close({ window = "address:%s" })' % c["address"])
 
     def reload(self):
         self.pins = load_pins() or []
         self.apps.reload()
+        self.refresh()
+        return True
+
+    def reload_layout(self):
+        self.autohide = load_dock_config().get("autohide") is True
         self.refresh()
         return True
 

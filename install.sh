@@ -298,8 +298,12 @@ fi
 pkill -f "nameplate/bin/panel daemon" 2>/dev/null || true
 # The dock: restart it with the new version (inside Hyprland)
 pkill -f "nameplate/bin/dock$" 2>/dev/null || true
+# Same for the wallpaper: it only starts at login, so a new copy would
+# otherwise wait for the next one before clicks and transitions update
+pkill -f "nameplate/bin/wallpaper$" 2>/dev/null || true
 if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   sleep 0.3; setsid -f "$APP/bin/dock" >/dev/null 2>&1
+  setsid -f "$APP/bin/wallpaper" >/dev/null 2>&1
 fi
 # hypridle reads its config only when it starts: restart it inside Hyprland
 if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && pgrep -x hypridle >/dev/null; then
@@ -314,6 +318,9 @@ step "Colour theme"
 # The configs above arrive in Tokyo Night; put back the theme you had (or the one asked for)
 mkdir -p "$APP/themes"
 cp "$SRC"/share/themes/*.toml "$APP/themes/"
+for f in "$SRC"/share/themes/*.hyprland.lua; do
+  [[ -f $f ]] && cp "$f" "$APP/themes/"
+done
 if [[ -n $THEME ]]; then
   "$APP/bin/theme" set "$THEME" --keep-wallpaper >/dev/null && echo "$THEME" || failed+=("theme")
 else

@@ -1,0 +1,55 @@
+#!/usr/bin/python3
+"""Open the default web browser, optionally in a private window.
+
+    browser          new browser window
+    browser --private
+"""
+import os
+import subprocess
+import sys
+
+try:
+    import gi
+    gi.require_version("Gio", "2.0")
+    from gi.repository import Gio
+except (ImportError, ValueError):
+    Gio = None
+
+FALLBACKS = (
+    "google-chrome.desktop", "chromium_chromium.desktop", "chromium.desktop",
+    "firefox_firefox.desktop", "firefox.desktop", "brave-browser.desktop",
+    "vivaldi-stable.desktop", "microsoft-edge.desktop", "zen.desktop",
+)
+
+
+def default_browser():
+    if Gio is None:
+        return None
+    app = Gio.AppInfo.get_default_for_type("x-scheme-handler/http", False)
+    if app:
+        return app
+    by_id = {a.get_id(): a for a in Gio.AppInfo.get_all() if a.get_id()}
+    return next((by_id[i] for i in FALLBACKS if i in by_id), None)
+
+
+def main():
+    private = "--private" in sys.argv[1:]
+    app = default_browser()
+    if app is None:
+        sys.exit("browser: no default web browser is installed")
+    if not private:
+        app.launch_uris([], None)
+        return
+    exe = app.get_executable()
+    if not exe and app.get_commandline():
+        exe = app.get_commandline().split()[0].strip('"\'')
+    if not exe:
+        sys.exit("browser: cannot work out how to open a private window")
+    name = os.path.basename(exe).lower()
+    flag = "--incognito" if any(x in name for x in ("chrom", "brave", "vivaldi", "edge", "opera")) else "--private-window"
+    subprocess.Popen([exe, flag], start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+if __name__ == "__main__":
+    main()

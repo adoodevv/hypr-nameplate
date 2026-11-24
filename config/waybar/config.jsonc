@@ -43,7 +43,7 @@
   "group/tray-drawer": {
     "orientation": "inherit",
     "drawer": {
-      "transition-duration": 250,
+      "transition-duration": 600,
       "transition-left-to-right": false,
       "children-class": "tray-child"
     },
@@ -97,7 +97,7 @@
   },
   "tray": {
     "icon-size": 12,
-    "spacing": 8
+    "spacing": 0
   },
   "custom/bluetooth": {
     "exec": "~/.config/nameplate/bin/bar-status bluetooth",
@@ -225,13 +225,15 @@
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel agents --bar"
   },
-  // Omarchy's keyboard-layout item: only appears once a second layout is set
+  // Omarchy's keyboard-layout item: only appears once a second layout is set;
+  // a short label ("us"), click to cycle (bin/keyboard-layout)
   "custom/keyboard-layout": {
-    "exec": "~/.config/nameplate/bin/bar-status keyboard",
+    "exec": "~/.config/nameplate/bin/keyboard-layout",
     "return-type": "json",
     "interval": 5,
     "signal": 12,
     "format": "{}",
-    "tooltip": false
+    "tooltip": true,
+    "on-click": "~/.config/nameplate/bin/keyboard-layout cycle"
   }
 }

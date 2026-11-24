@@ -10,6 +10,10 @@
 Each themed config file has a block between "theme:begin" and "theme:end" lines.
 Only that block is rewritten, so the rest of each file is yours to edit.
 The palettes are Omarchy's colors.toml files (MIT, github.com/basecamp/omarchy).
+
+A theme can also ship two extras beside its palette, like Omarchy's:
+NAME.hyprland.lua (Hyprland overrides hyprland.lua loads while the theme is
+current) and NAME.shell.lock.toml (lock-field colours). Both are optional.
 """
 import os
 import re
@@ -120,10 +124,10 @@ local backdrop = "rgb({{ background.hex }})\""""},
     "hypr/hyprlock.conf": {"colors": """\
 $np_bg = rgba({{ background.rgb }}, 1.0)
 $np_field = rgba({{ background.rgb }}, 0.80)
-$np_text = rgba({{ bright_foreground.rgb }}, 1.0)
-$np_accent = rgba({{ accent.rgb }}, 1.0)
+$np_text = rgba({{ lock_text.rgb }}, 1.0)
+$np_accent = rgba({{ lock_border_active.rgb }}, 1.0)
 $np_check = rgba({{ yellow.rgb }}, 1.0)
-$np_fail = rgba({{ red.rgb }}, 1.0)"""},
+$np_fail = rgba({{ lock_text_error.rgb }}, 1.0)"""},
 }
 
 
@@ -136,7 +140,7 @@ def available():
     for folder in (THEMES, USER_THEMES):
         if os.path.isdir(folder):
             for f in sorted(os.listdir(folder)):
-                if f.endswith(".toml"):
+                if f.endswith(".toml") and not f.endswith(".shell.lock.toml"):
                     names[f[:-5]] = os.path.join(folder, f)
     return names
 
@@ -165,7 +169,7 @@ def lua_border(spec):
     if len(colors) <= 1:
         return '"%s"' % (colors[0] if colors else spec.strip())
     table = "{ colors = { %s }" % ", ".join('"%s"' % c for c in colors)
-    return table + (", angle = %s }" % angle.group(1) if angle else " }")
+    return table + (", angle = %s }" % angle.group(1) if angle else ", angle = 45 }")
 
 
 def palette(name):
@@ -182,6 +186,21 @@ def palette(name):
     c["active_border"] = lua_border(border("hyprland_active_border", "rgba(%see)" % c["accent"].lstrip("#")))
     c["inactive_border"] = lua_border(border("hyprland_inactive_border", "rgba(%saa)" % c["muted"].lstrip("#")))
     c["shadow"] = "0x33000000" if c["mode"] == "light" else "0x66" + c["background"].lstrip("#")
+    # Lock-field colours: the shell.toml defaults, overridden by the theme's
+    # own shell.lock.toml when it ships one (Tokyo Night does).
+    c["lock_text"] = c["bright_foreground"]
+    c["lock_placeholder"] = c["foreground"]
+    c["lock_text_error"] = c["red"]
+    c["lock_border"] = c["accent"]
+    c["lock_border_active"] = c["accent"]
+    c["lock_border_error"] = c["red"]
+    lock_path = os.path.splitext(path)[0] + ".shell.lock.toml"
+    if os.path.exists(lock_path):
+        with open(lock_path, "rb") as f:
+            lock = tomllib.load(f)
+        for key in ("text", "placeholder", "text-error", "border", "border-active", "border-error"):
+            if isinstance(lock.get(key), str):
+                c["lock_" + key.replace("-", "_")] = lock[key]
     return c
 
 
@@ -312,7 +331,7 @@ def lock_icon(c):
     right side, so it is rendered to a PNG with the Nerd Font here - same
     icon, whole - and recoloured on every theme switch like the logo."""
     try:
-        rgb = tuple(int(c.get("bright_foreground", c["foreground"]).lstrip("#")[i:i + 2], 16)
+        rgb = tuple(int(c.get("lock_text", c.get("bright_foreground", c["foreground"])).lstrip("#")[i:i + 2], 16)
                     for i in (0, 2, 4))
     except (KeyError, ValueError):
         return
@@ -353,10 +372,34 @@ def lock_icon(c):
         pass
 
 
+def apply_hyprland_extra(name):
+    """Copy the theme's own Hyprland overrides where hyprland.lua loads them
+    from, or take the last theme's away. Reloading (below) applies them."""
+    dest = os.path.join(APP, "theme-hyprland.lua")
+    src = None
+    for folder in (USER_THEMES, THEMES):
+        path = os.path.join(folder, name + ".hyprland.lua")
+        if os.path.exists(path):
+            src = path
+            break
+    try:
+        if src:
+            with open(src, encoding="utf-8") as f:
+                text = f.read()
+            with open(dest + ".tmp", "w", encoding="utf-8") as f:
+                f.write(text)
+            os.replace(dest + ".tmp", dest)
+        else:
+            os.unlink(dest)
+    except OSError:
+        pass
+
+
 def apply(name, keep_wallpaper=False, announce=True):
     c = palette(name)
     lock_logo(c)
     lock_icon(c)
+    apply_hyprland_extra(name)
     skipped = []
     for rel, blocks in BLOCKS.items():
         path = os.path.join(CFG, rel)

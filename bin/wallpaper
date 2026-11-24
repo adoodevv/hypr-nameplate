@@ -3,12 +3,14 @@
 
     wallpaper              draw the wallpaper (started by Hyprland at login)
     wallpaper set IMAGE    switch to an image
-    wallpaper next         next image in the collection (SUPER + CTRL + SPACE)
+    wallpaper next         next image in the collection
     wallpaper list         print the collection
     wallpaper lock         refresh the lock screen copy of the current wallpaper
 
 The collection is the default wallpaper plus every image in ~/Pictures/Wallpapers
-(sub-folders included). Double-click the desktop to choose one.
+(sub-folders included). Double-click the desktop to choose one: left for the
+wallpaper picker, right for the theme picker. Switching wipes the new image
+in from the centre, like Omarchy's (840 ms, slanted edge).
 """
 import math
 import os
@@ -16,6 +18,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 CONF = os.path.expanduser("~/.config/nameplate")
 DEFAULT = os.path.join(CONF, "wallpaper.png")
@@ -181,34 +184,127 @@ def serve():
             GtkLayerShell.set_exclusive_zone(self.win, -1)   # also behind the bar
             GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
             self.box = Gtk.EventBox()
-            self.image = Gtk.Image()
-            self.box.add(self.image)
+            self.area = Gtk.DrawingArea()
+            self.area.connect("draw", self.paint)
+            self.box.add(self.area)
             self.box.connect("button-press-event", self.on_click)
             self.box.connect("size-allocate", self.on_size)
             self.win.add(self.box)
             self.size = None
             self.path = None
+            self.pixbuf = None         # on screen now
+            self.incoming = None       # wiping in over it
+            self.progress = 1.0
+            self.timer = None
+            self.started = 0.0
+            self.last_click = (0, 0, 0.0, 0.0)   # button, time (s), x, y
+            self.handled_click = (0, 0.0)        # a double-click already opened
             self.win.show_all()
 
         def on_size(self, _w, alloc):
             if (alloc.width, alloc.height) != self.size:
                 self.size = (alloc.width, alloc.height)
+                if self.timer is not None:
+                    GLib.source_remove(self.timer)
+                    self.timer = None
+                self.pixbuf = self.incoming = None
+                self.progress = 1.0
                 GLib.idle_add(self.draw)
 
         def draw(self, force=False):
             path = current()
-            if not self.size or (path == self.path and not force):
+            if not self.size or (path == self.path and self.pixbuf is not None
+                                 and not force and self.incoming is None):
                 return False
             try:
-                self.image.set_from_pixbuf(cover(path, *self.size))
-                self.path = path
+                new = cover(path, *self.size)
             except GLib.Error:
-                self.image.clear()
+                self.pixbuf = self.incoming = None
+                self.path = path
+                self.area.queue_draw()
+                return False
+            self.path = path
+            if self.pixbuf is None or force:
+                self.pixbuf, self.incoming, self.progress = new, None, 1.0
+                self.area.queue_draw()
+                return False
+            # A switch during a wipe snaps to the image that was arriving,
+            # then wipes the newer one in over that.
+            if self.incoming is not None:
+                self.pixbuf = self.incoming
+            self.incoming = new
+            self.progress = 0.0
+            self.started = time.monotonic()
+            if self.timer is None:
+                self.timer = GLib.timeout_add(16, self.step)
+            self.area.queue_draw()
             return False
 
+        def step(self):
+            t = min(1.0, (time.monotonic() - self.started) / 0.84)
+            self.progress = 1.0 - (1.0 - t) ** 3     # easeOutCubic
+            self.area.queue_draw()
+            if t >= 1.0:
+                self.pixbuf, self.incoming, self.timer = self.incoming, None, None
+                self.area.queue_draw()
+                return False
+            return True
+
+        def paint(self, _area, cr):
+            if self.pixbuf is not None:
+                Gdk.cairo_set_source_pixbuf(cr, self.pixbuf, 0, 0)
+                cr.paint()
+            if self.incoming is None or not self.size:
+                return False
+            w, h = self.size
+            if self.progress >= 1.0:
+                Gdk.cairo_set_source_pixbuf(cr, self.incoming, 0, 0)
+                cr.paint()
+                return False
+            # Omarchy's reveal: a slanted band grows from the centre.
+            slant = -0.18
+            top = w / 2 - slant * h / 2
+            bottom = w / 2 + slant * h / 2
+            spread = (w / 2 + abs(slant) * h / 2 + 4) * self.progress
+            cr.save()
+            cr.move_to(top - spread, 0)
+            cr.line_to(top + spread, 0)
+            cr.line_to(bottom + spread, h)
+            cr.line_to(bottom - spread, h)
+            cr.close_path()
+            cr.clip()
+            Gdk.cairo_set_source_pixbuf(cr, self.incoming, 0, 0)
+            cr.paint()
+            cr.restore()
+            return False
+
+        def open_picker(self, button):
+            panel = os.path.join(CONF, "bin", "panel")
+            if button == 1:
+                subprocess.Popen([panel, "wallpapers"], start_new_session=True)
+            elif button == 3:
+                subprocess.Popen([panel, "themes"], start_new_session=True)
+
         def on_click(self, _w, event):
-            if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
-                subprocess.Popen([os.path.join(CONF, "bin", "panel"), "wallpapers"], start_new_session=True)
+            # Right double-clicks do not reliably arrive as _2BUTTON_PRESS
+            # through an EventBox, so spot the second press ourselves as well.
+            if event.type == Gdk.EventType._2BUTTON_PRESS:
+                button, when = self.handled_click
+                self.last_click = (0, 0, 0.0, 0.0)
+                self.handled_click = (0, 0.0)
+                if button != event.button or time.monotonic() - when > 0.6:
+                    self.open_picker(event.button)
+                return True
+            if event.type == Gdk.EventType.BUTTON_PRESS and event.button in (1, 3):
+                now = time.monotonic()
+                button, when, x, y = self.last_click
+                if button == event.button and now - when < 0.4 \
+                        and abs(event.x - x) < 32 and abs(event.y - y) < 32:
+                    self.last_click = (0, 0, 0.0, 0.0)
+                    self.handled_click = (event.button, now)
+                    self.open_picker(event.button)
+                else:
+                    self.last_click = (event.button, now, event.x, event.y)
             return True
 
     def rebuild(*_):
@@ -222,8 +318,10 @@ def serve():
 
     def reload():
         for s in windows:
-            s.path = None
-            s.draw(force=True)
+            if current() != s.path:
+                s.draw()               # a new image: wipe it in
+            else:
+                s.draw(force=True)     # same path, new contents: replace at once
         return True
 
     display = Gdk.Display.get_default()

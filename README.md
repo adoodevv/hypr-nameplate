@@ -21,13 +21,14 @@ bash install.sh --name yourname
 | | |
 |---|---|
 | **Screensaver** | Your name in block letters, cycling through random [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) animations after 2.5 minutes idle. Works on GNOME and Hyprland. |
-| **Lock screen** | Like the latest Omarchy's: the theme's solid background, your name in block letters in the theme's accent, and a padlock beside a small password box (hyprlock). Recolours with the theme. |
+| **Lock screen** | Like the latest Omarchy's: your wallpaper blurred behind a single centred 381×67 password field (hyprlock). Recolours with the theme. |
 | **Top bar** | Your name, workspaces, date and time, a music icon while something plays, Bluetooth, Wi-Fi, volume, brightness, battery and a power menu (Waybar). Clicking an icon opens a small panel under it: a calendar with the player (seek bar, previous / play / next) underneath while something plays, volume and brightness sliders with output selection, Wi-Fi networks, Bluetooth devices. Click anywhere outside to close it. |
-| **Main menu** | <kbd>Super</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd> or click your name in the bar, like Omarchy's menu: apps, appearance, screenshots and recording, setup panels, config files, updates (apt, snap, firmware), about this computer, and power options. Type to search everything at once. |
+| **Main menu** | <kbd>Super</kbd> + <kbd>Space</kbd> or click the logo in the bar, like Omarchy's menu: apps, appearance, screenshots and recording, setup panels, config files, updates (apt, snap, firmware), about this computer, and power options. Type to search everything at once. The app grid is <kbd>Super</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd>. |
 | **Animations** | Omarchy's window open, close and fade timings on Hyprland. |
 | **Terminal** | Alacritty in Tokyo Night with JetBrainsMono Nerd Font and a minimal Starship prompt. |
 | **Launcher and notifications** | fuzzel and mako in matching colours. |
-| **Screens** | <kbd>Super</kbd> + <kbd>P</kbd> extends, mirrors or switches to one screen when you plug in a projector or monitor. Unplugging it restores the laptop screen. |
+| **Screens** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>D</kbd> extends, mirrors or switches to one screen when you plug in a projector or monitor. Unplugging it restores the laptop screen. |
+| **Workspaces and dock** | <kbd>Super</kbd> + <kbd>L</kbd> cycles a workspace through tiling, scrolling and floating layouts, like Omarchy. The dock lives on floating workspaces: pinned and running apps in 36px icons along the bottom (drag to reorder), <kbd>Super</kbd> + <kbd>M</kbd> minimises a window into it, and a maximised window tucks it to the bottom edge until the pointer touches there. |
 | **Volume and brightness** | A small level indicator whenever you press the volume, mute or brightness keys. |
 | **Low battery** | A warning at 15% and an urgent one at 5% while unplugged. |
 | **Battery and power modes** | Click the battery for the charge, time left and power mode (power saver, balanced, performance). |
@@ -36,9 +37,9 @@ bash install.sh --name yourname
 | **Screen recording** | <kbd>Alt</kbd> + <kbd>Print</kbd> for a region, add <kbd>Shift</kbd> for the whole screen or <kbd>Ctrl</kbd> for the whole screen with your microphone. Same keys or the red dot in the bar stop it. Saved as .mp4 in `~/Videos/Screencasts`. |
 | **Notifications** | <kbd>Super</kbd> + <kbd>,</kbd> dismisses, add <kbd>Shift</kbd> for all, <kbd>Alt</kbd> to bring the last one back, <kbd>Ctrl</kbd> for do not disturb. |
 | **Top bar extras** | Like Omarchy's bar: **stay awake** (a cup; no screensaver or lock), **night light** (warmer colours, via hyprsunset) and **do not disturb** sit before the clock: dim when off, lit when on, click to switch. The recording dot joins them while you record. After the clock: **weather** (from wttr.in; click for the next hours and days, or set your city) and **updates**, which appears only when Ubuntu has some waiting. On the right, an **AI agents** robot when Claude Code, Grok, Muse or opencode is installed: click it for today's tokens and prompts, the week at a glance, the model you use most, and your recent sessions (click one to pick it back up). It reads only the history they keep on your computer. Then the **microphone** (click to mute). The bar item whose panel is open gets an accent line under it. |
-| **Themes** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> (or Menu → Appearance → Theme): Omarchy's 23 colour themes, including Tokyo Night, Catppuccin, Gruvbox, Nord, Rosé Pine, Everforest, Kanagawa and a few light ones. The bar, panels, terminal, notifications, launcher, window borders and lock screen all switch at once, and so does the wallpaper if you downloaded Omarchy's collection. GNOME is not touched (except the terminal, which both share). |
+| **Themes** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> (or Menu → Appearance → Theme): Omarchy's 23 colour themes, including Tokyo Night, Catppuccin, Gruvbox, Nord, Rosé Pine, Everforest, Kanagawa and a few light ones. The bar, panels, terminal, notifications, launcher, window borders and lock screen all switch at once, and so does the wallpaper if you downloaded Omarchy's collection. Themes that ship Hyprland extras in Omarchy (Lumon's shadows, Solitude's rounding, Kanagawa's terminal opacity, and Tokyo Night's lock colours) bring those too. GNOME is not touched (except the terminal, which both share). |
 | **Fonts** | Menu → Appearance → Font: switch the terminal, bar, panels, launcher and notifications to any installed Nerd Font, set the terminal size (9 by default, like Omarchy), or download a few popular ones (Caskaydia Mono, Fira Code, Hack, Geist Mono, Source Code Pro, Ubuntu Mono). Like Omarchy, it also becomes your account's monospace font, so code in GNOME apps and anything asking for "monospace" follows it, on GNOME too (the uninstaller puts the old one back). |
-| **Wallpapers** | Double-click the desktop for a picker; <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd> for the next one. Drop your own images in `~/Pictures/Wallpapers`. The installer can also download Omarchy's artwork (74 images) straight from Omarchy's repository, leaving out the ones that only show its name or logo. |
+| **Wallpapers** | Double-click the desktop for a picker (right double-click for colour themes), or <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd>. Switching wipes the new image in from the centre, like Omarchy's. Drop your own images in `~/Pictures/Wallpapers`. The installer can also download Omarchy's artwork (74 images) straight from Omarchy's repository, leaving out the ones that only show its name or logo. |
 
 ![The screensaver](docs/screenshots/screensaver.gif)
 
@@ -112,19 +113,21 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | Keys | Action |
 |---|---|
 | Super + Return | Terminal |
-| Super + Alt + Space | Main menu (or click your name in the bar) |
-| Super + Space | App launcher |
-| Super + E | Files |
+| Super + Space | Main menu (or click the logo in the bar) |
+| Super + Alt + Space | App launcher |
+| Super + Shift + Return / Shift + B | Web browser (Shift + Alt + B: private) |
+| Super + Shift + F | Files |
 | Super + K | Cheat sheet |
 | Super + Escape | Power options |
-| Super + L | Lock |
+| Super + Ctrl + L | Lock |
+| Super + L | Cycle workspace layout: tiling, scrolling, floating |
 | Super + Ctrl + S | Start the screensaver now |
-| Super + Ctrl + Shift + Space | Colour theme |
+| Super + Ctrl + Shift + Space / Ctrl + T | Colour theme |
 | Super + Ctrl + I | Stay awake (no screensaver or lock) |
-| Super + Ctrl + L | Night light |
 | Super + Ctrl + M | Mute the microphone |
-| Super + Ctrl + Space | Next wallpaper |
-| Super + P | Screens: extend, mirror, one screen |
+| Super + Ctrl + Space / Ctrl + W | Wallpaper picker |
+| Super + Ctrl + D | Screens: extend, mirror, one screen |
+| Super + Shift + Space | Hide / show the top bar |
 | Super + Ctrl + A / B / N / P | Sound, Bluetooth, network, power panels |
 | Super + Ctrl + V | Clipboard history |
 | Super + Ctrl + E | Emoji picker |
@@ -135,8 +138,13 @@ log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login
 | Super + Shift + arrows | Swap windows |
 | Super + F / Super + Alt + F | Fullscreen / maximise |
 | Super + T | Float or tile a window |
+| Super + O | Pop a window out (float and pin); again to put it back |
+| Super + M | Minimise a window to the dock (floating workspaces) |
+| Super + G | Group windows (Alt + G leaves, Ctrl + arrows moves inside) |
 | Super + J | Flip the split |
-| Super + Alt + P | Pseudo-tile (keep a window's own size in its tile) |
+| Super + P | Pseudo-tile (keep a window's own size in its tile) |
+| Alt + Shift + Tab | Previous window |
+| Super + Ctrl + Tab | The workspace you were on before |
 | Super + 1..0 | Go to workspace |
 | Super + Shift + 1..0 | Send window to workspace |
 | Super + S | Scratchpad |
@@ -196,6 +204,7 @@ reach your running session (`pkill`, `hyprctl`, `gsettings`, ...) is stubbed out
   again afterwards.
 - If Spotify is installed, its launcher entry is copied to `~/.local/share/applications` and set to run natively on
   Wayland, because under Hyprland it otherwise cuts off its player bar. Re-run the installer if a Spotify update resets it.
+- Floating workspaces do not get Omarchy's titlebars: those come from a Hyprland plugin that is not packaged for Ubuntu, so floating windows keep the frames their apps give them.
 - Dialogs from apps such as RViz or Gazebo get tiled like normal windows; float them with Super + T.
 - The GNOME screensaver is a small script polling the idle time, not a real screensaver API.
   It does not lock the screen; GNOME's own lock still does that.

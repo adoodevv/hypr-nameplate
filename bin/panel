@@ -2283,7 +2283,7 @@ def ago(moment):
 
 
 class AppsPanel(Panel):
-    """App launcher (SUPER + SPACE), laid out like Omarchy 4's app grid: a big card in
+    """App launcher (SUPER + ALT + SPACE), laid out like Omarchy 4's app grid: a big card in
     the middle of the screen, seven columns of large icons, and a search line on top.
     Just start typing to search; arrows move, Enter opens, Escape clears or closes."""
     anchor = "middle"
@@ -2718,7 +2718,7 @@ def font_items():
 
 
 class MenuPanel(Panel):
-    """Everything in one place (SUPER + ALT + SPACE): type to search, Enter to pick,
+    """Everything in one place (SUPER + SPACE): type to search, Enter to pick,
     arrows to move, Escape or Backspace to go back."""
     width = 340
     anchor = "middle"
@@ -3011,7 +3011,7 @@ class App:
         monitor = self.monitor_at(mark_x)      # open on the screen whose bar was clicked
 
         if layered:
-            self.windows.append(self.backdrop(monitor, kind in ("menu", "apps", "themes")))
+            self.windows.append(self.backdrop(monitor, kind in ("menu", "apps")))
 
         panel = KINDS[kind](self, route) if route else KINDS[kind](self)
         self.panel = panel

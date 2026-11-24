@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+"""Keyboard-layout bar item: print the active layout, or cycle it.
+
+    keyboard-layout        JSON for Waybar (nothing when there is one layout)
+    keyboard-layout cycle  switch every keyboard on the same layout list
+"""
+import json
+import subprocess
+import sys
+
+NOT_TYPED = ("power-button", "sleep-button", "video-bus", "wireless-hotkeys",
+             "wmi-hotkeys", "intel-hid", "dell-wmi", "hp-wmi")
+
+
+def devices():
+    try:
+        out = subprocess.run(["hyprctl", "devices", "-j"], capture_output=True,
+                             text=True, timeout=5).stdout
+        return json.loads(out or "{}").get("keyboards", [])
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return []
+
+
+def selected(keyboards):
+    typed = [k for k in keyboards
+             if not any(x in (k.get("name") or "").lower() for x in NOT_TYPED)]
+    typed.sort(key=lambda k: not k.get("main"))
+    with_keymap = [k for k in typed if k.get("active_keymap")]
+    return (with_keymap or typed or keyboards or [None])[0]
+
+
+def layout_info():
+    keyboard = selected(devices())
+    if not keyboard:
+        return None, [], 0
+    layouts = [x for x in (keyboard.get("layout") or "").split(",") if x]
+    try:
+        index = int(keyboard.get("active_layout_index") or 0)
+    except (TypeError, ValueError):
+        index = 0
+    if not 0 <= index < len(layouts):
+        index = 0
+    return keyboard, layouts, index
+
+
+def show():
+    keyboard, layouts, index = layout_info()
+    if not keyboard or len(layouts) < 2:
+        return
+    print(json.dumps({
+        "text": layouts[index],
+        "tooltip": keyboard.get("active_keymap") or layouts[index],
+        "class": [],
+    }))
+
+
+def cycle():
+    keyboard, layouts, index = layout_info()
+    if not keyboard or len(layouts) < 2:
+        return
+    nxt = (index + 1) % len(layouts)
+    mine = keyboard.get("layout") or ""
+    for other in devices():
+        if (other.get("layout") or "") == mine and other.get("name"):
+            subprocess.run(["hyprctl", "switchxkblayout", other["name"], str(nxt)],
+                           capture_output=True, timeout=5)
+    subprocess.run(["pkill", "-RTMIN+12", "waybar"], capture_output=True)
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["cycle"]:
+        cycle()
+    elif len(sys.argv) == 1:
+        show()
+    else:
+        sys.exit(__doc__)

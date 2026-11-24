@@ -4,20 +4,25 @@
 
   APPS
     SUPER + Return          Terminal
-    SUPER + ALT + SPACE     Main menu: everything in one place (or click the logo in the bar).
+    SUPER + Space           Main menu: everything in one place (or click the logo in the bar).
                             Type to search, Enter to pick, Escape or Backspace goes back.
-    SUPER + Space           App grid (start typing to search, arrows to move, Enter)
-    SUPER + E               Files
+    SUPER + ALT + SPACE     App grid (start typing to search, arrows to move, Enter)
+    SUPER + SHIFT + Return  Web browser (SUPER + SHIFT + B works too)
+    SUPER + SHIFT + ALT + B Web browser, private window
+    SUPER + SHIFT + F       Files
     SUPER + K               This cheat sheet
     SUPER + Escape          Power options (lock, log out, restart, shut down)
-    SUPER + L               Lock the screen
+    SUPER + CTRL + L        Lock the screen
     SUPER + CTRL + S        Start the screensaver now
-    SUPER + CTRL + SPACE    Next wallpaper (double-click the desktop to pick one)
+    SUPER + CTRL + SPACE    Wallpaper picker (double-click the desktop: left for
+                            wallpapers, right for colour themes)
+    SUPER + CTRL + W        Wallpaper picker too
     SUPER + CTRL + SHIFT + SPACE   Colour theme (Gruvbox, Nord, Catppuccin... 23 of them)
+    SUPER + CTRL + T        Colour theme too
     SUPER + CTRL + I        Stay awake: no screensaver or lock (a cup shows in the bar)
-    SUPER + CTRL + L        Night light: warmer screen colours
     SUPER + CTRL + M        Mute or unmute the microphone
-    SUPER + P               Screens: extend, mirror or one screen (projector)
+    SUPER + CTRL + D        Screens: extend, mirror or one screen (projector)
+    Night light has no key: click its icon before the clock in the bar.
 
   WINDOWS
     SUPER + W  (or Q)       Close window
@@ -26,17 +31,26 @@
     SUPER + F               Fullscreen
     SUPER + ALT + F         Maximise (keeps the bar)
     SUPER + T               Float / tile the window
+    SUPER + O               Pop window out (float and pin); again to put it back
+    SUPER + M               Minimise to the dock (floating workspaces; click the
+                            app in the dock to bring it back)
+    SUPER + G               Group windows together (SUPER + ALT + G leaves the group,
+                            SUPER + CTRL + arrows moves within it)
+    SUPER + P               Pseudo-tile (keep a window's own size in its tile)
     SUPER + J               Flip the split (side-by-side <-> stacked)
     SUPER + - / =           Narrower / wider
     SUPER + SHIFT + - / =   Shorter / taller
     SUPER + left-drag       Move window with the mouse
     SUPER + right-drag      Resize window with the mouse
-    ALT + Tab               Next window
+    ALT + Tab               Next window (SHIFT for previous)
 
   WORKSPACES
     SUPER + 1..0            Go to workspace 1-10
     SUPER + SHIFT + 1..0    Send window to workspace 1-10
-    SUPER + Tab             Next workspace (SHIFT for previous)
+    SUPER + Tab             Next workspace (SHIFT for previous, CTRL for the one before)
+    SUPER + L               Cycle this workspace's layout: tiling, scrolling, floating.
+                            Floating workspaces are where the dock lives.
+    SUPER + ALT + L         Cycle the layout the other way
     3-finger swipe          Switch workspace
     SUPER + S               Show / hide the scratchpad
     SUPER + ALT + S         Send window to the scratchpad
@@ -60,11 +74,12 @@
     SUPER + CTRL + B        Bluetooth
     SUPER + CTRL + N        Network (Wi-Fi)
     SUPER + CTRL + P        Battery and power mode
+    SUPER + CTRL + D        Screens
 
   OTHER
     SUPER + SHIFT + S       Screenshot a region      (or Print)
     SUPER + SHIFT + P       Screenshot the whole screen  (or SHIFT + Print)
-    SUPER + SHIFT + B       Hide / show the top bar
+    SUPER + SHIFT + Space   Hide / show the top bar
   TOP BAR (click the icons)
     Date and time           Calendar, with the player underneath while music plays
     Music icon              Shown beside the time while something plays; same panel
@@ -73,7 +88,14 @@
     Volume / brightness     Sliders for both, audio output (scroll: volume,
                             right-click: mute)
     Battery                 Charge, time left, power mode (saver / balanced / performance)
+    Keyboard layout         Shown only with two or more layouts; click to cycle
     Click outside a panel, press Escape, or click the same icon again to close it.
+
+  DOCK (floating workspaces, along the bottom)
+    Click an app to open or focus it; drag icons to rearrange them.
+    Right-click an app to pin it, open a new window, or quit it.
+    Right-click the grid button to make the dock hide until the pointer
+    touches the bottom edge.
 
   Stuck? SUPER + Escape -> Log out, then pick "Ubuntu" from the gear icon
   on the login screen to return to GNOME.

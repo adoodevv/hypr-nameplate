@@ -39,10 +39,17 @@ tooltip {
 /* Every icon item: a 13px glyph centred in a 27px slot */
 #custom-logo, #custom-agents, #custom-bluetooth, #custom-network, #custom-sound,
 #custom-monitor, #custom-battery, #custom-weather, #custom-updates,
-#custom-tray-chevron, #custom-media, #custom-keyboard-layout {
+#custom-tray-chevron, #custom-media {
   font-size: 13px;
   min-width: 27px;
   padding: 0;
+}
+
+/* Keyboard layout: a short text label, not an icon (Omarchy's caption size) */
+#custom-keyboard-layout {
+  font-size: 10px;
+  min-width: 0;
+  padding: 0 6px;
 }
 
 /* Menu button on the left */

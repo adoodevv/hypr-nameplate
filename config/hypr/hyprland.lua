@@ -7,7 +7,8 @@ local bin    = home .. "/.config/nameplate/bin/"
 
 local terminal    = "alacritty"
 local fileManager = "nautilus --new-window"
-local menu        = bin .. "panel apps"   -- Omarchy-style app grid (bin/panel)
+local apps        = bin .. "panel apps"   -- Omarchy-style app grid (bin/panel)
+local mainMenu    = bin .. "panel menu"
 
 -- Colours: this block is rewritten by 'theme set NAME' (SUPER + CTRL + SHIFT + SPACE)
 -- theme:begin colors
@@ -73,6 +74,34 @@ hl.config({
     layout           = "dwindle",
   },
 
+  -- Window groups (SUPER + G), styled like Omarchy's groupbar
+  group = {
+    col = {
+      border_active   = accent,
+      border_inactive = muted,
+    },
+    groupbar = {
+      font_size               = 12,
+      font_family             = "monospace",
+      font_weight_active      = "ultraheavy",
+      font_weight_inactive    = "normal",
+      indicator_height        = 1,
+      indicator_gap           = 5,
+      height                  = 22,
+      gaps_in                 = 5,
+      gaps_out                = 0,
+      text_color              = "rgb(ffffff)",
+      text_color_inactive     = "rgba(ffffff90)",
+      col = {
+        active   = "rgba(00000040)",
+        inactive = "rgba(00000020)",
+      },
+      gradients               = true,
+      gradient_rounding       = 0,
+      gradient_round_only_edges = false,
+    },
+  },
+
   decoration = {
     rounding = 0, -- sharp corners, the Omarchy look. Try 8 for rounded.
 
@@ -98,6 +127,15 @@ hl.config({
   dwindle = {
     preserve_split = true,
     force_split    = 2, -- new windows open to the right / below
+  },
+
+  -- The scrolling layout SUPER + L cycles through, at Omarchy's column width
+  scrolling = {
+    column_width = 0.49,
+  },
+
+  binds = {
+    hide_special_on_workspace_change = true,
   },
 
   misc = {
@@ -160,11 +198,12 @@ hl.config({
     sensitivity  = 0,
     repeat_rate  = 40,
     repeat_delay = 250,
+    numlock_by_default = true,
 
     touchpad = {
-      natural_scroll       = true,
-      tap_to_click         = true,
-      disable_while_typing = true,
+      natural_scroll     = false,
+      clickfinger_behavior = true,
+      scroll_factor      = 0.4,
     },
   },
 })
@@ -179,29 +218,33 @@ hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 
 local mod = "SUPER"
 
--- Apps and menus
+-- Apps and menus (Omarchy's chords)
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd(terminal))
-hl.bind(mod .. " + Space",  hl.dsp.exec_cmd(menu))
-hl.bind(mod .. " + E",      hl.dsp.exec_cmd(fileManager))
+hl.bind(mod .. " + Space",  hl.dsp.exec_cmd(mainMenu))
+hl.bind(mod .. " + ALT + Space", hl.dsp.exec_cmd(apps))
+hl.bind(mod .. " + SHIFT + Return", hl.dsp.exec_cmd(bin .. "browser"))
+hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd(bin .. "browser"))
+hl.bind(mod .. " + SHIFT + ALT + B", hl.dsp.exec_cmd(bin .. "browser --private"))
+hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd(fileManager))
 hl.bind(mod .. " + K",      hl.dsp.exec_cmd(bin .. "keys"))
-hl.bind(mod .. " + ALT + Space", hl.dsp.exec_cmd(bin .. "panel menu"))
 hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(bin .. "panel menu system"))
-hl.bind(mod .. " + L",      hl.dsp.exec_cmd("loginctl lock-session"))
+hl.bind(mod .. " + CTRL + L", hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd(bin .. "launch-screensaver"))
-hl.bind(mod .. " + CTRL + Space", hl.dsp.exec_cmd(bin .. "wallpaper next"))
+hl.bind(mod .. " + CTRL + Space", hl.dsp.exec_cmd(bin .. "panel wallpapers"))
+hl.bind(mod .. " + CTRL + W", hl.dsp.exec_cmd(bin .. "panel wallpapers"))
 hl.bind(mod .. " + CTRL + SHIFT + Space", hl.dsp.exec_cmd(bin .. "panel themes"))
-hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("pkill -SIGUSR1 waybar"))
-hl.bind(mod .. " + P",         hl.dsp.exec_cmd(bin .. "display-menu"))
+hl.bind(mod .. " + CTRL + T", hl.dsp.exec_cmd(bin .. "panel themes"))
+hl.bind(mod .. " + SHIFT + Space", hl.dsp.exec_cmd("pkill -SIGUSR1 waybar"))
 
 -- Panels from the keyboard (same as clicking the bar icons)
 hl.bind(mod .. " + CTRL + A", hl.dsp.exec_cmd(bin .. "panel sound"))
 hl.bind(mod .. " + CTRL + B", hl.dsp.exec_cmd(bin .. "panel bluetooth"))
+hl.bind(mod .. " + CTRL + D", hl.dsp.exec_cmd(bin .. "panel display"))
 hl.bind(mod .. " + CTRL + N", hl.dsp.exec_cmd(bin .. "panel wifi"))
 hl.bind(mod .. " + CTRL + P", hl.dsp.exec_cmd(bin .. "panel power"))
 hl.bind(mod .. " + CTRL + V", hl.dsp.exec_cmd(bin .. "panel clipboard"))
 hl.bind(mod .. " + CTRL + E", hl.dsp.exec_cmd(bin .. "panel emoji"))
 hl.bind(mod .. " + CTRL + I", hl.dsp.exec_cmd(bin .. "stay-awake"))      -- no screensaver/lock (Omarchy's key)
-hl.bind(mod .. " + CTRL + L", hl.dsp.exec_cmd(bin .. "nightlight"))      -- warmer colours
 hl.bind(mod .. " + CTRL + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; pkill -RTMIN+13 waybar"))
 
 -- Notifications
@@ -217,8 +260,18 @@ hl.bind(mod .. " + F",       hl.dsp.window.fullscreen({ mode = "fullscreen" }))
 hl.bind(mod .. " + ALT + F", hl.dsp.window.fullscreen({ mode = "maximized" }))
 hl.bind(mod .. " + T",       hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + J",       hl.dsp.layout("togglesplit"))
+hl.bind(mod .. " + P",       hl.dsp.window.pseudo())
 hl.bind(mod .. " + ALT + P", hl.dsp.window.pseudo())
+hl.bind(mod .. " + O",       hl.dsp.exec_cmd(bin .. "window-pop"))
+hl.bind(mod .. " + M",       hl.dsp.exec_cmd(bin .. "window-minimize"))
+hl.bind(mod .. " + G",       hl.dsp.group.toggle())
+hl.bind(mod .. " + ALT + G", hl.dsp.window.move({ out_of_group = true }))
+hl.bind(mod .. " + CTRL + Left",  hl.dsp.group.prev())
+hl.bind(mod .. " + CTRL + Right", hl.dsp.group.next())
 hl.bind("ALT + Tab",         hl.dsp.window.cycle_next())
+hl.bind("ALT + Tab",         hl.dsp.window.bring_to_top())
+hl.bind("ALT + SHIFT + Tab", hl.dsp.window.cycle_next({ next = false }))
+hl.bind("ALT + SHIFT + Tab", hl.dsp.window.alter_zorder({ mode = "bottom" }))
 
 -- Focus and swap with the arrow keys
 local directions = { left = "l", right = "r", up = "u", down = "d" }
@@ -239,10 +292,17 @@ for i = 1, 10 do
   hl.bind(mod .. " + " .. key,         hl.dsp.focus({ workspace = i }))
   hl.bind(mod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
 end
-hl.bind(mod .. " + Tab",         hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "e-1" }))
-hl.bind(mod .. " + mouse_down",  hl.dsp.focus({ workspace = "e+1" }))
-hl.bind(mod .. " + mouse_up",    hl.dsp.focus({ workspace = "e-1" }))
+hl.bind(mod .. " + Tab",         hl.dsp.focus({ workspace = "m+1" }))
+hl.bind(mod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))
+hl.bind(mod .. " + CTRL + Tab",  hl.dsp.focus({ workspace = "previous_per_monitor" }))
+hl.bind(mod .. " + mouse_down",  hl.dsp.focus({ workspace = "m+1" }))
+hl.bind(mod .. " + mouse_up",    hl.dsp.focus({ workspace = "m-1" }))
+
+-- Workspace layout: dwindle -> scrolling -> floating (bin/workspace-layout).
+-- Floating workspaces are where the dock lives, like Omarchy's.
+hl.bind(mod .. " + L",       hl.dsp.exec_cmd(bin .. "workspace-layout"))
+hl.bind(mod .. " + ALT + L", hl.dsp.exec_cmd(bin .. "workspace-layout back"))
+hl.bind("XF86Display",       hl.dsp.exec_cmd(bin .. "workspace-layout"))
 
 -- Scratchpad: a hidden workspace you can pop over anything
 hl.bind(mod .. " + S",       hl.dsp.workspace.toggle_special("scratchpad"))
@@ -294,11 +354,38 @@ hl.window_rule({
   no_focus = true,
 })
 
--- Slightly see-through terminal
+-- Omarchy's gentle transparency for terminals and these desktop apps
 hl.window_rule({
   name  = "terminal-opacity",
-  match = { class = "^Alacritty$" },
-  opacity = "0.97 0.92",
+  match = { class = "^(Alacritty|kitty|com\\.mitchellh\\.ghostty|foot|org\\.codeberg\\.dnkl\\.foot)$" },
+  opacity = "0.985 0.96",
+})
+
+hl.window_rule({
+  name  = "app-opacity",
+  match = { class = "^(org\\.gnome\\.Nautilus|1[pP]assword|com\\.onepassword\\.OnePassword|folio)$" },
+  opacity = "0.985 0.96",
+})
+
+-- Terminals scroll at Omarchy's touchpad rate (their own boost is 1.5;
+-- Ghostty's is 0.2, because it already multiplies precise scrolling)
+hl.window_rule({
+  name  = "terminal-scroll",
+  match = { class = "^(Alacritty|kitty|foot|org\\.codeberg\\.dnkl\\.foot)$" },
+  scroll_touchpad = 1.5,
+})
+
+hl.window_rule({
+  name  = "ghostty-scroll",
+  match = { class = "^com\\.mitchellh\\.ghostty$" },
+  scroll_touchpad = 0.2,
+})
+
+-- Popped-out windows (SUPER + O) are the one place with rounded corners
+hl.window_rule({
+  name  = "popped-window",
+  match = { tag = "pop" },
+  rounding = 8,
 })
 
 -- The screensaver always covers the whole screen and appears without animation
@@ -309,25 +396,311 @@ hl.window_rule({
   no_anim    = true,
 })
 
--- Small utility windows float in the middle of the screen
+-- Small utility windows float in the middle of the screen, at Omarchy's
+-- standard float size
 hl.window_rule({
   name  = "floating-utilities",
-  match = { class = "^(nameplate-float|org\\.pulseaudio\\.pavucontrol|pavucontrol)$" },
+  match = { class = "^(nameplate-float|org\\.pulseaudio\\.pavucontrol|pavucontrol|xdg-desktop-portal-gtk)$" },
   float  = true,
   center = true,
-  size   = "900 600",
+  size   = "875 600",
+})
+
+-- 1Password floats too (and never appears in screen shares)
+hl.window_rule({
+  name  = "onepassword",
+  match = { class = "^(1[pP]assword|com\\.onepassword\\.OnePassword)$" },
+  float = true,
+  center = true,
+  size = "875 600",
+  no_screen_share = true,
 })
 
 hl.layer_rule({ name = "bar-blur",      match = { namespace = "waybar" },        blur = true, ignore_alpha = 0.3 })
 hl.layer_rule({ name = "launcher-blur", match = { namespace = "launcher" },      blur = true, ignore_alpha = 0.3 })
 hl.layer_rule({ name = "notify-blur",   match = { namespace = "notifications" }, blur = true, ignore_alpha = 0.3 })
 
+--------------------------------
+---- FLOATING WORKSPACES -------
+--------------------------------
+-- SUPER + L cycles a workspace through dwindle, scrolling and floating
+-- (bin/workspace-layout keeps the choice under ~/.local/state/nameplate).
+-- Hyprland has no floating layout of its own, so floating is applied to the
+-- windows: the ones the mode floated are tagged, and only those are tiled
+-- again when the mode ends. Windows on a floating workspace carry a second
+-- tag, so carried-in windows and dialogs behave the same. Omarchy also gives
+-- floating workspaces titlebars from a Hyprland plugin; that plugin is not
+-- packaged for Ubuntu, so floating windows here keep their own frames.
+
+local layout_dir   = home .. "/.local/state/nameplate/workspace-layouts"
+local layout_modes = {}
+local LAYOUT_FLOATED   = "nameplate-mode-floated"
+local LAYOUT_WORKSPACE = "nameplate-floating-workspace"
+local LAYOUT_OPENED    = "nameplate-mode-opened"
+local LAYOUT_OPEN_RULE = "nameplate-floating-open-"
+local layout_cascade = 0
+local layout_open_rules = 0
+local layout_setup_done = false
+
+local function layout_is_floating(id)
+  id = tonumber(id)
+  return id ~= nil and id >= 1 and layout_modes[tostring(id)] == "floating"
+end
+
+local function layout_any_floating()
+  for _, mode in pairs(layout_modes) do
+    if mode == "floating" then return true end
+  end
+  return false
+end
+
+local function layout_set_floating(window, floating)
+  hl.dispatch(hl.dsp.window.float({ action = floating and "on" or "off", window = window }))
+end
+
+local function layout_set_tag(window, tag, on)
+  hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. tag, window = window }))
+end
+
+local function layout_claimed()
+  local addresses = {}
+  for _, window in ipairs(hl.get_windows({ tag = LAYOUT_FLOATED })) do
+    addresses[window.address] = true
+  end
+  return addresses
+end
+
+-- A window the mode floats opens at a comfortable size in the middle of its
+-- monitor, stepped from the last so floated windows do not stack exactly.
+local function layout_place(window)
+  local monitor = window.monitor
+  if not monitor or not monitor.width then return end
+  local width  = math.floor(monitor.width / monitor.scale)
+  local height = math.floor(monitor.height / monitor.scale)
+  if (monitor.transform or 0) % 2 == 1 then width, height = height, width end
+  local reserved = monitor.reserved or {}
+  width  = width - (reserved.left or 0) - (reserved.right or 0)
+  height = height - (reserved.top or 0) - (reserved.bottom or 0)
+  hl.dispatch(hl.dsp.window.resize({
+    x = math.min(1100, math.floor(width * 0.64)),
+    y = math.min(760, math.floor(height * 0.68)),
+    relative = false, window = window,
+  }))
+  hl.dispatch(hl.dsp.window.center({ window = window }))
+  layout_cascade = (layout_cascade + 1) % 5
+  hl.dispatch(hl.dsp.window.move({
+    x = layout_cascade * 24 - 48, y = layout_cascade * 24 - 48,
+    relative = true, window = window,
+  }))
+end
+
+-- Every tiled window is claimed before any is floated: floating one member
+-- of a group floats the rest, and a single pass would strand those.
+local function layout_float_windows(windows)
+  local claiming = {}
+  for _, window in ipairs(windows) do
+    layout_set_tag(window, LAYOUT_WORKSPACE, true)
+    if not window.floating and (window.fullscreen or 0) == 0 then
+      layout_set_tag(window, LAYOUT_FLOATED, true)
+      table.insert(claiming, window)
+    end
+  end
+  for _, window in ipairs(claiming) do
+    layout_set_floating(window, true)
+    layout_place(window)
+  end
+end
+
+local function layout_tile_window(window, mine)
+  layout_set_tag(window, LAYOUT_WORKSPACE, false)
+  if not mine[window.address] or window.pinned then return end
+  layout_set_tag(window, LAYOUT_FLOATED, false)
+  layout_set_floating(window, false)
+end
+
+local function layout_arrange(windows, workspace)
+  local floating, mine = {}, layout_claimed()
+  for _, window in ipairs(windows) do
+    local id = tonumber(workspace and workspace.id or (window.workspace and window.workspace.id))
+    if id and id >= 1 then
+      if layout_is_floating(id) then
+        table.insert(floating, window)
+      else
+        layout_tile_window(window, mine)
+      end
+    end
+  end
+  layout_float_windows(floating)
+end
+
+-- Windows opening on a floating workspace float from their first frame, at
+-- the mode's size. Apps with float rules of their own are left to those.
+local LAYOUT_OPEN_W = "min(1100,monitor_w*0.64)"
+local LAYOUT_OPEN_H = "min(760,monitor_h*0.68)"
+local LAYOUT_OWN_FLOAT = "(nameplate-float|org\\.pulseaudio\\.pavucontrol|pavucontrol"
+  .. "|xdg-desktop-portal-gtk|1[pP]assword|com\\.onepassword\\.OnePassword)"
+
+local function layout_sync_open_rules()
+  local ids = {}
+  for id, mode in pairs(layout_modes) do
+    local n = tonumber(id)
+    if n and n >= 1 and mode == "floating" then table.insert(ids, n) end
+  end
+  table.sort(ids)
+  for i, id in ipairs(ids) do
+    local step = layout_cascade * 24 - 48
+    hl.window_rule({
+      name = LAYOUT_OPEN_RULE .. i,
+      enabled = true,
+      match = {
+        workspace = string.format("r[%d-%d]", id, id),
+        modal = false,
+        class = "negative:" .. LAYOUT_OWN_FLOAT,
+      },
+      float = true,
+      size = LAYOUT_OPEN_W .. " " .. LAYOUT_OPEN_H,
+      move = string.format("(monitor_w-%s)/2+(%d) (monitor_h-%s)/2+(%d)",
+                           LAYOUT_OPEN_W, step, LAYOUT_OPEN_H, step),
+      tag = "+" .. LAYOUT_OPENED,
+    })
+  end
+  for i = #ids + 1, layout_open_rules do
+    hl.window_rule({ name = LAYOUT_OPEN_RULE .. i, enabled = false })
+  end
+  layout_open_rules = math.max(layout_open_rules, #ids)
+end
+
+-- A rule's tag leaves with the rule, so a window the open rule floated is
+-- claimed for good as it opens, and tiled again when the mode ends.
+local function layout_claim_opened(window)
+  for _, tag in ipairs(window.tags or {}) do
+    if tag == LAYOUT_OPENED or tag == LAYOUT_OPENED .. "*" then
+      layout_set_tag(window, LAYOUT_FLOATED, true)
+      layout_cascade = (layout_cascade + 1) % 5
+      layout_sync_open_rules()
+      return
+    end
+  end
+end
+
+-- A maximized window has a floating workspace to itself until another opens.
+local function layout_unmaximize_others(window)
+  local id = window.workspace and window.workspace.id
+  if not layout_is_floating(id) then return end
+  for _, other in ipairs(hl.get_workspace_windows(tostring(id))) do
+    if other.address ~= window.address and (other.fullscreen or 0) == 1 then
+      hl.dispatch(hl.dsp.window.fullscreen({ mode = "maximized", action = "unset", window = other }))
+    end
+  end
+end
+
+-- Overlapping windows are placed with the pointer: click to focus there.
+local function layout_update_input()
+  local workspace = hl.get_active_workspace()
+  local floating = workspace ~= nil and layout_is_floating(workspace.id)
+  hl.config({ input = { follow_mouse = floating and 0 or 1 } })
+end
+
+-- What floating workspaces need on top of the flat look: shadows to tell
+-- overlapping windows apart, and full opacity over whatever is beneath.
+local function layout_setup()
+  if layout_setup_done then return end
+  layout_setup_done = true
+  local ok, shadow_on = pcall(function() return hl.get_config("decoration.shadow.enabled") end)
+  if not (ok and shadow_on == true) then
+    hl.config({ decoration = { shadow = {
+      enabled = true, range = 16, render_power = 3, color = "rgba(00000035)",
+    } } })
+    hl.window_rule({ name = "floating-shadow-off", match = { class = ".*" }, no_shadow = true })
+    hl.window_rule({ name = "floating-shadow-on", match = { tag = LAYOUT_WORKSPACE }, no_shadow = false })
+  end
+  hl.window_rule({
+    name = "floating-workspace-opacity",
+    match = { tag = LAYOUT_WORKSPACE },
+    opacity = "1.0 override 1.0 override",
+  })
+end
+
+-- Called by bin/workspace-layout (SUPER + L) through `hyprctl eval`.
+function _G.np_workspace_mode(id, mode)
+  id = tonumber(id)
+  if not id or id < 1 then return end
+  if mode ~= "dwindle" and mode ~= "scrolling" and mode ~= "floating" then return end
+  if mode ~= "floating" then
+    hl.workspace_rule({ workspace = tostring(id), layout = mode })
+  end
+  layout_modes[tostring(id)] = mode
+  if layout_any_floating() then layout_setup() end
+  layout_arrange(hl.get_workspace_windows(tostring(id)))
+  layout_sync_open_rules()
+  layout_update_input()
+end
+
+hl.on("window.open", function(window)
+  layout_claim_opened(window)
+  layout_unmaximize_others(window)
+  layout_arrange({ window })
+end)
+
+-- A move is still being committed when this fires; let it land first.
+hl.on("window.move_to_workspace", function(window, workspace)
+  hl.timer(function() layout_arrange({ window }, workspace) end,
+           { type = "oneshot", timeout = 1 })
+end)
+
+hl.on("window.fullscreen", function(window)
+  hl.timer(function() layout_arrange({ window }) end, { type = "oneshot", timeout = 1 })
+end)
+
+hl.on("workspace.active", layout_update_input)
+hl.on("monitor.focused", layout_update_input)
+
+-- Restore the saved modes, then bring open windows in line with them.
+do
+  local pipe = io.popen("find '" .. layout_dir .. "' -maxdepth 1 -type f 2>/dev/null")
+  if pipe then
+    for path in pipe:lines() do
+      local id = path:match("(%d+)$")
+      local file = id and io.open(path, "r") or nil
+      if file then
+        local mode = (file:read("*l") or ""):gsub("%s+", "")
+        file:close()
+        if mode == "dwindle" or mode == "scrolling" or mode == "floating" then
+          layout_modes[id] = mode
+          if mode ~= "floating" then
+            hl.workspace_rule({ workspace = id, layout = mode })
+          end
+        end
+      end
+    end
+    pipe:close()
+  end
+  layout_sync_open_rules()
+  if layout_any_floating() or #hl.get_windows({ tag = LAYOUT_FLOATED }) > 0
+      or #hl.get_windows({ tag = LAYOUT_WORKSPACE }) > 0 then
+    layout_setup()
+    layout_arrange(hl.get_windows())
+    layout_update_input()
+  end
+end
+
+-- Per-theme Hyprland extras (bin/theme writes this from the theme's own
+-- hyprland.lua: Lumon's shadows, Solitude's rounding, and so on).
+do
+  local extra = home .. "/.config/nameplate/theme-hyprland.lua"
+  local handle = io.open(extra, "r")
+  if handle then
+    handle:close()
+    dofile(extra)
+  end
+end
+
 -------------------------
 ---- EXTERNAL SCREENS ----
 -------------------------
 
 -- A new screen extends the desktop to the right (the monitor rule at the top).
--- Point to SUPER + P for mirroring or using one screen.
+-- Point to SUPER + CTRL + D for mirroring or using one screen.
 -- (bin/screen-added ignores the laptop screen being re-detected on wake-up or lid open)
 hl.on("monitor.added", function(m)
   hl.exec_cmd(bin .. "screen-added")
