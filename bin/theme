@@ -119,7 +119,7 @@ local backdrop = "rgb({{ background.hex }})\""""},
 
     "hypr/hyprlock.conf": {"colors": """\
 $np_bg = rgba({{ background.rgb }}, 1.0)
-$np_field = rgba({{ background.rgb }}, 0.85)
+$np_field = rgba({{ background.rgb }}, 0.80)
 $np_text = rgba({{ bright_foreground.rgb }}, 1.0)
 $np_accent = rgba({{ accent.rgb }}, 1.0)
 $np_check = rgba({{ yellow.rgb }}, 1.0)
