@@ -523,7 +523,11 @@ def collect():
 
 def summarise(files):
     today = datetime.date.today()
-    week = [(today - datetime.timedelta(days=n)).isoformat() for n in range(6, -1, -1)]
+    # "This week" is the calendar week you're in, Monday to today: on Monday
+    # the count starts again from zero instead of carrying last week's days.
+    monday = today - datetime.timedelta(days=today.weekday())
+    week = [(monday + datetime.timedelta(days=n)).isoformat()
+            for n in range((today - monday).days + 1)]
     agents = {}
     for agent, name, command, home in AGENTS:
         if not (shutil.which(command) or home.exists()):
