@@ -20,6 +20,7 @@ SAVED = os.path.join(HOME, ".config", "nameplate", "monitors.json")
 BIN = os.path.join(HOME, ".config", "nameplate", "bin")
 INTERNAL = ("eDP", "LVDS", "DSI")
 TEXT_MIN, TEXT_MAX, TEXT_NORMAL = 9, 20, 12
+CANDIDATE_SCALES = ("1", "1.25", "1.6", "2")
 
 
 def run(*args, timeout=10):
@@ -55,6 +56,19 @@ def save(data):
 
 def number(v):
     return ("%.2f" % v).rstrip("0").rstrip(".")
+
+
+def scale_valid(size, value):
+    """Hyprland rejects scales that don't divide the mode cleanly into integer
+    logical pixels, so e.g. 1.25x works on 1920x1080 but not on 1366x768."""
+    try:
+        w, h = (int(x) for x in size.lower().split("x"))
+        s = float(value)
+    except (ValueError, AttributeError):
+        return True
+    if s <= 0:
+        return False
+    return abs(w / s - round(w / s)) < 1e-9 and abs(h / s - round(h / s)) < 1e-9
 
 
 def rule(m, changes):
@@ -129,6 +143,18 @@ def main():
             sys.exit("display: no screen %s, or unknown setting %s" % (name, key))
         data = saved()
         mine = data.setdefault(name, {})
+        if key == "scale":
+            size = mine.get("mode", "").split("@")[0] or "%dx%d" % (m["width"], m["height"])
+            if not scale_valid(size, value):
+                valid = [v for v in CANDIDATE_SCALES if scale_valid(size, v)]
+                sys.exit("display: scale %s doesn't divide %s cleanly; "
+                         "Hyprland needs integer logical pixels (try %s)"
+                         % (value, size, " or ".join(valid) or "1"))
+        if key == "mode":
+            new_size = value.split("@")[0]
+            existing = mine.get("scale") or number(m["scale"])
+            if not scale_valid(new_size, existing):
+                mine["scale"] = "1"
         if not apply(m, {**mine, key: value}):
             sys.exit("display: Hyprland didn't accept %s = %s" % (key, value))
         mine[key] = value
@@ -136,8 +162,15 @@ def main():
     elif cmd == "restore":
         data = saved()
         for m in screens():
-            if data.get(m["name"]):
-                apply(m, data[m["name"]])
+            changes = data.get(m["name"])
+            if not changes:
+                continue
+            changes = dict(changes)
+            target = changes.get("mode", "").split("@")[0] or "%dx%d" % (m["width"], m["height"])
+            if "scale" in changes and not scale_valid(target, changes["scale"]):
+                del changes["scale"]
+            if changes:
+                apply(m, changes)
     elif cmd == "text":
         print(set_text_size(args[1]) if len(args) > 1 else text_size())
     else:
