@@ -56,7 +56,9 @@ screensaver to GNOME. It doesn't use the PPA or install Hyprland.
 - Clipboard history, an emoji picker, screenshots, screen recording, a screen switcher for projectors,
   volume and brightness popups, and low-battery warnings.
 
-![The screensaver](docs/screenshots/screensaver.gif)
+| Main menu | Screensaver |
+|---|---|
+| ![The main menu](docs/screenshots/menu.png) | ![The screensaver](docs/screenshots/screensaver.gif) |
 
 ## Keys
 
