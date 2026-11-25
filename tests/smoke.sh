@@ -12,6 +12,7 @@ fails=0
 ok()   { printf '\033[32mok\033[0m   %s\n' "$1"; }
 fail() { printf '\033[31mFAIL\033[0m %s\n' "$1"; fails=$((fails + 1)); }
 check() { local what="$1"; shift; if "$@"; then ok "$what"; else fail "$what"; fi; }
+not() { ! "$@"; }
 
 # ------------------------------------------------------------------ syntax --
 for f in "$SRC"/install.sh "$SRC"/uninstall.sh "$SRC"/bin/*; do
@@ -29,7 +30,7 @@ done
 STUBS="$TMP/stubs"
 mkdir -p "$STUBS"
 for c in pkill hyprctl makoctl notify-send gsettings waybar setsid swaybg systemctl \
-         fc-cache xdg-mime sudo; do
+         fc-cache xdg-mime sudo systemd-run; do
   printf '#!/bin/sh\nexit 0\n' > "$STUBS/$c"
 done
 for c in pipx figlet; do                     # no lettering: falls back to plain text
@@ -66,6 +67,13 @@ echo "# my edit" >> "$H/.config/hypr/hyprland.lua"
 run "$H" "$SRC/install.sh" --configs-only
 check "your own edit is backed up" test "$(find "$H/.config/hypr" -name 'hyprland.lua.bak-*' | wc -l)" -eq 1
 check "scripts get no backups" test "$(find "$H/.config/nameplate/bin" -name '*.bak-*' | wc -l)" -eq 0
+
+# ------------------------------------------------------------- reminders --
+R="$H/.config/nameplate/bin/reminder"
+check "reminder understands \"20m stretch\"" run "$H" "$R" set 20m stretch
+check "reminder understands \"at 15:30 call home\"" run "$H" "$R" set at 15:30 call home
+check "reminder refuses a time it can't read" not run "$H" "$R" set someday maybe
+check "reminder list works with none set" run "$H" "$R" list --plain
 
 # ------------------------------- install over existing configs, uninstall --
 H="$TMP/existing"

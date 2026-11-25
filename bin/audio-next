@@ -1,0 +1,12 @@
+#!/bin/bash
+# Switch sound to the next output (speakers, headphones, HDMI, Bluetooth...), SHIFT + MUTE.
+mapfile -t sinks < <(pactl -f json list sinks 2>/dev/null | jq -r '.[] | "\(.name)\t\(.description)"')
+(( ${#sinks[@]} > 1 )) || { notify-send -a Sound -t 2000 "Only one sound output"; exit 0; }
+current=$(pactl get-default-sink 2>/dev/null)
+next=${sinks[0]}
+for i in "${!sinks[@]}"; do
+  [[ ${sinks[$i]%%$'\t'*} == "$current" ]] && next=${sinks[$(( (i + 1) % ${#sinks[@]} ))]}
+done
+pactl set-default-sink "${next%%$'\t'*}"
+notify-send -a Sound -t 2000 "Sound output" "${next#*$'\t'}"
+pkill -RTMIN+9 waybar

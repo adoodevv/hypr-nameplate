@@ -1,0 +1,31 @@
+#!/bin/bash
+# Layout toggles that last until you switch them back, across reloads and logins.
+#   toggle gaps     no gaps or borders between windows, or Omarchy's usual ones
+#                   (SUPER + SHIFT + BACKSPACE)
+#   toggle square   a lone tiled window is kept square in the middle of a wide
+#                   screen instead of stretching across it (SUPER + CTRL + BACKSPACE)
+# The state is a file under ~/.local/state/nameplate that hyprland.lua reads.
+state="$HOME/.local/state/nameplate"
+mkdir -p "$state"
+
+flip() {   # flip <name>: create or remove the flag file; prints on / off
+  if [[ -e $state/$1 ]]; then rm -f "$state/$1"; echo off; else : > "$state/$1"; echo on; fi
+}
+
+case "${1:-}" in
+  gaps)
+    if [[ $(flip no-gaps) == on ]]; then
+      hyprctl eval 'hl.config({ general = { gaps_in = 0, gaps_out = 0, border_size = 0 } })' >/dev/null
+    else
+      hyprctl eval 'hl.config({ general = { gaps_in = 5, gaps_out = 10, border_size = 2 } })' >/dev/null
+    fi ;;
+  square)
+    if [[ $(flip square) == on ]]; then
+      hyprctl eval 'hl.config({ layout = { single_window_aspect_ratio = "1 1" } })' >/dev/null
+      notify-send -a Layout -t 2000 "A lone window stays square"
+    else
+      hyprctl eval 'hl.config({ layout = { single_window_aspect_ratio = "0 0" } })' >/dev/null
+      notify-send -a Layout -t 2000 "A lone window fills the screen"
+    fi ;;
+  *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

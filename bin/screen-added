@@ -26,5 +26,5 @@ sleep ${NAMEPLATE_SETTLE:-2}                                   # let a wake-up o
 now=$(external)
 new=$(comm -13 "$seen" <(echo "$now") 2>/dev/null | grep .)
 echo "$now" >"$seen"                      # unplugged screens drop out, so re-plugging announces again
-[[ -n $new ]] && notify-send -a Display "Screen connected" "Press SUPER + P to mirror or change the layout"
+[[ -n $new ]] && notify-send -a Display "Screen connected" "Press SUPER + CTRL + D to mirror or change the layout"
 exit 0

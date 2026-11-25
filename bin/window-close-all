@@ -1,0 +1,6 @@
+#!/bin/bash
+# Close every window on every workspace (CTRL + ALT + DELETE), like Omarchy's.
+# Apps get a normal close request, so ones with unsaved work can still ask.
+hyprctl -j clients 2>/dev/null | jq -r '.[] | select(.mapped) | .address' | while read -r address; do
+  hyprctl dispatch "hl.dsp.window.close({ window = \"address:$address\" })" >/dev/null
+done

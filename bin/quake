@@ -1,0 +1,9 @@
+#!/bin/bash
+# A drop-down terminal over everything, like Omarchy's Quake console (SUPER + GRAVE).
+# The first press starts it; after that the same key shows and hides it.
+# hyprland.lua's "quake" rule puts it on the special:quake workspace at the top.
+if hyprctl -j clients 2>/dev/null | jq -e 'any(.[]; .class == "nameplate-quake")' >/dev/null; then
+  hyprctl dispatch 'hl.dsp.workspace.toggle_special("quake")' >/dev/null
+else
+  setsid -f alacritty --class nameplate-quake --title Console >/dev/null 2>&1
+fi

@@ -432,7 +432,9 @@ class CalendarPanel(Panel):
     width = 300
     anchor = "center"
 
-    def __init__(self, app):
+    CLOCKS = os.path.expanduser("~/.config/nameplate/clocks")
+
+    def __init__(self, app, route=None):
         super().__init__(app)
         today = datetime.date.today()
         self.box.pack_start(label(today.strftime("%A"), "np-dim", xalign=0.5), False, False, 0)
@@ -442,11 +444,47 @@ class CalendarPanel(Panel):
                                      | Gtk.CalendarDisplayOptions.SHOW_DAY_NAMES)
         self.box.pack_start(self.cal, False, False, 4)
         self.box.pack_start(row(I["refresh"], "Back to today", on_click=self.today), False, False, 0)
+        self.world_clock(hint=route == "clock")
         self.media = MediaPanel(app, compact=True)
         self.box.pack_start(self.media.box, False, False, 0)
 
     def shown(self):
         self.media.shown()
+
+    def world_clock(self, hint=False):
+        """Like Omarchy's world clock (SUPER + CTRL + ALT + E): the time in the places
+        listed in ~/.config/nameplate/clocks, one per line, e.g. "Europe/London" or
+        "Mum  America/Toronto" (a name, then the time zone)."""
+        try:
+            from zoneinfo import ZoneInfo
+            with open(self.CLOCKS) as f:
+                lines = [l.strip() for l in f if l.strip() and not l.lstrip().startswith("#")]
+        except (OSError, ImportError):
+            lines = []
+        rows = []
+        for line in lines:
+            parts = line.split()
+            zone = parts[-1]
+            name = " ".join(parts[:-1]) or zone.split("/")[-1].replace("_", " ")
+            try:
+                now = datetime.datetime.now(ZoneInfo(zone))
+            except Exception:
+                continue
+            day = now.date() - datetime.date.today()
+            rel = {-1: "yesterday", 0: "", 1: "tomorrow"}.get(day.days, "")
+            rows.append((name, now.strftime("%H:%M") + ("  " + rel if rel else "")))
+        if not rows and not hint:
+            return
+        self.box.pack_start(Gtk.Separator(), False, False, 4)
+        if not rows:
+            self.box.pack_start(label("Add places to ~/.config/nameplate/clocks,\none per line: "
+                                      "Europe/London", "np-dim"), False, False, 0)
+            return
+        for name, when in rows:
+            line = hbox(10)
+            line.pack_start(label(name), False, False, 0)
+            line.pack_end(label(when, "np-dim"), False, False, 0)
+            self.box.pack_start(line, False, False, 0)
 
     def today(self):
         t = datetime.date.today()
@@ -2717,6 +2755,40 @@ def in_terminal(title, command):
     return ["alacritty", "--class", "nameplate-float", "--title", title, "-e", "bash", "-c", script]
 
 
+def notification_items():
+    """Trigger -> Notifications (SUPER + SHIFT + ALT + comma): the recent ones mako
+    keeps, newest first. Picking one copies its text."""
+    try:
+        data = json.loads(out("makoctl", "history", timeout=3) or "{}")
+        history = data.get("data", [[]])[0]
+    except (ValueError, AttributeError, IndexError):
+        history = []
+    items = []
+    for n in history[:30]:
+        field = lambda k: (n.get(k) or {}).get("data") or ""
+        summary, body, app = field("summary"), field("body"), field("app-name")
+        if app == "nameplate-osd":          # volume / brightness popups aren't news
+            continue
+        text = summary + ("\n" + body if body else "")
+        items.append({"icon": g(0xF009A), "label": summary or body or "(empty)", "right": app,
+                      "run": ["sh", "-c", 'printf %s "$1" | wl-copy', "sh", text]})
+    return items or [{"icon": "", "label": "No notifications yet", "info": True}]
+
+
+def reminder_items():
+    """Trigger -> Reminders: the ones waiting, plus set / clear (bin/reminder)."""
+    rem = BIN + "/reminder"
+    items = [{"icon": g(0xF0415), "label": "New reminder", "run": [rem, "set"]}]
+    for line in out(rem, "list", "--plain", timeout=5).splitlines():
+        when, _, text = line.partition("\t")
+        if text:
+            items.append({"icon": g(0xF0E1E), "label": text, "right": when, "info": False,
+                          "run": [rem, "list"]})
+    if len(items) > 1:
+        items.append({"icon": g(0xF0A7A), "label": "Clear all", "run": [rem, "clear"]})
+    return items
+
+
 def font_items():
     """Style -> Font: installed Nerd Fonts, terminal size, and fonts to download."""
     font = BIN + "/font"
@@ -2776,9 +2848,15 @@ class MenuPanel(Panel):
 
         self.root = self.tree()
         self.stack.append(("Go", self.root))
-        for item in self.root:           # e.g. "panel menu system" opens System directly
-            if route and item["label"].lower() == route.lower() and "sub" in item:
-                self.stack.append((item["label"], self.items_of(item)))
+        # e.g. "panel menu system" opens System directly, "panel menu trigger/capture"
+        # opens Capture inside Trigger
+        items = self.root
+        for part in (route or "").lower().split("/"):
+            item = next((i for i in items if i["label"].lower() == part and "sub" in i), None)
+            if item is None:
+                break
+            items = self.items_of(item)
+            self.stack.append((item["label"], items))
         self.fill()
 
     def shown(self):
@@ -2813,6 +2891,8 @@ class MenuPanel(Panel):
         if shutil.which("fwupdmgr"):
             updates.append({"icon": g(0xF061A), "label": "Firmware",
                             "run": in_terminal("Update", "fwupdmgr refresh; fwupdmgr update")})
+        state = os.path.expanduser("~/.local/state/nameplate")
+        flag = lambda name: "on" if os.path.exists(os.path.join(state, name)) else "off"
         record = ([{"icon": g(0xF04DB), "label": "Stop recording", **run_(B + "screenrecord")}] if recording else [
             {"icon": g(0xF019E), "label": "Region", **run_(B + "screenrecord")},
             {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenrecord", "full")},
@@ -2829,20 +2909,38 @@ class MenuPanel(Panel):
                  **run_("xdg-open", "https://github.com/adoodevv/hypr-nameplate")},
             ]},
             {"icon": g(0xF14DE), "label": "Trigger", "sub": [
-                {"icon": g(0xF0100), "label": "Screenshot", "sub": [
-                    {"icon": g(0xF019E), "label": "Region", **run_(B + "screenshot", "region")},
-                    {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenshot", "full")}]},
-                {"icon": g(0xF044A), "label": "Stop recording" if recording else "Screen recording",
-                 **({"run": record[0]["run"]} if recording else {"sub": record})},
+                # SUPER + CTRL + C
+                {"icon": g(0xF0100), "label": "Capture", "sub": [
+                    {"icon": g(0xF0100), "label": "Screenshot", "sub": [
+                        {"icon": g(0xF019E), "label": "Region", **run_(B + "screenshot", "region")},
+                        {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenshot", "full")}]},
+                    {"icon": g(0xF044A), "label": "Stop recording" if recording else "Screen recording",
+                     **({"run": record[0]["run"]} if recording else {"sub": record})},
+                    {"icon": g(0xF0266), "label": "Colour picker", **run_(B + "colour-picker")},
+                    {"icon": g(0xF09ED), "label": "Text from screen", **run_(B + "ocr")},
+                ]},
+                # SUPER + CTRL + O
+                {"icon": g(0xF0A1F), "label": "Toggle", "sub": [
+                    {"icon": g(0xF009B), "label": "Do not disturb", "right": "on" if dnd else "off",
+                     **run_(B + "dnd")},
+                    {"icon": g(0xF0176), "label": "Stay awake", "right": "on" if awake else "off",
+                     **run_(B + "stay-awake")},
+                    {"icon": g(0xF050E), "label": "Night light", "right": "on" if night else "off",
+                     **run_(B + "nightlight")},
+                    {"icon": g(0xF0209), "label": "Top bar", **run_("pkill", "-SIGUSR1", "waybar")},
+                    {"icon": g(0xF0E79), "label": "Window gaps", "right": "off" if flag("no-gaps") == "on" else "on",
+                     **run_(B + "toggle", "gaps")},
+                    {"icon": g(0xF0A27), "label": "Square window", "right": flag("square"),
+                     **run_(B + "toggle", "square")},
+                    {"icon": g(0xF0322), "label": "Laptop screen", **run_(B + "display", "laptop")},
+                    {"icon": g(0xF1483), "label": "Mirror screens", **run_(B + "display", "mirror")},
+                ]},
                 {"icon": I["clip"], "label": "Clipboard", **panel("clipboard")},
+                {"icon": g(0xF009A), "label": "Notifications", "sub": notification_items},
+                {"icon": g(0xF0E1E), "label": "Reminders", "sub": reminder_items},
+                {"icon": g(0xF0F8C), "label": "Transcode", **run_(B + "transcode")},
                 {"icon": g(0xF06A9), "label": "AI agents", **panel("agents")},
                 {"icon": g(0xF01F5), "label": "Emoji", **panel("emoji")},
-                {"icon": g(0xF009B), "label": "Do not disturb", "right": "on" if dnd else "off",
-                 **run_(B + "dnd")},
-                {"icon": g(0xF0176), "label": "Stay awake", "right": "on" if awake else "off",
-                 **run_(B + "stay-awake")},
-                {"icon": g(0xF050E), "label": "Night light", "right": "on" if night else "off",
-                 **run_(B + "nightlight")},
             ]},
             {"icon": g(0xEBCF), "label": "Style", "sub": [
                 {"icon": g(0xF0E0C), "label": "Theme", **panel("themes")},

@@ -1,0 +1,10 @@
+#!/bin/bash
+# Screen magnifier around the pointer, like Omarchy's.
+#   zoom in    SUPER + CTRL + Z         (each press zooms further, up to 6x)
+#   zoom out   SUPER + CTRL + ALT + Z   (back down to 1x, no zoom)
+now=$(hyprctl getoption cursor:zoom_factor 2>/dev/null | awk '/float/ { print $2; exit }')
+next=$(awk -v z="${now:-1}" -v dir="${1:-in}" 'BEGIN {
+  z = (dir == "out") ? z / 1.5 : z * 1.5
+  if (z < 1.05) z = 1; if (z > 6) z = 6
+  printf "%.3f", z }')
+hyprctl eval "hl.config({ cursor = { zoom_factor = $next } })" >/dev/null

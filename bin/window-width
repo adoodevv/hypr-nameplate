@@ -1,0 +1,16 @@
+#!/bin/bash
+# Remember a window's width and put it back later, like Omarchy's.
+#   window-width save      SUPER + ALT + HOME
+#   window-width restore   SUPER + HOME
+store="${XDG_RUNTIME_DIR:-/tmp}/nameplate-window-width"
+read -r address width height < <(hyprctl -j activewindow 2>/dev/null | jq -r '"\(.address) \(.size[0]) \(.size[1])"')
+[[ -n $address && $address != null ]] || exit 0
+case "${1:-}" in
+  save)
+    echo "$width" > "$store"
+    notify-send -a Window -t 1500 "Width saved" "${width}px" ;;
+  restore)
+    saved=$(cat "$store" 2>/dev/null) || exit 0
+    hyprctl dispatch "hl.dsp.window.resize({ x = $saved, y = $height, relative = false, window = \"address:$address\" })" >/dev/null ;;
+  *) exit 1 ;;
+esac

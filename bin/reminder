@@ -1,0 +1,79 @@
+#!/bin/bash
+# Reminders, like Omarchy's: a notification at a set time, kept by systemd so it
+# fires even if the bar or panels restart (not across a reboot or logout).
+#   reminder set [WHEN TEXT]   SUPER + CTRL + R; asks when it's not given.
+#                              WHEN: 20m, 1h30m, 90s, "in 10 minutes", or a time: 15:30, at 9am
+#   reminder list [--plain]    SUPER + CTRL + ALT + R (--plain: "HH:MM<TAB>text" lines)
+#   reminder clear             SUPER + CTRL + SHIFT + R
+prefix=nameplate-reminder-
+
+parse() {   # parse "WHEN TEXT..." -> prints "SECONDS<TAB>TEXT", or fails
+  local input="$1" when rest secs
+  input="${input#in }"; input="${input#at }"
+  # "10 minutes tea" -> "10m tea"
+  input=$(sed -E 's/^([0-9]+) *(s|sec|secs|seconds?)\b/\1s/; s/^([0-9]+) *(m|min|mins|minutes?)\b/\1m/;
+                  s/^([0-9]+) *(h|hr|hrs|hours?)\b/\1h/' <<<"$input")
+  when="${input%% *}"; rest="${input#"$when"}"; rest="${rest# }"
+  if [[ $when =~ ^([0-9]+h)?([0-9]+m)?([0-9]+s)?$ && -n $when ]]; then
+    secs=0
+    [[ $when =~ ([0-9]+)h ]] && secs=$(( secs + BASH_REMATCH[1] * 3600 ))
+    [[ $when =~ ([0-9]+)m ]] && secs=$(( secs + BASH_REMATCH[1] * 60 ))
+    [[ $when =~ ([0-9]+)s ]] && secs=$(( secs + BASH_REMATCH[1] ))
+  elif [[ $when =~ ^[0-9]{1,2}(:[0-9]{2})?([ap]m)?$ ]] && target=$(date -d "$when" +%s 2>/dev/null); then
+    now=$(date +%s)
+    (( target <= now )) && target=$(( target + 86400 ))     # already past today: tomorrow
+    secs=$(( target - now ))
+  else
+    return 1
+  fi
+  (( secs > 0 )) || return 1
+  printf '%s\t%s\n' "$secs" "${rest:-Reminder}"
+}
+
+ask() {
+  fuzzel --dmenu --prompt-only "Remind me  " --placeholder "20m stretch  ·  15:30 call home" \
+    --anchor top --y-margin 120 --width 44 --lines 0 2>/dev/null
+}
+
+timers() {   # "NEXT_USEC<TAB>UNIT" for every waiting reminder, soonest first
+  systemctl --user list-timers --all --output=json "${prefix}*" 2>/dev/null |
+    jq -r '.[] | select(.next > 0) | "\(.next)\t\(.unit)"' | sort -n
+}
+
+case "${1:-set}" in
+  set)
+    shift
+    input="$*"
+    [[ -n $input ]] || input=$(ask)
+    [[ -n $input ]] || exit 0
+    if ! parsed=$(parse "$input"); then
+      notify-send -a Reminder -t 4000 "Couldn't read when" "Try \"20m stretch\" or \"15:30 call home\""
+      exit 1
+    fi
+    secs=${parsed%%$'\t'*}; text=${parsed#*$'\t'}
+    unit="$prefix$(date +%s)-$RANDOM"
+    systemd-run --user --quiet --unit="$unit" --on-active="${secs}s" --timer-property=AccuracySec=1s \
+      --description="$text" \
+      notify-send -a Reminder -u critical -i alarm-symbolic "Reminder" "$text" || exit 1
+    notify-send -a Reminder -t 2500 "Reminder at $(date -d "+$secs seconds" +%H:%M)" "$text" ;;
+  list)
+    lines=()
+    while IFS=$'\t' read -r next unit; do
+      text=$(systemctl --user show -P Description "$unit" 2>/dev/null)
+      lines+=("$(date -d "@$(( next / 1000000 ))" +%H:%M)"$'\t'"$text")
+    done < <(timers)
+    if [[ ${2:-} == --plain ]]; then
+      (( ${#lines[@]} )) && printf '%s\n' "${lines[@]}"; true
+    elif (( ${#lines[@]} )); then
+      notify-send -a Reminder -t 6000 "Reminders" "$(printf '%s\n' "${lines[@]}" | sed 's/\t/  /')"
+    else
+      notify-send -a Reminder -t 2500 "No reminders set"
+    fi ;;
+  clear)
+    n=0
+    while IFS=$'\t' read -r _ unit; do
+      systemctl --user stop "$unit" 2>/dev/null && n=$(( n + 1 ))
+    done < <(timers)
+    notify-send -a Reminder -t 2500 "$( (( n )) && echo "Cleared $n reminder$( (( n > 1 )) && echo s)" || echo "No reminders set")" ;;
+  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

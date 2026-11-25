@@ -1,0 +1,13 @@
+#!/bin/bash
+# Copy the text in a part of the screen (SUPER + CTRL + PRINT): select a region and
+# its text lands on the clipboard, read with Tesseract like Omarchy's text extraction.
+command -v tesseract >/dev/null || {
+  notify-send -a "Text from screen" "Needs Tesseract" "sudo apt install tesseract-ocr"; exit 1; }
+region=$(slurp 2>/dev/null) || exit 0
+text=$(grim -g "$region" - | tesseract stdin stdout -l "${OCR_LANG:-eng}" 2>/dev/null | sed -e 's/[[:space:]]*$//' -e '/./,$!d')
+if [[ -z ${text//[[:space:]]/} ]]; then
+  notify-send -a "Text from screen" -t 2500 "No text found there"
+  exit 0
+fi
+printf '%s' "$text" | wl-copy
+notify-send -a "Text from screen" -t 3000 "Text copied" "$(head -c 160 <<<"$text")"

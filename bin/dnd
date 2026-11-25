@@ -1,5 +1,5 @@
 #!/bin/bash
-# Do not disturb on/off (SUPER + CTRL + comma). While on, notifications are kept
+# Do not disturb on/off (SUPER + CTRL + ALT + comma). While on, notifications are kept
 # out of sight (critical ones still show) and a bell icon appears in the bar.
 if makoctl mode | grep -qx do-not-disturb; then
   makoctl mode -r do-not-disturb >/dev/null

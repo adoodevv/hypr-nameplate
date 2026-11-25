@@ -1,0 +1,24 @@
+#!/bin/bash
+# Quick notices, like Omarchy's: the time, the battery or the weather as a notification.
+#   notice time      SUPER + CTRL + ALT + T
+#   notice battery   SUPER + CTRL + ALT + B
+#   notice weather   SUPER + CTRL + ALT + W
+case "${1:-time}" in
+  time)
+    notify-send -a Time -t 3000 "$(date +%H:%M)" "$(date '+%A %-d %B %Y, week %V')" ;;
+  battery)
+    dev=$(upower -e 2>/dev/null | grep -m1 BAT)
+    if [[ -z $dev ]]; then notify-send -a Battery -t 2500 "No battery"; exit 0; fi
+    info=$(upower -i "$dev")
+    pct=$(awk '/percentage/ { print $2 }' <<<"$info")
+    state=$(awk '/state/ { print $2 }' <<<"$info")
+    left=$(awk -F': *' '/time to (empty|full)/ { print $1 ": " $2 }' <<<"$info" | sed 's/^ *//')
+    notify-send -a Battery -t 3000 "Battery $pct" "${state//-/ }${left:+, $left}" ;;
+  weather)
+    text=$("$(dirname "$0")/weather" data 2>/dev/null | jq -r '
+      .data.current_condition[0] as $c | .data.nearest_area[0].areaName[0].value as $where
+      | "\($c.temp_C)°C, feels like \($c.FeelsLikeC)°C\n\($c.weatherDesc[0].value)"
+        + (if $where then " in \($where)" else "" end)' 2>/dev/null)
+    notify-send -a Weather -t 4000 "Weather" "${text:-Not available right now}" ;;
+  *) exit 1 ;;
+esac

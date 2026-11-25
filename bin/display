@@ -7,6 +7,11 @@
     display restore                 put the remembered settings back (at login)
     display text [PX]               text size, 9-20 px like Omarchy (12 is normal):
                                     GTK apps' text scaling plus the terminal font
+    display laptop                  built-in screen off / on, while another screen is
+                                    plugged in (SUPER + CTRL + DELETE)
+    display mirror                  mirror the built-in screen onto the other one, or
+                                    stop mirroring (SUPER + CTRL + ALT + DELETE)
+    display scale-next              next scale for the focused screen (SUPER + /)
 
 Remembered settings live in ~/.config/nameplate/monitors.json.
 """
@@ -109,6 +114,59 @@ def set_text_size(px):
     return px
 
 
+def notify(title, body=""):
+    run("notify-send", "-a", "Display", "-t", "2500", title, *([body] if body else []), timeout=5)
+
+
+def split_screens():
+    """(built-in screen, first other screen) from hyprctl, either may be None."""
+    all_ = screens()
+    lap = next((m for m in all_ if m["name"].startswith(INTERNAL)), None)
+    ext = next((m for m in all_ if not m["name"].startswith(INTERNAL)), None)
+    return lap, ext
+
+
+def toggle_laptop():
+    lap, ext = split_screens()
+    if lap is None:
+        return notify("No built-in screen")
+    if lap.get("disabled"):
+        apply(lap, saved().get(lap["name"], {}))
+        return notify("Built-in screen on")
+    if ext is None or ext.get("disabled"):
+        return notify("Built-in screen stays on", "Plug in another screen first")
+    rc, _ = run("hyprctl", "eval", 'hl.monitor({ output = "%s", disabled = true })' % lap["name"])
+    notify("Built-in screen off", "SUPER + CTRL + DELETE turns it back on")
+
+
+def toggle_mirror():
+    lap, ext = split_screens()
+    if lap is None or ext is None:
+        return notify("Nothing to mirror", "Plug in another screen first")
+    if any(m.get("mirrorOf") not in (None, "", "none") for m in screens()):
+        run("hyprctl", "reload")             # back to the config's layout...
+        main_args(["restore"])               # ...plus the scales and modes you picked
+        return notify("Mirroring off")
+    if lap.get("disabled"):
+        apply(lap, saved().get(lap["name"], {}))
+    rc, text = run("hyprctl", "eval", 'hl.monitor({ output = "%s", mode = "preferred", position = "auto", '
+                   'scale = 1, mirror = "%s" })' % (ext["name"], lap["name"]))
+    notify("Mirroring the built-in screen" if rc == 0 else "Couldn't mirror", text if rc else "")
+
+
+def scale_next():
+    focused = next((m for m in screens() if m.get("focused")), None)
+    if focused is None:
+        return
+    size = "%dx%d" % (focused["width"], focused["height"])
+    valid = [v for v in CANDIDATE_SCALES if scale_valid(size, v)] or ["1"]
+    now = number(focused["scale"])
+    nxt = valid[(valid.index(now) + 1) % len(valid)] if now in valid else valid[0]
+    rc = subprocess.run([sys.executable, os.path.abspath(__file__), "set", focused["name"], "scale", nxt]).returncode
+    if rc == 0:
+        notify("Scale %s" % nxt, focused["name"])
+
+
 def info():
     out = []
     for m in screens():
@@ -132,7 +190,10 @@ def info():
 
 
 def main():
-    args = sys.argv[1:]
+    main_args(sys.argv[1:])
+
+
+def main_args(args):
     cmd = args[0] if args else ""
     if cmd == "":
         print(json.dumps(info()))
@@ -171,6 +232,12 @@ def main():
                 del changes["scale"]
             if changes:
                 apply(m, changes)
+    elif cmd == "laptop":
+        toggle_laptop()
+    elif cmd == "mirror":
+        toggle_mirror()
+    elif cmd == "scale-next":
+        scale_next()
     elif cmd == "text":
         print(set_text_size(args[1]) if len(args) > 1 else text_size())
     else:

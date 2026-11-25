@@ -22,7 +22,10 @@
     SUPER + CTRL + I        Stay awake: no screensaver or lock (a cup shows in the bar)
     SUPER + CTRL + M        Mute or unmute the microphone
     SUPER + CTRL + D        Screens: extend, mirror or one screen (projector)
-    Night light has no key: click its icon before the clock in the bar.
+    SUPER + CTRL + O        Toggles: do not disturb, stay awake, night light, gaps...
+    SUPER + SHIFT + T       Activity (btop)
+    SUPER + grave           Quake console: a terminal that drops down over everything
+                            (SUPER + SHIFT + grave sends a window there)
 
   WINDOWS
     SUPER + W  (or Q)       Close window
@@ -43,10 +46,21 @@
     SUPER + left-drag       Move window with the mouse
     SUPER + right-drag      Resize window with the mouse
     ALT + Tab               Next window (SHIFT for previous)
+    SUPER + ALT + arrows    Join the group in that direction
+    SUPER + ALT + Tab       Next window in the group (SUPER + ALT + 1..5 jumps)
+    SUPER + ALT + HOME      Remember this window's width (SUPER + HOME puts it back)
+    SUPER + BACKSPACE       Window see-through / solid
+    SUPER + SHIFT + BACKSPACE   Gaps between windows off / on
+    SUPER + CTRL + BACKSPACE    Keep a lone window square on a wide screen
+    CTRL + ALT + DELETE     Close every window
+    SUPER + C / X / V / A   Copy / cut / paste / select all, in every app (terminals too)
 
   WORKSPACES
     SUPER + 1..0            Go to workspace 1-10
     SUPER + SHIFT + 1..0    Send window to workspace 1-10
+    SUPER + SHIFT + ALT + 1..0  Send window there but stay here
+    SUPER + SHIFT + CTRL + arrows   Send window to the screen in that direction
+    SUPER + SHIFT + ALT + arrows    Send this workspace to that screen
     SUPER + Tab             Next workspace (SHIFT for previous, CTRL for the one before)
     SUPER + L               Cycle this workspace's layout: tiling, scrolling, floating.
                             Floating workspaces are where the dock lives.
@@ -62,12 +76,23 @@
     ALT + SHIFT + Print     Record the whole screen
     ALT + CTRL + Print      Record the whole screen with your microphone
                             Recordings go to ~/Videos/Screencasts
+    SUPER + CTRL + C        Capture menu (screenshot, recording, colour, text)
+    SUPER + Print           Pick a colour on screen (hex copied)
+    SUPER + CTRL + Print    Copy the text in a part of the screen (OCR)
+    SUPER + CTRL + .        Convert a video or picture (MP4, WebM, GIF, PNG, JPG, WebP)
+    SUPER + CTRL + R        Set a reminder ("20m stretch", "15:30 call home")
+    SUPER + CTRL + ALT + R  List reminders (SUPER + CTRL + SHIFT + R clears them)
+    SUPER + CTRL + ALT + T / B / W   Time / battery / weather as a notification
+    SUPER + CTRL + ALT + D  Calendar (ALT + E: with the world clock)
+    SUPER + CTRL + Z        Zoom in around the pointer (SUPER + CTRL + ALT + Z: out)
 
   NOTIFICATIONS
-    SUPER + comma           Dismiss the latest
+    SUPER + comma           Open the latest (its link or app)
+    SUPER + ALT + comma     Dismiss the latest
     SUPER + SHIFT + comma   Dismiss all
-    SUPER + ALT + comma     Bring back the last one dismissed
-    SUPER + CTRL + comma    Do not disturb on / off (bell in the bar while on)
+    SUPER + CTRL + comma    Pick one of the latest's actions from the keyboard
+    SUPER + SHIFT + ALT + comma   Recent notifications (pick one to copy it)
+    SUPER + CTRL + ALT + comma    Do not disturb on / off (bell in the bar while on)
 
   PANELS
     SUPER + CTRL + A        Sound and brightness
@@ -75,11 +100,17 @@
     SUPER + CTRL + N        Network (Wi-Fi)
     SUPER + CTRL + P        Battery and power mode
     SUPER + CTRL + D        Screens
+    SUPER + CTRL + 1..9     The bar's panels, left to right
+    SUPER + CTRL + DELETE   Laptop screen off / on (with another screen plugged in)
+    SUPER + CTRL + ALT + DELETE   Mirror the laptop screen / stop mirroring
+    SUPER + /               Next scale for this screen
 
   OTHER
     SUPER + SHIFT + S       Screenshot a region      (or Print)
     SUPER + SHIFT + P       Screenshot the whole screen  (or SHIFT + Print)
     SUPER + SHIFT + Space   Hide / show the top bar
+    Volume / brightness keys: hold ALT for 1% steps; SHIFT + brightness for max / min;
+    SHIFT + mute for the next sound output; ALT + play for the next track
   TOP BAR (click the icons)
     Date and time           Calendar, with the player underneath while music plays
     Music icon              Shown beside the time while something plays; same panel

@@ -162,6 +162,23 @@ hl.config({
   },
 })
 
+-- Toggles that outlast a reload (bin/toggle): no gaps (SUPER + SHIFT + BACKSPACE)
+-- and a square lone window (SUPER + CTRL + BACKSPACE)
+do
+  local state = home .. "/.local/state/nameplate/"
+  local function flag(name)
+    local f = io.open(state .. name, "r")
+    if f then f:close() return true end
+    return false
+  end
+  if flag("no-gaps") then
+    hl.config({ general = { gaps_in = 0, gaps_out = 0, border_size = 0 } })
+  end
+  if flag("square") then
+    hl.config({ layout = { single_window_aspect_ratio = "1 1" } })
+  end
+end
+
 -- Animation curves and timings follow Omarchy's defaults (speed = tenths of a second).
 hl.curve("easeOutQuint",   { type = "bezier", points = { { 0.23, 1 },    { 0.32, 1 } } })
 hl.curve("easeInOutCubic", { type = "bezier", points = { { 0.65, 0.05 }, { 0.36, 1 } } })
@@ -244,14 +261,63 @@ hl.bind(mod .. " + CTRL + N", hl.dsp.exec_cmd(bin .. "panel wifi"))
 hl.bind(mod .. " + CTRL + P", hl.dsp.exec_cmd(bin .. "panel power"))
 hl.bind(mod .. " + CTRL + V", hl.dsp.exec_cmd(bin .. "panel clipboard"))
 hl.bind(mod .. " + CTRL + E", hl.dsp.exec_cmd(bin .. "panel emoji"))
+hl.bind(mod .. " + CTRL + C", hl.dsp.exec_cmd(bin .. "panel menu trigger/capture"))
+hl.bind(mod .. " + CTRL + O", hl.dsp.exec_cmd(bin .. "panel menu trigger/toggle"))
+hl.bind(mod .. " + CTRL + period", hl.dsp.exec_cmd(bin .. "transcode"))
+hl.bind(mod .. " + CTRL + ALT + D", hl.dsp.exec_cmd(bin .. "panel calendar"))
+hl.bind(mod .. " + CTRL + ALT + E", hl.dsp.exec_cmd(bin .. "panel calendar clock"))
+hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd("alacritty --class nameplate-float --title Activity -e btop"))
+
+-- SUPER + CTRL + 1..9: the bar's panels, left to right (menu, calendar, weather,
+-- agents, Bluetooth, sound, network, display, power), like Omarchy's
+for i, kind in ipairs({ "menu", "calendar", "weather", "agents", "bluetooth", "sound", "wifi", "display", "power" }) do
+  hl.bind(mod .. " + CTRL + " .. i, hl.dsp.exec_cmd(bin .. "panel " .. kind))
+end
+
+-- Notices: the time, battery or weather as a notification (bin/notice)
+hl.bind(mod .. " + CTRL + ALT + T", hl.dsp.exec_cmd(bin .. "notice time"))
+hl.bind(mod .. " + CTRL + ALT + B", hl.dsp.exec_cmd(bin .. "notice battery"))
+hl.bind(mod .. " + CTRL + ALT + W", hl.dsp.exec_cmd(bin .. "notice weather"))
+
+-- Reminders (bin/reminder): set one ("20m stretch", "15:30 call home"), list, clear
+hl.bind(mod .. " + CTRL + R",         hl.dsp.exec_cmd(bin .. "reminder set"))
+hl.bind(mod .. " + CTRL + ALT + R",   hl.dsp.exec_cmd(bin .. "reminder list"))
+hl.bind(mod .. " + CTRL + SHIFT + R", hl.dsp.exec_cmd(bin .. "reminder clear"))
 hl.bind(mod .. " + CTRL + I", hl.dsp.exec_cmd(bin .. "stay-awake"))      -- no screensaver/lock (Omarchy's key)
 hl.bind(mod .. " + CTRL + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; pkill -RTMIN+13 waybar"))
 
--- Notifications
-hl.bind(mod .. " + comma",          hl.dsp.exec_cmd("makoctl dismiss"))
-hl.bind(mod .. " + SHIFT + comma",  hl.dsp.exec_cmd("makoctl dismiss --all"))
-hl.bind(mod .. " + ALT + comma",    hl.dsp.exec_cmd("makoctl restore"))
-hl.bind(mod .. " + CTRL + comma",   hl.dsp.exec_cmd(bin .. "dnd"))
+-- Notifications, on Omarchy 4.5's keys: act on the newest (opens its link or app),
+-- pick one of its actions from the keyboard, dismiss, history, silence
+hl.bind(mod .. " + comma",               hl.dsp.exec_cmd("makoctl invoke"))
+hl.bind(mod .. " + ALT + comma",         hl.dsp.exec_cmd("makoctl dismiss"))
+hl.bind(mod .. " + SHIFT + comma",       hl.dsp.exec_cmd("makoctl dismiss --all"))
+hl.bind(mod .. " + CTRL + comma",        hl.dsp.exec_cmd("makoctl menu fuzzel --dmenu --prompt 'Action  '"))
+hl.bind(mod .. " + SHIFT + ALT + comma", hl.dsp.exec_cmd(bin .. "panel menu trigger/notifications"))
+hl.bind(mod .. " + CTRL + ALT + comma",  hl.dsp.exec_cmd(bin .. "dnd"))
+
+-- Universal clipboard: SUPER + C / X / V / A copy, cut, paste and select all in
+-- every app, terminals included (they're sent as CTRL/SHIFT + INSERT, which
+-- terminals and GTK, Qt and Chrome apps all understand)
+hl.bind(mod .. " + C", hl.dsp.send_shortcut({ mods = "CTRL",  key = "Insert" }))
+hl.bind(mod .. " + X", hl.dsp.send_shortcut({ mods = "SHIFT", key = "Delete" }))
+hl.bind(mod .. " + V", hl.dsp.send_shortcut({ mods = "SHIFT", key = "Insert" }))
+hl.bind(mod .. " + A", hl.dsp.send_shortcut({ mods = "CTRL",  key = "A" }))
+
+-- Quake console: a terminal that drops down over everything (bin/quake)
+hl.bind(mod .. " + grave",         hl.dsp.exec_cmd(bin .. "quake"))
+hl.bind(mod .. " + SHIFT + grave", hl.dsp.window.move({ workspace = "special:quake" }))
+
+-- Screens: laptop screen off/on, mirroring, scale (bin/display); magnifier (bin/zoom)
+hl.bind(mod .. " + CTRL + Delete",       hl.dsp.exec_cmd(bin .. "display laptop"))
+hl.bind(mod .. " + CTRL + ALT + Delete", hl.dsp.exec_cmd(bin .. "display mirror"))
+hl.bind(mod .. " + slash",               hl.dsp.exec_cmd(bin .. "display scale-next"))
+hl.bind(mod .. " + CTRL + Z",            hl.dsp.exec_cmd(bin .. "zoom in"))
+hl.bind(mod .. " + CTRL + ALT + Z",      hl.dsp.exec_cmd(bin .. "zoom out"))
+
+-- Look: window transparency, gaps, a square lone window (bin/toggle)
+hl.bind(mod .. " + BackSpace",          hl.dsp.window.set_prop({ prop = "opaque", value = "toggle" }))
+hl.bind(mod .. " + SHIFT + BackSpace",  hl.dsp.exec_cmd(bin .. "toggle gaps"))
+hl.bind(mod .. " + CTRL + BackSpace",   hl.dsp.exec_cmd(bin .. "toggle square"))
 
 -- Windows
 hl.bind(mod .. " + W",       hl.dsp.window.close())
@@ -268,6 +334,13 @@ hl.bind(mod .. " + G",       hl.dsp.group.toggle())
 hl.bind(mod .. " + ALT + G", hl.dsp.window.move({ out_of_group = true }))
 hl.bind(mod .. " + CTRL + Left",  hl.dsp.group.prev())
 hl.bind(mod .. " + CTRL + Right", hl.dsp.group.next())
+hl.bind(mod .. " + ALT + Tab",    hl.dsp.group.next())
+for i = 1, 5 do
+  hl.bind(mod .. " + ALT + " .. i, hl.dsp.group.active({ index = i }))
+end
+hl.bind("CTRL + ALT + Delete",    hl.dsp.exec_cmd(bin .. "window-close-all"))
+hl.bind(mod .. " + ALT + Home",   hl.dsp.exec_cmd(bin .. "window-width save"))
+hl.bind(mod .. " + Home",         hl.dsp.exec_cmd(bin .. "window-width restore"))
 hl.bind("ALT + Tab",         hl.dsp.window.cycle_next())
 hl.bind("ALT + Tab",         hl.dsp.window.bring_to_top())
 hl.bind("ALT + SHIFT + Tab", hl.dsp.window.cycle_next({ next = false }))
@@ -278,6 +351,9 @@ local directions = { left = "l", right = "r", up = "u", down = "d" }
 for key, dir in pairs(directions) do
   hl.bind(mod .. " + " .. key,         hl.dsp.focus({ direction = dir }))
   hl.bind(mod .. " + SHIFT + " .. key, hl.dsp.window.swap({ direction = dir }))
+  hl.bind(mod .. " + ALT + " .. key,   hl.dsp.window.move({ into_group = dir }))       -- join that group
+  hl.bind(mod .. " + SHIFT + CTRL + " .. key, hl.dsp.window.move({ monitor = dir }))  -- window to that screen
+  hl.bind(mod .. " + SHIFT + ALT + " .. key,  hl.dsp.workspace.move({ monitor = dir })) -- workspace to that screen
 end
 
 -- Resize the focused window
@@ -291,6 +367,7 @@ for i = 1, 10 do
   local key = i % 10
   hl.bind(mod .. " + " .. key,         hl.dsp.focus({ workspace = i }))
   hl.bind(mod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
+  hl.bind(mod .. " + SHIFT + ALT + " .. key, hl.dsp.window.move({ workspace = i, follow = false }))
 end
 hl.bind(mod .. " + Tab",         hl.dsp.focus({ workspace = "m+1" }))
 hl.bind(mod .. " + SHIFT + Tab", hl.dsp.focus({ workspace = "m-1" }))
@@ -323,6 +400,11 @@ hl.bind("ALT + CTRL + Print",   hl.dsp.exec_cmd(bin .. "screenrecord full mic"))
 -- Same thing for laptops where Print needs the Fn key
 hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd(bin .. "screenshot region"))
 hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd(bin .. "screenshot full"))
+hl.bind(mod .. " + CTRL + ALT + C", hl.dsp.exec_cmd(bin .. "screenshot region"))   -- Omarchy's Print-less key
+
+-- Colour picker and text from the screen (OCR), both straight to the clipboard
+hl.bind(mod .. " + Print",        hl.dsp.exec_cmd(bin .. "colour-picker"))
+hl.bind(mod .. " + CTRL + Print", hl.dsp.exec_cmd(bin .. "ocr"))
 
 -- Volume, brightness and media keys (these also work on the lock screen)
 -- Each shows a small level indicator afterwards (bin/osd)
@@ -333,6 +415,17 @@ hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_S
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" .. osd .. "mic"),      { locked = true })
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+" .. osd .. "brightness"), { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-" .. osd .. "brightness"), { locked = true, repeating = true })
+-- Finer and coarser steps, like Omarchy: ALT for 1%, SHIFT + brightness for max / min,
+-- SHIFT + mute for the next sound output, ALT (+ SHIFT) + play for next (previous) track
+hl.bind("ALT + XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 1%+" .. osd .. "volume"), { locked = true, repeating = true })
+hl.bind("ALT + XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%-" .. osd .. "volume"),      { locked = true, repeating = true })
+hl.bind("ALT + XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -n2 set 1%+" .. osd .. "brightness"), { locked = true, repeating = true })
+hl.bind("ALT + XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -n2 set 1%-" .. osd .. "brightness"), { locked = true, repeating = true })
+hl.bind("SHIFT + XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl set 100%" .. osd .. "brightness"), { locked = true })
+hl.bind("SHIFT + XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -n2 set 1%" .. osd .. "brightness"), { locked = true })
+hl.bind("SHIFT + XF86AudioMute", hl.dsp.exec_cmd(bin .. "audio-next"), { locked = true })
+hl.bind("ALT + XF86AudioPlay",         hl.dsp.exec_cmd("playerctl next"),     { locked = true })
+hl.bind("ALT + SHIFT + XF86AudioPlay", hl.dsp.exec_cmd("playerctl previous"), { locked = true })
 hl.bind("XF86AudioNext",  hl.dsp.exec_cmd("playerctl next"),       { locked = true })
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioPlay",  hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
@@ -394,6 +487,17 @@ hl.window_rule({
   match = { class = "^nameplate-screensaver$" },
   fullscreen = true,
   no_anim    = true,
+})
+
+-- The Quake console (SUPER + GRAVE) lives on its own special workspace,
+-- a full-width strip along the top
+hl.window_rule({
+  name  = "quake-console",
+  match = { class = "^nameplate-quake$" },
+  workspace = "special:quake",
+  float = true,
+  size  = "monitor_w*0.98 monitor_h*0.45",
+  move  = "monitor_w*0.01 monitor_h*0.02",
 })
 
 -- Small utility windows float in the middle of the screen, at Omarchy's

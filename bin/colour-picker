@@ -1,0 +1,9 @@
+#!/bin/bash
+# Pick a colour anywhere on screen and copy its hex value (SUPER + PRINT), like Omarchy's.
+command -v hyprpicker >/dev/null || {
+  notify-send -a "Colour picker" "Colour picker needs hyprpicker" "sudo apt install hyprpicker"; exit 1; }
+colour=$(hyprpicker --autocopy --format=hex 2>/dev/null | tail -1)
+[[ $colour =~ ^#[0-9A-Fa-f]{6}$ ]] || exit 0
+swatch="${XDG_RUNTIME_DIR:-/tmp}/nameplate-swatch.svg"
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="%s"/></svg>' "$colour" > "$swatch"
+notify-send -a "Colour picker" -i "$swatch" -t 3000 "$colour" "Copied to the clipboard"

@@ -1,0 +1,45 @@
+#!/bin/bash
+# Convert a video or picture, like Omarchy's transcode menu (SUPER + CTRL + .).
+#   transcode [FILE]    asks for the file when it's not given, then what to make of it
+# The result lands next to the original; you get a notification when it's done.
+command -v ffmpeg >/dev/null || {
+  notify-send -a Transcode "Transcoding needs ffmpeg" "sudo apt install ffmpeg"; exit 1; }
+in=${1:-$(zenity --file-selection --title="Pick a video or picture to convert" 2>/dev/null)}
+[[ -f $in ]] || exit 0
+dropdown="$(dirname "$0")/dropdown"
+base="${in%.*}"
+
+case "${in,,}" in
+  *.mp4|*.mkv|*.mov|*.webm|*.avi|*.m4v|*.gif)
+    choice=$(printf '%s\n' "MP4, smaller (H.264)" "WebM (VP9)" "GIF, 960px wide" "Audio only (MP3)" | "$dropdown" "Make") ;;
+  *.png|*.jpg|*.jpeg|*.webp|*.heic|*.bmp|*.tif|*.tiff)
+    choice=$(printf '%s\n' "PNG" "JPG" "WebP" "Half the size (same format)" | "$dropdown" "Make") ;;
+  *) notify-send -a Transcode "Not a video or picture" "$(basename "$in")"; exit 1 ;;
+esac
+[[ -n $choice ]] || exit 0
+
+out_name() {   # out_name EXT [tag]: base-tag.EXT, never overwriting the original
+  local out="$base${2:+-$2}.$1"
+  [[ $out == "$in" ]] && out="$base-converted.$1"
+  echo "$out"
+}
+case "$choice" in
+  MP4*)   out=$(out_name mp4 small); args=(-c:v libx264 -crf 26 -preset medium -c:a aac -b:a 128k -movflags +faststart) ;;
+  WebM*)  out=$(out_name webm);      args=(-c:v libvpx-vp9 -crf 34 -b:v 0 -c:a libopus) ;;
+  GIF*)   out=$(out_name gif);       args=(-vf "fps=15,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0) ;;
+  Audio*) out=$(out_name mp3);       args=(-vn -c:a libmp3lame -q:a 2) ;;
+  PNG)    out=$(out_name png);       args=() ;;
+  JPG)    out=$(out_name jpg);       args=(-q:v 3) ;;
+  WebP)   out=$(out_name webp);      args=(-quality 85) ;;
+  Half*)  ext="${in##*.}"; out=$(out_name "${ext,,}" half); args=(-vf "scale=iw/2:-1") ;;
+  *) exit 0 ;;
+esac
+
+notify-send -a Transcode -t 2000 "Converting…" "$(basename "$in") → $(basename "$out")"
+if ffmpeg -nostdin -loglevel error -y -i "$in" "${args[@]}" "$out" 2>"${XDG_RUNTIME_DIR:-/tmp}/nameplate-transcode.log"; then
+  size=$(du -h "$out" | cut -f1)
+  action=$(notify-send -a Transcode -A open="Show in folder" "Done: $(basename "$out")" "$size, next to the original")
+  [[ $action == open ]] && nautilus --select "$out" >/dev/null 2>&1 &
+else
+  notify-send -a Transcode -u critical "Couldn't convert $(basename "$in")" "$(tail -3 "${XDG_RUNTIME_DIR:-/tmp}/nameplate-transcode.log")"
+fi

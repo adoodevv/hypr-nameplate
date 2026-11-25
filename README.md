@@ -48,6 +48,9 @@ screensaver to GNOME. It doesn't use the PPA or install Hyprland.
 - **23 Omarchy themes** (<kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd>). They recolour everything at once,
   wallpaper included if you download Omarchy's collection.
 - **Workspace layouts:** tiling, scrolling or floating (<kbd>Super</kbd> + <kbd>L</kbd>). Floating workspaces get a dock.
+- Omarchy 4.5's keys and tools: a drop-down terminal, universal copy/paste, a colour picker, text from
+  screen (OCR), reminders, video and picture conversion, a world clock, notification history, zoom,
+  and transparency, gaps and laptop-screen toggles.
 - Clipboard history, an emoji picker, screenshots, screen recording, a screen switcher for projectors,
   volume and brightness popups, and low-battery warnings.
 
@@ -72,7 +75,12 @@ screensaver to GNOME. It doesn't use the PPA or install Hyprland.
 | Super + Ctrl + Space | Wallpaper |
 | Super + Ctrl + V / E | Clipboard history / emoji |
 | Super + Shift + S | Screenshot a region |
+| Super + Ctrl + C | Capture menu: screenshot, recording, colour picker, text from screen |
 | Alt + Print | Record the screen (again to stop) |
+| Super + C / X / V | Copy / cut / paste in every app, terminals too |
+| Super + ` | Drop-down terminal |
+| Super + Ctrl + O | Toggles: do not disturb, night light, gaps, laptop screen… |
+| Super + Ctrl + R | Set a reminder ("20m stretch") |
 
 ## Customising
 
