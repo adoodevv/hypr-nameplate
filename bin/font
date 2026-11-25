@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Fonts for hypr-nameplate (Menu -> Style -> Font).
+"""Fonts for hypr-nameplate (Menu -> Appearance -> Font).
 
     font                   print the current font and terminal size
     font list              Nerd Fonts installed (the ones with the icons the bar needs)
@@ -148,7 +148,7 @@ def system_monospace(family):
     with open(FONTCONFIG, "w") as f:
         f.write(f"""<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<!-- Written by hypr-nameplate's font command (Menu -> Style -> Font) -->
+<!-- Written by hypr-nameplate's font command (Menu -> Appearance -> Font) -->
 <fontconfig>
   <match target="pattern">
     <test name="family" qual="any"><string>monospace</string></test>
@@ -225,7 +225,7 @@ def main():
             # Just the regular "Nerd Font" cut; skip the Mono and Propo copies
             subprocess.run(["tar", "-xJf", tar, "-C", dest, "--wildcards", "*NerdFont-*"])
         subprocess.run(["fc-cache", "-f", dest])
-        print(f"Installed {MORE[archive]}. Pick it in Menu -> Style -> Font.")
+        print(f"Installed {MORE[archive]}. Pick it in Menu -> Appearance -> Font.")
     elif cmd == "refresh":
         swap({DEFAULT}, family)
         set_size(size)

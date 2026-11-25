@@ -44,7 +44,9 @@ screensaver to GNOME. It doesn't use the PPA or install Hyprland.
 - **Lock screen:** like Omarchy's, a password field on your blurred wallpaper.
 - **Top bar:** workspaces, clock, weather, updates, toggles (night light, do not disturb, stay awake),
   a tray behind a chevron, AI agent stats, Bluetooth, Wi-Fi, sound, display and battery. Each icon opens a small panel.
-- **Main menu** (<kbd>Super</kbd> + <kbd>Space</kbd>) laid out like Omarchy's: apps, themes, fonts, setup, updates and power.
+- **Main menu** (<kbd>Super</kbd> + <kbd>Space</kbd>) laid out like Omarchy's: apps, appearance (theme, font, gaps, dock,
+  animations, lock-screen blur), setup, a hardware menu, install and remove (apt, snaps, Flathub), updates with a
+  Timeshift snapshot first, and power.
 - **23 Omarchy themes** (<kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd>). They recolour everything at once,
   wallpaper included if you download Omarchy's collection.
 - **Workspace layouts:** tiling, scrolling or floating (<kbd>Super</kbd> + <kbd>L</kbd>). Floating workspaces get a dock.
@@ -81,6 +83,7 @@ screensaver to GNOME. It doesn't use the PPA or install Hyprland.
 | Super + ` | Drop-down terminal |
 | Super + Ctrl + O | Toggles: do not disturb, night light, gaps, laptop screen… |
 | Super + Ctrl + R | Set a reminder ("20m stretch") |
+| Super + Ctrl + H | Hardware: touchpad, keyboard light, graphics |
 
 ## Customising
 

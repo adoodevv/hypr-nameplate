@@ -68,6 +68,12 @@ run "$H" "$SRC/install.sh" --configs-only
 check "your own edit is backed up" test "$(find "$H/.config/hypr" -name 'hyprland.lua.bak-*' | wc -l)" -eq 1
 check "scripts get no backups" test "$(find "$H/.config/nameplate/bin" -name '*.bak-*' | wc -l)" -eq 0
 
+# ------------------------------------------------------------ appearance --
+check "lock blur file created" grep -qx '$np_blur = 3' "$H/.config/nameplate/lock-blur.conf"
+run "$H" "$H/.config/nameplate/bin/toggle" lock-blur light
+check "lock blur can be changed" grep -qx '$np_blur = 1' "$H/.config/nameplate/lock-blur.conf"
+check "lock screen reads the blur file" grep -q 'nameplate/lock-blur.conf' "$H/.config/hypr/hyprlock.conf"
+
 # ------------------------------------------------------------- reminders --
 R="$H/.config/nameplate/bin/reminder"
 check "reminder understands \"20m stretch\"" run "$H" "$R" set 20m stretch

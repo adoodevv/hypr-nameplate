@@ -4,6 +4,10 @@
 #                   (SUPER + SHIFT + BACKSPACE)
 #   toggle square   a lone tiled window is kept square in the middle of a wide
 #                   screen instead of stretching across it (SUPER + CTRL + BACKSPACE)
+#   toggle dock     the dock on floating workspaces on / off
+#   toggle animations   window and panel animations on / off
+#   toggle lock-blur [off|light|strong]   how blurred the wallpaper is behind the
+#                   lock screen (no argument: the next level)
 # The state is a file under ~/.local/state/nameplate that hyprland.lua reads.
 state="$HOME/.local/state/nameplate"
 mkdir -p "$state"
@@ -27,5 +31,32 @@ case "${1:-}" in
       hyprctl eval 'hl.config({ layout = { single_window_aspect_ratio = "0 0" } })' >/dev/null
       notify-send -a Layout -t 2000 "A lone window fills the screen"
     fi ;;
-  *) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  dock)
+    if [[ $(flip no-dock) == on ]]; then
+      pkill -f "nameplate/bin/dock$"
+      notify-send -a Dock -t 2000 "Dock off"
+    else
+      setsid -f "$(dirname "$0")/dock" >/dev/null 2>&1
+      notify-send -a Dock -t 2000 "Dock on" "It shows on floating workspaces (SUPER + L)"
+    fi ;;
+  animations)
+    if [[ $(flip no-animations) == on ]]; then
+      hyprctl eval 'hl.config({ animations = { enabled = false } })' >/dev/null
+      notify-send -a Animations -t 1500 "Animations off"
+    else
+      hyprctl eval 'hl.config({ animations = { enabled = true } })' >/dev/null
+      notify-send -a Animations -t 1500 "Animations on"
+    fi ;;
+  lock-blur)
+    # hyprlock.conf reads $np_blur from this file (blur passes: 0 = sharp)
+    conf="$HOME/.config/nameplate/lock-blur.conf"
+    now=$(sed -n 's/^\$np_blur *= *//p' "$conf" 2>/dev/null)
+    level=${2:-}
+    if [[ -z $level ]]; then
+      case "${now:-3}" in 0) level=light ;; 1) level=strong ;; *) level=off ;; esac
+    fi
+    case "$level" in off) n=0 ;; light) n=1 ;; strong) n=3 ;; *) exit 1 ;; esac
+    printf '# Lock screen blur, set from Menu -> Appearance (bin/toggle lock-blur)\n$np_blur = %s\n' "$n" > "$conf"
+    notify-send -a "Lock screen" -t 2000 "Lock screen blur: $level" "Lock with SUPER + CTRL + L to see it" ;;
+  *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

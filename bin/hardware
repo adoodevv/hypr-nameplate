@@ -1,0 +1,61 @@
+#!/bin/bash
+# Hardware switches, like Omarchy's Hardware menu (SUPER + CTRL + H).
+#   hardware touchpad        touchpad off / on (a mouse keeps working)
+#   hardware touchscreen     touchscreen off / on
+#   hardware kbd-light       keyboard backlight: off -> low -> high
+#   hardware graphics        the graphics chips and the driver in use (notification)
+#   hardware restore         put the touchpad / touchscreen back how you left them
+#                            (hyprland.lua runs this at login)
+# Off switches are remembered as files under ~/.local/state/nameplate.
+state="$HOME/.local/state/nameplate"
+mkdir -p "$state"
+
+devices() {   # devices touchpad|touchscreen: Hyprland's names for them
+  case "$1" in
+    touchpad)    hyprctl -j devices 2>/dev/null | jq -r '.mice[].name | select(test("touchpad"; "i"))' ;;
+    touchscreen) hyprctl -j devices 2>/dev/null | jq -r '.touch[]?.name' ;;
+  esac
+}
+
+set_enabled() {   # set_enabled KIND true|false
+  local name n=0
+  while read -r name; do
+    [[ -n $name ]] || continue
+    hyprctl eval "hl.device({ name = \"$name\", enabled = $2 })" >/dev/null && n=$(( n + 1 ))
+  done < <(devices "$1")
+  (( n ))
+}
+
+switch() {   # switch touchpad|touchscreen
+  local kind=$1 label=${1^}
+  if [[ -e $state/no-$kind ]]; then
+    set_enabled "$kind" true; rm -f "$state/no-$kind"
+    notify-send -a Hardware -t 2000 "$label on"
+  elif set_enabled "$kind" false; then
+    : > "$state/no-$kind"
+    notify-send -a Hardware -t 3000 "$label off" "SUPER + CTRL + H -> $label turns it back on"
+  else
+    notify-send -a Hardware -t 2000 "No $kind found"
+  fi
+}
+
+case "${1:-}" in
+  touchpad|touchscreen) switch "$1" ;;
+  kbd-light)
+    dev=$(brightnessctl -l -c leds 2>/dev/null | sed -n "s/^Device '\(.*kbd_backlight.*\)' of class.*/\1/p" | head -1)
+    [[ -n $dev ]] || { notify-send -a Hardware -t 2000 "No keyboard backlight found"; exit 0; }
+    max=$(brightnessctl -d "$dev" max); now=$(brightnessctl -d "$dev" get)
+    if (( now == 0 )); then next=$(( (max + 1) / 2 )); elif (( now < max )); then next=$max; else next=0; fi
+    brightnessctl -q -d "$dev" set "$next"
+    notify-send -a Hardware -t 1500 "Keyboard light $(( next * 100 / max ))%" ;;
+  graphics)
+    chips=$(lspci 2>/dev/null | grep -Ei 'vga|3d|display' | sed -E 's/^[0-9a-f:.]+ [^:]+: //')
+    drivers=$(for d in /sys/class/drm/card[0-9]/device/driver; do basename "$(readlink "$d")"; done 2>/dev/null | sort -u | paste -sd, -)
+    notify-send -a Hardware -t 6000 "Graphics" "${chips:-Unknown}${drivers:+$'\n'Driver: $drivers}" ;;
+  restore)
+    for kind in touchpad touchscreen; do
+      [[ -e $state/no-$kind ]] && set_enabled "$kind" false
+    done
+    exit 0 ;;
+  *) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac

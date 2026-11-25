@@ -1,0 +1,51 @@
+#!/bin/bash
+# Install and remove software, like Omarchy's Install / Remove menus, for Ubuntu:
+# search, pick with fzf (TAB marks several), and apt / snap / flatpak does the rest.
+#   pkg install apt|snap|flatpak
+#   pkg remove  apt|snap|flatpak
+# The menu (SUPER + SPACE -> Install / Remove) runs this in a floating terminal.
+set -u
+action=${1:-}; source=${2:-}
+pause() { echo; read -n 1 -s -r -p "Press any key to close."; }
+
+# Started from the menu (no terminal): open one and run there
+[[ -t 0 ]] || exec alacritty --class nameplate-float --title "${action^} ${source}" -e "$0" "$@"
+
+command -v fzf >/dev/null || { echo "This needs fzf:  sudo apt install fzf"; pause; exit 1; }
+pick() {   # pick PROMPT: fzf over stdin, first column of the chosen lines
+  fzf --multi --prompt "$1 > " --height 100% --layout reverse --border none \
+      --header "TAB marks several · Enter confirms · Esc cancels" | awk '{ print $1 }'
+}
+
+case "$action $source" in
+  "install apt")
+    mapfile -t chosen < <(apt-cache search --names-only . 2>/dev/null | sort | pick "Install (apt)")
+    (( ${#chosen[@]} )) || exit 0
+    sudo apt install "${chosen[@]}" ;;
+  "remove apt")
+    # Only what you (or the installer) asked for, not every library underneath
+    mapfile -t chosen < <(apt-mark showmanual | sort | pick "Remove (apt)")
+    (( ${#chosen[@]} )) || exit 0
+    sudo apt remove "${chosen[@]}" ;;
+  "install snap")
+    read -r -p "Search snaps for: " query
+    [[ -n $query ]] || exit 0
+    mapfile -t chosen < <(snap find "$query" 2>/dev/null | tail -n +2 | pick "Install (snap)")
+    (( ${#chosen[@]} )) || exit 0
+    for s in "${chosen[@]}"; do sudo snap install "$s" || sudo snap install --classic "$s"; done ;;
+  "remove snap")
+    mapfile -t chosen < <(snap list 2>/dev/null | tail -n +2 | grep -vE '^(core[0-9]*|snapd|bare|gnome-|gtk-common|mesa-|kf5-|kf6-) ' | pick "Remove (snap)")
+    (( ${#chosen[@]} )) || exit 0
+    sudo snap remove "${chosen[@]}" ;;
+  "install flatpak")
+    mapfile -t chosen < <(flatpak remote-ls --app --columns=application,name,description flathub 2>/dev/null | pick "Install (Flathub)")
+    (( ${#chosen[@]} )) || exit 0
+    flatpak install -y flathub "${chosen[@]}" ;;
+  "remove flatpak")
+    mapfile -t chosen < <(flatpak list --app --columns=application,name 2>/dev/null | pick "Remove (flatpak)")
+    (( ${#chosen[@]} )) || exit 0
+    flatpak uninstall "${chosen[@]}" ;;
+  *) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac
+pkill -RTMIN+15 -x waybar 2>/dev/null   # the updates item in the bar
+pause

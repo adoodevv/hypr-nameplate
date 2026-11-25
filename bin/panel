@@ -181,7 +181,7 @@ window.np-popup {
 /* Main menu, like Omarchy's Walker menu (omarchy-menu --dmenu): a narrow box
    with a 2px foreground border (Walker's @border is the foreground colour, not
    the accent) on a 95% background, 20px inside, a plain search line prompted
-   with the menu's name ("Go…", "Style…"), then 18px rows with 14px
+   with the menu's name ("Go…", "Appearance…"), then 18px rows with 14px
    of air. The current row is a faint foreground wash with accent text. There
    is no title, no back button and no chevron: Escape goes back. */
 window.np-popup.np-menu { background-color: alpha(@bg, 0.95); border-color: @fg; }
@@ -2789,8 +2789,43 @@ def reminder_items():
     return items
 
 
+def lock_blur():
+    """Lock screen blur level (bin/toggle lock-blur): off, light or strong."""
+    try:
+        with open(os.path.expanduser("~/.config/nameplate/lock-blur.conf")) as f:
+            n = re.search(r"^\$np_blur\s*=\s*(\d+)", f.read(), re.M)
+    except OSError:
+        n = None
+    passes = int(n.group(1)) if n else 3
+    return "off" if passes == 0 else "light" if passes == 1 else "strong"
+
+
+def hardware_items():
+    """Setup -> Hardware (SUPER + CTRL + H), like Omarchy's: only what this
+    computer has (bin/hardware)."""
+    hw = BIN + "/hardware"
+    state = os.path.expanduser("~/.local/state/nameplate")
+    off = lambda kind: os.path.exists(os.path.join(state, "no-" + kind))
+    try:
+        devices = json.loads(out("hyprctl", "-j", "devices", timeout=3) or "{}")
+    except ValueError:
+        devices = {}
+    items = []
+    if any("touchpad" in m.get("name", "").lower() for m in devices.get("mice", [])):
+        items.append({"icon": g(0xF0CE0), "label": "Touchpad", "right": "off" if off("touchpad") else "on",
+                      "run": [hw, "touchpad"]})
+    if devices.get("touch"):
+        items.append({"icon": g(0xF0741), "label": "Touchscreen", "right": "off" if off("touchscreen") else "on",
+                      "run": [hw, "touchscreen"]})
+    if any("kbd_backlight" in d for d in os.listdir("/sys/class/leds") if os.path.isdir("/sys/class/leds")):
+        items.append({"icon": g(0xF030C), "label": "Keyboard light", "stay": True, "run": [hw, "kbd-light"]})
+    items.append({"icon": g(0xF0379), "label": "Graphics", "run": [hw, "graphics"]})
+    items.append({"icon": g(0xF140B), "label": "Power profile", "panel": "power"})
+    return items
+
+
 def font_items():
-    """Style -> Font: installed Nerd Fonts, terminal size, and fonts to download."""
+    """Appearance -> Font: installed Nerd Fonts, terminal size, and fonts to download."""
     font = BIN + "/font"
     now = out(font, timeout=10)
     family, _, size = now.partition(", terminal size ")
@@ -2812,7 +2847,7 @@ class MenuPanel(Panel):
     """Everything in one place (SUPER + SPACE, or click the logo in the bar),
     laid out like Omarchy's Walker menu: a narrow centred box with a plain
     search line on top whose placeholder names the menu you're in ("Go…" at
-    the top, "Style…", "System…" inside one), and big rows underneath. Type
+    the top, "Appearance…", "System…" inside one), and big rows underneath. Type
     to search everything at once, Enter to pick, arrows to move, Escape or
     Backspace to go back a level (there is no back button, like Walker)."""
     width = 275          # 315px with the padding below: Walker's --width 295 box
@@ -2897,9 +2932,40 @@ class MenuPanel(Panel):
             {"icon": g(0xF019E), "label": "Region", **run_(B + "screenrecord")},
             {"icon": g(0xF0293), "label": "Full screen", **run_(B + "screenrecord", "full")},
             {"icon": g(0xF036C), "label": "Full screen + mic", **run_(B + "screenrecord", "full", "mic")}])
-        # Omarchy's top level and order (omarchy-menu's "Go" menu). Its Install
-        # and Remove have no counterpart here: Ubuntu packages are the Update
-        # items below and GNOME Software.
+        if shutil.which("timeshift"):
+            updates.insert(0, {"icon": g(0xF0C6F), "label": "Snapshot now",
+                               "run": in_terminal("Snapshot", 'sudo timeshift --create '
+                                                  '--comments "From the menu (hypr-nameplate)" --scripted')})
+            updates.append({"icon": g(0xF02DA), "label": "Snapshots (Timeshift)",
+                            **run_("timeshift-launcher")})
+        sources = [("apt", "Ubuntu packages (apt)", g(0xF03D3))]
+        if shutil.which("snap"):
+            sources.append(("snap", "Snaps", g(0xF01A7)))
+        if shutil.which("flatpak"):
+            sources.append(("flatpak", "Flatpaks (Flathub)", g(0xF01A7)))
+        package = lambda verb: [{"icon": icon, "label": text, **run_(B + "pkg", verb, src)}
+                                for src, text, icon in sources]
+        appearance = [
+            {"icon": g(0xF0E0C), "label": "Theme", **panel("themes")},
+            {"icon": g(0xE659), "label": "Font", "sub": font_items},
+            {"icon": g(0xF03E), "label": "Background", **panel("wallpapers")},
+            {"icon": I["next"], "label": "Next background", "stay": True, **run_(B + "wallpaper", "next")},
+            {"icon": g(0xF0E79), "label": "Gaps", "right": "off" if flag("no-gaps") == "on" else "on",
+             **run_(B + "toggle", "gaps")},
+            {"icon": g(0xF0A27), "label": "Square window", "right": flag("square"),
+             **run_(B + "toggle", "square")},
+            {"icon": g(0xF0A1F), "label": "Dock", "right": "off" if flag("no-dock") == "on" else "on",
+             **run_(B + "toggle", "dock")},
+            {"icon": g(0xF0D9D), "label": "Animations",
+             "right": "off" if flag("no-animations") == "on" else "on", **run_(B + "toggle", "animations")},
+            {"icon": I["lock"], "label": "Lock screen blur", "right": lock_blur(), "sub": [
+                {"icon": I["lock"], "label": level.capitalize(), "right": "current" if lock_blur() == level else "",
+                 **run_(B + "toggle", "lock-blur", level)} for level in ("off", "light", "strong")]},
+            {"icon": g(0xF0209), "label": "Show/hide the bar", **run_("pkill", "-SIGUSR1", "waybar")},
+            {"icon": I["refresh"], "label": "Restart the bar",
+             **run_("sh", "-c", "pkill -x waybar; sleep 0.5; exec waybar")},
+        ]
+        # Omarchy 4.5's top level and order (omarchy-menu's "Go" menu)
         return [
             {"icon": g(0xF003B), "label": "Apps", **panel("apps")},
             {"icon": g(0xF09D1), "label": "Learn", "sub": [
@@ -2908,6 +2974,7 @@ class MenuPanel(Panel):
                 {"icon": g(0xF02A4), "label": "hypr-nameplate on GitHub",
                  **run_("xdg-open", "https://github.com/adoodevv/hypr-nameplate")},
             ]},
+            {"icon": g(0xEBCF), "label": "Appearance", "sub": appearance},
             {"icon": g(0xF14DE), "label": "Trigger", "sub": [
                 # SUPER + CTRL + C
                 {"icon": g(0xF0100), "label": "Capture", "sub": [
@@ -2942,21 +3009,14 @@ class MenuPanel(Panel):
                 {"icon": g(0xF06A9), "label": "AI agents", **panel("agents")},
                 {"icon": g(0xF01F5), "label": "Emoji", **panel("emoji")},
             ]},
-            {"icon": g(0xEBCF), "label": "Style", "sub": [
-                {"icon": g(0xF0E0C), "label": "Theme", **panel("themes")},
-                {"icon": g(0xE659), "label": "Font", "sub": font_items},
-                {"icon": g(0xF03E), "label": "Background", **panel("wallpapers")},
-                {"icon": I["next"], "label": "Next background", "stay": True, **run_(B + "wallpaper", "next")},
-                {"icon": g(0xF0209), "label": "Show/hide the bar", **run_("pkill", "-SIGUSR1", "waybar")},
-                {"icon": I["refresh"], "label": "Restart the bar",
-                 **run_("sh", "-c", "pkill -x waybar; sleep 0.5; exec waybar")},
-            ]},
             {"icon": g(0xE615), "label": "Setup", "sub": [
                 {"icon": g(0xE638), "label": "Audio", **panel("sound")},
                 {"icon": I["wifi"][-1], "label": "Wi-Fi", **panel("wifi")},
                 {"icon": I["bt"], "label": "Bluetooth", **panel("bluetooth")},
                 {"icon": I["monitor"], "label": "Monitors", **panel("display")},
                 {"icon": g(0xF140B), "label": "Power profile", **panel("power")},
+                # SUPER + CTRL + H
+                {"icon": g(0xF061A), "label": "Hardware", "sub": hardware_items},
                 {"icon": g(0xF11C), "label": "Keybindings", **run_(B + "keys")},
                 {"icon": g(0xF0219), "label": "Config files", "sub": [
                     {"icon": g(0xF0219), "label": text, "run": edit(os.path.join(cfg, rel))}
@@ -2964,6 +3024,8 @@ class MenuPanel(Panel):
                 {"icon": g(0xF062E), "label": "GNOME Settings",
                  **run_("env", "XDG_CURRENT_DESKTOP=GNOME", "gnome-control-center")},
             ]},
+            {"icon": g(0xF0AB9), "label": "Install", "sub": package("install")},
+            {"icon": g(0xF0A7A), "label": "Remove", "sub": package("remove")},
             {"icon": g(0xF021), "label": "Update", "sub": updates},
             {"icon": g(0xEA74), "label": "About", "sub": info_rows},
             {"icon": g(0xF011), "label": "System", "sub": [
@@ -2996,7 +3058,7 @@ class MenuPanel(Panel):
         self.buttons = []
         query = self.search.get_text().strip().lower()
         title, items = self.stack[-1]
-        self.prompt.set_text(title + "…")               # Walker's prompt: "Go…", "Style…"
+        self.prompt.set_text(title + "…")               # Walker's prompt: "Go…", "Appearance…"
         self.prompt.set_visible(not query)
         if query:
             def words(item, path):   # "wifi" finds Wi-Fi, "shutdown" finds Shut down

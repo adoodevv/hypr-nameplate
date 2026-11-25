@@ -1,6 +1,17 @@
 #!/bin/bash
-# Install Ubuntu's waiting updates in a small terminal (the updates item in the bar)
+# Install Ubuntu's waiting updates in a small terminal (the updates item in the bar).
+# With Timeshift set up, it offers a system snapshot first, like Omarchy's
+# snapshot-before-update, so a bad update can be rolled back from Timeshift
+# (Menu -> Update -> Snapshots).
 exec alacritty --class nameplate-float --title "Updates" -e bash -c '
+  if command -v timeshift >/dev/null; then
+    read -r -p "Take a Timeshift snapshot before updating? [Y/n] " answer
+    if [[ ${answer,,} != n* ]]; then
+      sudo timeshift --create --comments "Before update (hypr-nameplate)" --scripted ||
+        echo "Snapshot failed (set Timeshift up first: Menu -> Update -> Snapshots). Updating anyway."
+      echo
+    fi
+  fi
   sudo apt update && sudo apt full-upgrade
   command -v snap >/dev/null && sudo snap refresh
   pkill -RTMIN+15 -x waybar

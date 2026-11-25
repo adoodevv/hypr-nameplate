@@ -40,6 +40,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd(bin .. "display restore")       -- scale and resolution picked in the display panel
   hl.exec_cmd(bin .. "panel daemon")          -- keeps the panels ready, so bar clicks open instantly
   hl.exec_cmd(bin .. "dock")                  -- app dock along the bottom, tucked away while windows are open
+  hl.exec_cmd(bin .. "hardware restore")      -- touchpad / touchscreen left off in the Hardware menu
   hl.exec_cmd("wl-paste --type text --watch cliphist store")    -- clipboard history
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
   hl.exec_cmd("playerctld daemon")   -- lets the bar control whichever player was used last
@@ -177,6 +178,9 @@ do
   if flag("square") then
     hl.config({ layout = { single_window_aspect_ratio = "1 1" } })
   end
+  if flag("no-animations") then
+    hl.config({ animations = { enabled = false } })
+  end
 end
 
 -- Animation curves and timings follow Omarchy's defaults (speed = tenths of a second).
@@ -263,6 +267,7 @@ hl.bind(mod .. " + CTRL + V", hl.dsp.exec_cmd(bin .. "panel clipboard"))
 hl.bind(mod .. " + CTRL + E", hl.dsp.exec_cmd(bin .. "panel emoji"))
 hl.bind(mod .. " + CTRL + C", hl.dsp.exec_cmd(bin .. "panel menu trigger/capture"))
 hl.bind(mod .. " + CTRL + O", hl.dsp.exec_cmd(bin .. "panel menu trigger/toggle"))
+hl.bind(mod .. " + CTRL + H", hl.dsp.exec_cmd(bin .. "panel menu setup/hardware"))
 hl.bind(mod .. " + CTRL + period", hl.dsp.exec_cmd(bin .. "transcode"))
 hl.bind(mod .. " + CTRL + ALT + D", hl.dsp.exec_cmd(bin .. "panel calendar"))
 hl.bind(mod .. " + CTRL + ALT + E", hl.dsp.exec_cmd(bin .. "panel calendar clock"))

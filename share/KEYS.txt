@@ -6,6 +6,9 @@
     SUPER + Return          Terminal
     SUPER + Space           Main menu: everything in one place (or click the logo in the bar).
                             Type to search, Enter to pick, Escape or Backspace goes back.
+                            Appearance (theme, font, gaps, dock, animations, lock blur),
+                            Install / Remove (apt, snaps, Flathub), Update (with a
+                            Timeshift snapshot first, if you have Timeshift)
     SUPER + ALT + SPACE     App grid (start typing to search, arrows to move, Enter)
     SUPER + SHIFT + Return  Web browser (SUPER + SHIFT + B works too)
     SUPER + SHIFT + ALT + B Web browser, private window
@@ -23,6 +26,7 @@
     SUPER + CTRL + M        Mute or unmute the microphone
     SUPER + CTRL + D        Screens: extend, mirror or one screen (projector)
     SUPER + CTRL + O        Toggles: do not disturb, stay awake, night light, gaps...
+    SUPER + CTRL + H        Hardware: touchpad, touchscreen, keyboard light, graphics
     SUPER + SHIFT + T       Activity (btop)
     SUPER + grave           Quake console: a terminal that drops down over everything
                             (SUPER + SHIFT + grave sends a window there)

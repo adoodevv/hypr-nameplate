@@ -938,6 +938,10 @@ window.np-dock { background-color: transparent; }
 
 
 def main():
+    state = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"),
+                         "nameplate", "no-dock")
+    if os.path.exists(state):             # turned off in Menu -> Appearance (bin/toggle dock)
+        sys.exit(0)
     if not GtkLayerShell.is_supported():
         sys.exit("dock: needs a layer-shell desktop (Hyprland)")
     try:                                   # one dock at a time
