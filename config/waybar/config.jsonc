@@ -95,9 +95,10 @@
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel calendar --bar"
   },
+  // 15px icons 12px apart: each sits on the same 27px pitch as the other bar icons
   "tray": {
-    "icon-size": 12,
-    "spacing": 0
+    "icon-size": 15,
+    "spacing": 12
   },
   "custom/bluetooth": {
     "exec": "~/.config/nameplate/bin/bar-status bluetooth",

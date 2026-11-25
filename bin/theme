@@ -15,6 +15,7 @@ A theme can also ship two extras beside its palette, like Omarchy's:
 NAME.hyprland.lua (Hyprland overrides hyprland.lua loads while the theme is
 current) and NAME.shell.lock.toml (lock-field colours). Both are optional.
 """
+import hashlib
 import os
 import re
 import subprocess
@@ -30,6 +31,25 @@ CURRENT = os.path.join(APP, "theme")
 COLORS = os.path.join(APP, "colors.toml")          # read by the panels and the wallpaper
 WALLPAPERS = os.path.join(HOME, "Pictures", "Wallpapers")
 DEFAULT = "tokyo-night"
+MANAGED = os.path.join(APP, "managed")      # written by install.sh
+
+
+def remember(path):
+    """install.sh backs up a config only when you edited it since the last install.
+    Note this rewrite as ours, so the next install doesn't take it for your edit."""
+    try:
+        with open(MANAGED, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        with open(path, "rb") as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return
+    new = [f"{digest}  {path}" if line[66:] == path else line for line in lines]
+    if new != lines:
+        tmp = MANAGED + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(new) + "\n")
+        os.replace(tmp, MANAGED)
 
 # Which block in which file gets what. {{ key }} is "#rrggbb", {{ key.hex }} is
 # "rrggbb", {{ key.rgb }} is "r, g, b".
@@ -248,6 +268,7 @@ def rewrite(path, blocks, c):
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(result))
     os.replace(tmp, path)      # one step, so Hyprland / Alacritty never read half a file
+    remember(path)
     return True
 
 
@@ -269,107 +290,6 @@ def theme_wallpaper(name):
         if images:
             return os.path.join(folder, images[0])
     return None
-
-
-def lock_logo(c):
-    """Recolour the lock screen's name logo in the theme's accent, like
-    Omarchy's per-theme unlock.png. The art is the screensaver's block
-    lettering (~/.config/nameplate/screensaver.txt, made by the installer);
-    names that didn't get block lettering get no logo."""
-    import struct
-    import zlib
-    try:
-        with open(os.path.join(APP, "screensaver.txt"), encoding="utf-8") as f:
-            lines = [l.rstrip() for l in f.read().splitlines()]
-    except OSError:
-        return
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    blocks = {"█": (0.0, 1.0), "▀": (0.0, 0.5), "▄": (0.5, 1.0)}
-    chars = set("".join(lines)) - {" "}
-    if not lines or not chars or not chars <= set(blocks):
-        return
-    cell_w, cell_h = 12, 24
-    width = max(len(l) for l in lines) * cell_w
-    height = len(lines) * cell_h
-    try:
-        rgb = tuple(int(c["accent"].lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
-    except (KeyError, ValueError):
-        return
-    on, off = bytes(rgb) + b"\xff", b"\x00\x00\x00\x00"
-    raw = bytearray()
-    for line in lines:
-        cells = [blocks.get(ch) for ch in line.ljust(width // cell_w)]
-        for y in range(cell_h):
-            frac = y / cell_h
-            raw.append(0)
-            for cell in cells:
-                raw.extend((on if cell is not None and cell[0] <= frac < cell[1] else off) * cell_w)
-
-    def chunk(kind, data):
-        body = kind + data
-        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
-
-    path = os.path.join(APP, "logo.png")
-    try:
-        with open(path + ".tmp", "wb") as f:
-            f.write(b"\x89PNG\r\n\x1a\n")
-            f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)))
-            f.write(chunk(b"IDAT", zlib.compress(bytes(raw), 9)))
-            f.write(chunk(b"IEND", b""))
-        os.replace(path + ".tmp", path)
-    except OSError:
-        pass
-
-
-def lock_icon(c):
-    """The lock screen's padlock: Omarchy's own, the Font Awesome lock glyph
-    U+F023 their polkit/lock prompts draw ("\\uf023" in PolkitAgent.qml), in
-    the theme's foreground. hyprlock's label renderer clipped the glyph's
-    right side, so it is rendered to a PNG with the Nerd Font here - same
-    icon, whole - and recoloured on every theme switch like the logo."""
-    try:
-        rgb = tuple(int(c.get("lock_text", c.get("bright_foreground", c["foreground"])).lstrip("#")[i:i + 2], 16)
-                    for i in (0, 2, 4))
-    except (KeyError, ValueError):
-        return
-    try:
-        import gi
-        gi.require_version("Pango", "1.0")
-        gi.require_version("PangoCairo", "1.0")
-        from gi.repository import Pango, PangoCairo
-        import cairo
-    except (ImportError, ValueError):
-        return                      # no GTK stack here; the installer has one
-    family = "JetBrainsMono Nerd Font"
-    try:
-        with open(os.path.join(APP, "font")) as f:
-            family = f.read().strip() or family
-    except OSError:
-        pass
-    size = 120
-    surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, size * 2, size * 2)
-    cr = cairo.Context(surf)
-    layout = PangoCairo.create_layout(cr)
-    layout.set_font_description(Pango.FontDescription(f"{family} {size}"))
-    layout.set_text("\uf023", -1)
-    ink, _logical = layout.get_pixel_extents()
-    if ink.width <= 0 or ink.height <= 0:
-        return
-    pad = 6
-    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, ink.width + pad * 2, ink.height + pad * 2)
-    ctx = cairo.Context(out)
-    ctx.set_source_rgba(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, 1.0)
-    ctx.move_to(pad - ink.x, pad - ink.y)
-    PangoCairo.show_layout(ctx, layout)
-    path = os.path.join(APP, "lock-icon.png")
-    try:
-        out.write_to_png(path + ".tmp")
-        os.replace(path + ".tmp", path)
-    except (OSError, cairo.Error):
-        pass
 
 
 def apply_hyprland_extra(name):
@@ -397,8 +317,6 @@ def apply_hyprland_extra(name):
 
 def apply(name, keep_wallpaper=False, announce=True):
     c = palette(name)
-    lock_logo(c)
-    lock_icon(c)
     apply_hyprland_extra(name)
     skipped = []
     for rel, blocks in BLOCKS.items():

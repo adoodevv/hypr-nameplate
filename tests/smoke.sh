@@ -56,6 +56,7 @@ check "no backups on a fresh install" test "$(backups "$H")" -eq 0
 run "$H" "$SRC/install.sh" --configs-only --theme gruvbox
 check "reinstall with a new theme makes no backups" test "$(backups "$H")" -eq 0
 check "theme applied" grep -q gruvbox "$H/.config/nameplate/theme"
+check "reinstall keeps the name" grep -qx Tester "$H/.config/nameplate/name"
 
 run "$H" "$H/.config/nameplate/bin/theme" set nord --keep-wallpaper   # as from the menu
 run "$H" "$SRC/install.sh" --configs-only

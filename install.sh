@@ -13,7 +13,8 @@ CORE_PKGS="hyprland hyprlock hypridle waybar xdg-desktop-portal-hyprland"
 EXTRA_PKGS="hyprsunset python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
 export PATH="$BIN:$PATH"
 
-NAME="${USER:-nameplate}"
+NAME="$(cat "$APP/name" 2>/dev/null)"   # the name from the last install, if any
+NAME="${NAME:-${USER:-nameplate}}"
 TERMINAL_ONLY=0
 CONFIGS_ONLY=0
 THEME=""
@@ -24,7 +25,7 @@ usage() {
 Usage: bash install.sh [options]
 
   --name NAME       Name shown on the screensaver and bar
-                    (default: your username, "$NAME"). Up to about 12
+                    (default: the current one, "$NAME"). Up to about 12
                     characters gets the large block lettering.
   --terminal-only   Only the terminal, prompt and screensaver, on your current
                     GNOME desktop. Skips Hyprland entirely.
@@ -63,13 +64,51 @@ ask()  { local a; read -r -p "$1 [y/N] " a; [[ $a == [yY]* ]]; }
 [[ $NAME =~ ^[A-Za-z0-9][A-Za-z0-9._\ -]{0,31}$ ]] ||
   die "Name must be 1-32 characters: letters, numbers, spaces, dots, dashes or underscores."
 
-put() {   # put <source> <destination>, backing up a different existing file
+# $APP/managed: a sha256sum line for every config this project installs, as it stood after
+# the last install (theme and font update it when they rewrite a file). A config that still
+# matches it is ours, so it is replaced without a backup; anything else you edited is kept.
+# $APP/originals: "destination<TAB>backup" for files that existed before the first install,
+# which uninstall.sh puts back.
+MANAGED="$APP/managed"
+ORIGINALS="$APP/originals"
+managed=()
+# Installs made before the manifest existed: there's no telling which backup was your
+# original, so none is recorded (uninstall.sh then leaves all the backups in place).
+[[ -f $APP/name && ! -f $MANAGED ]] && LEGACY=1 || LEGACY=0
+
+ours()  { [[ -f $MANAGED ]] && grep -qxF "$(sha256sum "$1")" "$MANAGED"; }
+known() { [[ -f $MANAGED ]] && cut -d' ' -f3- "$MANAGED" | grep -qxF "$1"; }
+
+put() {   # put <source> <destination>, backing up an existing file you edited
   mkdir -p "$(dirname "$2")"
-  if [[ -e $2 ]] && ! cmp -s "$1" "$2"; then
+  if [[ -e $2 ]] && ! cmp -s "$1" "$2" && ! ours "$2"; then
     cp -a "$2" "$2.bak-$STAMP"
     echo "backed up $2 -> $2.bak-$STAMP"
+    if (( ! LEGACY )) && ! known "$2" && ! { [[ -f $ORIGINALS ]] && cut -f1 "$ORIGINALS" | grep -qxF "$2"; }; then
+      mkdir -p "$APP"
+      printf '%s\t%s\n' "$2" "$2.bak-$STAMP" >> "$ORIGINALS"
+    fi
   fi
   cp "$1" "$2"
+  managed+=("$2")
+}
+
+save_manifest() {   # hash the configs as they are now, keeping entries this run didn't touch
+  local line p list=() kept=()
+  local -A seen=()
+  for p in "${managed[@]}"; do [[ -n ${seen[$p]:-} ]] || { seen[$p]=1; list+=("$p"); }; done
+  if [[ -f $MANAGED ]]; then
+    while IFS= read -r line; do
+      p="${line:66}"
+      [[ -z ${seen[$p]:-} && -f $p ]] && { seen[$p]=1; kept+=("$line"); }
+    done < "$MANAGED"
+  fi
+  { (( ${#kept[@]} )) && printf '%s\n' "${kept[@]}"; (( ${#list[@]} )) && sha256sum "${list[@]}"; } > "$MANAGED.tmp"
+  mv "$MANAGED.tmp" "$MANAGED"
+}
+
+created() {   # note a file this project created (rather than replaced), for uninstall.sh
+  grep -qsxF "$1" "$APP/created" || { mkdir -p "$APP"; printf '%s\n' "$1" >> "$APP/created"; }
 }
 
 render() {   # render <template> <destination>: fill in the placeholders, then put
@@ -183,7 +222,7 @@ MSG
 
 # ---------------------------------------------------------------- branding --
 
-make_brand() {   # writes screensaver.txt (and logo.png when possible) into $BRAND
+make_brand() {   # writes screensaver.txt into $BRAND
   local font
   for font in delta_corps_priest_1 ansi_regular small; do
     if pipx run pyfiglet -f "$font" -w 1000 "$NAME" 2>/dev/null | python3 "$SRC/lib/brand.py" "$BRAND" 2>/dev/null; then
@@ -218,17 +257,19 @@ put "$SRC/config/alacritty/alacritty.toml"   "$CFG/alacritty/alacritty.toml"
 put "$SRC/config/alacritty/screensaver.toml" "$CFG/alacritty/screensaver.toml"
 put "$SRC/config/starship.toml"              "$CFG/starship.toml"
 put "$BRAND/screensaver.txt"                 "$APP/screensaver.txt"
-# The name in block letters for the lock screen; bin/theme recolours it per theme
-if [[ -f $BRAND/logo.png ]]; then put "$BRAND/logo.png" "$APP/logo.png"; else rm -f "$APP/logo.png"; fi
+rm -f "$APP/logo.png" "$APP/lock-icon.png"   # older versions drew these for the lock screen
 put "$SRC/share/wallpaper.png"               "$APP/wallpaper.png"
 for f in "$SRC"/share/agents/*.svg; do       # agent logos for the agents panel (from Omarchy, MIT)
   put "$f" "$APP/agents/$(basename "$f")"
 done
 render "$SRC/share/KEYS.txt"                 "$APP/KEYS.txt"
 printf '%s\n' "$NAME" > "$APP/name"
+# The helper scripts belong to this project, so they're replaced without backups
+# (and the backups older versions made of them are cleared out)
+mkdir -p "$APP/bin"
+rm -f "$APP"/bin/*.bak-*
 for f in "$SRC"/bin/*; do
-  put "$f" "$APP/bin/$(basename "$f")"
-  chmod +x "$APP/bin/$(basename "$f")"
+  install -m 755 "$f" "$APP/bin/$(basename "$f")"
 done
 rm -rf "$BRAND"
 "$APP/bin/wallpaper" lock 2>/dev/null || true   # lock screen background
@@ -242,7 +283,9 @@ if (( ! TERMINAL_ONLY )); then
   render "$SRC/config/fuzzel/fuzzel.ini"    "$CFG/fuzzel/fuzzel.ini"
   put    "$SRC/config/mako/config"          "$CFG/mako/config"
   put    "$SRC/config/xdg-desktop-portal/hyprland-portals.conf" "$CFG/xdg-desktop-portal/hyprland-portals.conf"
-  [[ -e $CFG/waybar/config ]] || ln -s config.jsonc "$CFG/waybar/config"   # older waybar reads "config"
+  if [[ ! -e $CFG/waybar/config ]]; then   # older waybar reads "config"
+    ln -s config.jsonc "$CFG/waybar/config" && created "$CFG/waybar/config"
+  fi
 
   # Spotify cuts off its player bar under Hyprland unless it runs as a native Wayland app.
   # A copy of its launcher entry in ~/.local/share/applications takes priority over the system one.
@@ -250,7 +293,7 @@ if (( ! TERMINAL_ONLY )); then
     [[ -f $src ]] || continue
     dst="$HOME/.local/share/applications/$(basename "$src")"
     mkdir -p "$(dirname "$dst")"
-    [[ -f $dst ]] || cp "$src" "$dst"
+    [[ -f $dst ]] || { cp "$src" "$dst" && created "$dst"; }
     sed -i '/^Exec=/{ /ozone-platform/! s#\( %[uUfF]\)\{0,1\}$# --enable-features=UseOzonePlatform --ozone-platform=wayland\1# }' "$dst"
     echo "Spotify set to run natively on Wayland ($dst)"
   done
@@ -261,7 +304,7 @@ if (( ! TERMINAL_ONLY )); then
     [[ -f $src ]] || continue
     dst="$HOME/.local/share/applications/$(basename "$src")"
     mkdir -p "$(dirname "$dst")"
-    [[ -f $dst ]] || cp "$src" "$dst"
+    [[ -f $dst ]] || { cp "$src" "$dst" && created "$dst"; }
     sed -i '/^Exec=/{ /ozone-platform/! s#\( %[uUfF]\)\{0,1\}$# --ozone-platform=x11\1# }' "$dst"
     echo "Notion set to open through XWayland ($dst)"
   done
@@ -287,7 +330,7 @@ if (( ! TERMINAL_ONLY )); then
   if [[ -f $src ]]; then
     dst="$HOME/.local/share/applications/org.gnome.Settings.desktop"
     mkdir -p "$(dirname "$dst")"
-    [[ -f $dst ]] || cp "$src" "$dst"
+    [[ -f $dst ]] || { cp "$src" "$dst" && created "$dst"; }
     sed -i '/^Exec=/{ /XDG_CURRENT_DESKTOP=GNOME/! s#^Exec=#Exec=env XDG_CURRENT_DESKTOP=GNOME #; }' "$dst"
     echo "Settings app set to open under Hyprland ($dst)"
   fi
@@ -326,6 +369,9 @@ if [[ -n $THEME ]]; then
 else
   "$APP/bin/theme" refresh && "$APP/bin/theme" || failed+=("theme")
 fi
+
+# Font and theme have settled the configs; remember them as ours
+save_manifest
 
 if (( ! TERMINAL_ONLY && ! CONFIGS_ONLY )) && [[ ! -d $HOME/Pictures/Wallpapers/omarchy ]]; then
   step "Wallpapers"

@@ -1,10 +1,11 @@
 # hypr-nameplate
 
-An Omarchy-style Hyprland desktop for Ubuntu, with **your name on it**: an animated
-ASCII screensaver, a lock screen, a top bar and a themed terminal. It installs next
-to GNOME instead of replacing it, so your normal desktop is always one logout away.
+An Omarchy-style Hyprland desktop for Ubuntu, with **your name on it**. It installs next
+to GNOME, so your normal desktop is always one logout away.
 
 ![Tiled windows with the top bar](docs/screenshots/desktop.png)
+
+## Install
 
 ```bash
 git clone https://github.com/adoodevv/hypr-nameplate.git
@@ -12,167 +13,82 @@ cd hypr-nameplate
 bash install.sh --name yourname
 ```
 
-> **Status:** built and used on one laptop (HP EliteBook, Intel graphics, Ubuntu 24.04).
-> The installer is written to also work on Ubuntu 26.04, but that is untested.
-> Expect rough edges and please open an issue when you find one.
+Then log out, click the gear icon on the login screen, pick **Hyprland** and log in.
+Press <kbd>Super</kbd> + <kbd>K</kbd> for the cheat sheet.
+
+**Before you run it:**
+
+- Ubuntu 24.04 (26.04 should work but is untested) on the standard GNOME desktop.
+- Take a [Timeshift](https://github.com/linuxmint/timeshift) snapshot. Hyprland comes from the
+  [`cppiber/hyprland`](https://launchpad.net/~cppiber/+archive/ubuntu/hyprland) PPA, which on 24.04
+  also updates `libinput`, which GNOME shares.
+- Turn off automatic login, or you never get to choose Hyprland.
+
+The installer asks before changing anything, won't continue if apt would remove a package, and
+backs up any config of yours that it replaces (`name.bak-DATE`).
+
+**Just want to try it?** `bash install.sh --terminal-only` adds only the terminal, prompt and
+screensaver to GNOME. It doesn't use the PPA or install Hyprland.
+
+| Option | |
+|---|---|
+| `--name NAME` | Name on the screensaver and bar (kept on later runs) |
+| `--theme THEME` | Starting theme, e.g. `gruvbox`, `nord`, `rose-pine` |
+| `--terminal-only` | Terminal, prompt and screensaver only, on GNOME |
+| `--configs-only` | Rewrite the configs without installing packages |
 
 ## What you get
 
-| | |
-|---|---|
-| **Screensaver** | Your name in block letters, cycling through random [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) animations after 2.5 minutes idle. Works on GNOME and Hyprland. |
-| **Lock screen** | Like the latest Omarchy's: your wallpaper blurred behind a single centred 381×67 password field (hyprlock). Recolours with the theme. |
-| **Top bar** | Your name, workspaces, date and time, a music icon while something plays, Bluetooth, Wi-Fi, volume, brightness, battery and a power menu (Waybar). Clicking an icon opens a small panel under it: a calendar with the player (seek bar, previous / play / next) underneath while something plays, volume and brightness sliders with output selection, Wi-Fi networks, Bluetooth devices. Click anywhere outside to close it. |
-| **Main menu** | <kbd>Super</kbd> + <kbd>Space</kbd> or click the logo in the bar, laid out like Omarchy's Walker menu (a narrow centred box, a "Go…" search line, large rows): Apps, Learn, Trigger, Style, Setup, Update, About and System — screenshots and recording, themes and fonts, setup panels, config files, updates (apt, snap, firmware), about this computer, and power options. Type to search everything at once. The app grid is <kbd>Super</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd>. |
-| **Animations** | Omarchy's window open, close and fade timings on Hyprland. |
-| **Terminal** | Alacritty in Tokyo Night with JetBrainsMono Nerd Font and a minimal Starship prompt. |
-| **Launcher and notifications** | fuzzel and mako in matching colours. |
-| **Screens** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>D</kbd> extends, mirrors or switches to one screen when you plug in a projector or monitor. Unplugging it restores the laptop screen. |
-| **Workspaces and dock** | <kbd>Super</kbd> + <kbd>L</kbd> cycles a workspace through tiling, scrolling and floating layouts, like Omarchy. The dock lives on floating workspaces: pinned and running apps in 36px icons along the bottom (drag to reorder), <kbd>Super</kbd> + <kbd>M</kbd> minimises a window into it, and a maximised window tucks it to the bottom edge until the pointer touches there. |
-| **Volume and brightness** | A small level indicator whenever you press the volume, mute or brightness keys. |
-| **Low battery** | A warning at 15% and an urgent one at 5% while unplugged. |
-| **Battery and power modes** | Click the battery for the charge, time left and power mode (power saver, balanced, performance). |
-| **Clipboard history** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>V</kbd>: search what you copied recently, text and images; click to copy it again. |
-| **Emoji picker** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>E</kbd>: search by name or everyday words ("laugh", "thanks"); recent ones first. |
-| **Screen recording** | <kbd>Alt</kbd> + <kbd>Print</kbd> for a region, add <kbd>Shift</kbd> for the whole screen or <kbd>Ctrl</kbd> for the whole screen with your microphone. Same keys or the red dot in the bar stop it. Saved as .mp4 in `~/Videos/Screencasts`. |
-| **Notifications** | <kbd>Super</kbd> + <kbd>,</kbd> dismisses, add <kbd>Shift</kbd> for all, <kbd>Alt</kbd> to bring the last one back, <kbd>Ctrl</kbd> for do not disturb. |
-| **Top bar extras** | Like Omarchy's bar: **stay awake** (a cup; no screensaver or lock), **night light** (warmer colours, via hyprsunset) and **do not disturb** sit before the clock: dim when off, lit when on, click to switch. The recording dot joins them while you record. After the clock: **weather** (from wttr.in; click for the next hours and days, or set your city) and **updates**, which appears only when Ubuntu has some waiting. On the right, an **AI agents** robot when Claude Code, Grok, Muse or opencode is installed: click it for today's tokens and prompts, the week at a glance, the model you use most, and your recent sessions (click one to pick it back up). It reads only the history they keep on your computer. Then the **microphone** (click to mute). The bar item whose panel is open gets an accent line under it. |
-| **Themes** | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> (or Menu → Style → Theme): Omarchy's 23 colour themes, including Tokyo Night, Catppuccin, Gruvbox, Nord, Rosé Pine, Everforest, Kanagawa and a few light ones. The bar, panels, terminal, notifications, launcher, window borders and lock screen all switch at once, and so does the wallpaper if you downloaded Omarchy's collection. Themes that ship Hyprland extras in Omarchy (Lumon's shadows, Solitude's rounding, Kanagawa's terminal opacity, and Tokyo Night's lock colours) bring those too. GNOME is not touched (except the terminal, which both share). |
-| **Fonts** | Menu → Style → Font: switch the terminal, bar, panels, launcher and notifications to any installed Nerd Font, set the terminal size (9 by default, like Omarchy), or download a few popular ones (Caskaydia Mono, Fira Code, Hack, Geist Mono, Source Code Pro, Ubuntu Mono). Like Omarchy, it also becomes your account's monospace font, so code in GNOME apps and anything asking for "monospace" follows it, on GNOME too (the uninstaller puts the old one back). |
-| **Wallpapers** | Double-click the desktop for a picker (right double-click for colour themes), or <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Space</kbd>. Switching wipes the new image in from the centre, like Omarchy's. Drop your own images in `~/Pictures/Wallpapers`. The installer can also download Omarchy's artwork (74 images) straight from Omarchy's repository, leaving out the ones that only show its name or logo. |
+- **Screensaver:** your name in block letters, animated with
+  [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects), after 2.5 idle minutes (GNOME and Hyprland).
+- **Lock screen:** like Omarchy's, a password field on your blurred wallpaper.
+- **Top bar:** workspaces, clock, weather, updates, toggles (night light, do not disturb, stay awake),
+  a tray behind a chevron, AI agent stats, Bluetooth, Wi-Fi, sound, display and battery. Each icon opens a small panel.
+- **Main menu** (<kbd>Super</kbd> + <kbd>Space</kbd>) laid out like Omarchy's: apps, themes, fonts, setup, updates and power.
+- **23 Omarchy themes** (<kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd>). They recolour everything at once,
+  wallpaper included if you download Omarchy's collection.
+- **Workspace layouts:** tiling, scrolling or floating (<kbd>Super</kbd> + <kbd>L</kbd>). Floating workspaces get a dock.
+- Clipboard history, an emoji picker, screenshots, screen recording, a screen switcher for projectors,
+  volume and brightness popups, and low-battery warnings.
 
 ![The screensaver](docs/screenshots/screensaver.gif)
 
-| Lock screen | Launcher |
-|---|---|
-| ![Lock screen](docs/screenshots/lock.png) | ![Launcher](docs/screenshots/launcher.png) |
-
-| Terminal | Top bar |
-|---|---|
-| ![Terminal](docs/screenshots/terminal.png) | ![Top bar](docs/screenshots/bar.png) |
-
-## Before you install
-
-- **Ubuntu 24.04 or 26.04**, on the standard GNOME desktop with the GDM login screen.
-- **Take a Timeshift snapshot first** (`sudo apt install timeshift`). Hyprland comes from the
-  community PPA [`ppa:cppiber/hyprland`](https://launchpad.net/~cppiber/+archive/ubuntu/hyprland),
-  because Ubuntu's own Hyprland package is too old for this config. On 24.04 that PPA also
-  ships a newer `libinput`, which GNOME uses too. That is the only part that touches your
-  existing desktop, and a snapshot is what makes it fully reversible.
-- **Turn off automatic login**, or you will never see the screen where you choose between
-  Hyprland and GNOME.
-- NVIDIA graphics are untested.
-
-The installer checks these with you. It also shows which installed packages would change,
-refuses to continue if apt would remove anything, and backs up any config file of yours it
-replaces as `name.bak-DATE`. Re-running it only makes a backup when you edited a file since
-the last install; theme and font changes don't count.
-
-## Install options
-
-```
-bash install.sh [options]
-
-  --name NAME       Name shown on the screensaver and bar
-                    (default: the current one, or your username). Up to about 12 characters
-                    gets the large block lettering; longer names fall back
-                    to smaller lettering.
-  --terminal-only   Only the terminal, prompt and screensaver, on your current
-                    GNOME desktop. Skips Hyprland and the PPA entirely.
-  --configs-only    Don't install any packages; just (re)write the configs.
-  --theme THEME     Colour theme, e.g. gruvbox, nord, catppuccin, rose-pine
-                    (default: keep the current one, Tokyo Night at first).
-```
-
-`--terminal-only` is the low-risk way to try it: no PPA, nothing outside your home folder
-except a few packages from Ubuntu's own repositories.
-
-To change the name later:
-
-```bash
-bash install.sh --configs-only --name newname
-```
-
-## Starting Hyprland
-
-1. Log out.
-2. On the login screen click your name, then the gear icon at the bottom right.
-3. Choose **Hyprland**, then log in.
-4. Press <kbd>Super</kbd> + <kbd>K</kbd> for the cheat sheet.
-
-To go back to GNOME, press <kbd>Super</kbd> + <kbd>Escape</kbd>, choose Log out, and pick
-**Ubuntu** from the same gear icon.
-
-If the screen comes up blank or broken: <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F3</kbd>,
-log in on the text console, run `pkill Hyprland`, and choose Ubuntu at the login screen.
-
 ## Keys
 
-<kbd>Super</kbd> is the Windows key.
+<kbd>Super</kbd> is the Windows key. <kbd>Super</kbd> + <kbd>K</kbd> lists them all.
 
 | Keys | Action |
 |---|---|
 | Super + Return | Terminal |
-| Super + Space | Main menu (or click the logo in the bar) |
+| Super + Space | Main menu |
 | Super + Alt + Space | App launcher |
-| Super + Shift + Return / Shift + B | Web browser (Shift + Alt + B: private) |
-| Super + Shift + F | Files |
-| Super + K | Cheat sheet |
-| Super + Escape | Power options |
-| Super + Ctrl + L | Lock |
-| Super + L | Cycle workspace layout: tiling, scrolling, floating |
-| Super + Ctrl + S | Start the screensaver now |
-| Super + Ctrl + Shift + Space / Ctrl + T | Colour theme |
-| Super + Ctrl + I | Stay awake (no screensaver or lock) |
-| Super + Ctrl + M | Mute the microphone |
-| Super + Ctrl + Space / Ctrl + W | Wallpaper picker |
-| Super + Ctrl + D | Screens: extend, mirror, one screen |
-| Super + Shift + Space | Hide / show the top bar |
-| Super + Ctrl + A / B / N / P | Sound, Bluetooth, network, power panels |
-| Super + Ctrl + V | Clipboard history |
-| Super + Ctrl + E | Emoji picker |
-| Alt + Print | Record the screen (again to stop) |
-| Super + , | Dismiss notification (Ctrl: do not disturb) |
 | Super + W | Close window |
-| Super + arrows | Move focus |
-| Super + Shift + arrows | Swap windows |
-| Super + F / Super + Alt + F | Fullscreen / maximise |
+| Super + 1..0 | Go to workspace (add Shift to send the window there) |
+| Super + F | Fullscreen |
 | Super + T | Float or tile a window |
-| Super + O | Pop a window out (float and pin); again to put it back |
-| Super + M | Minimise a window to the dock (floating workspaces) |
-| Super + G | Group windows (Alt + G leaves, Ctrl + arrows moves inside) |
-| Super + J | Flip the split |
-| Super + P | Pseudo-tile (keep a window's own size in its tile) |
-| Alt + Shift + Tab | Previous window |
-| Super + Ctrl + Tab | The workspace you were on before |
-| Super + 1..0 | Go to workspace |
-| Super + Shift + 1..0 | Send window to workspace |
-| Super + S | Scratchpad |
-| Super + Shift + S (or Print) | Screenshot a region |
-| Super + Shift + P (or Shift + Print) | Screenshot the whole screen |
+| Super + L | Workspace layout: tiling, scrolling, floating |
+| Super + Ctrl + L | Lock |
+| Super + Escape | Power options |
+| Super + Ctrl + Space | Wallpaper |
+| Super + Ctrl + V / E | Clipboard history / emoji |
+| Super + Shift + S | Screenshot a region |
+| Alt + Print | Record the screen (again to stop) |
 
-## Where things live
+## Customising
 
-| Path | What |
-|---|---|
-| `~/.config/hypr/hyprland.lua` | Keys, animations, window rules. Reloads on save. |
-| `~/.config/hypr/hyprlock.conf` | Lock screen |
-| `~/.config/hypr/hypridle.conf` | Idle timings (screensaver, lock, screen off, suspend) |
-| `~/.config/waybar/` | Top bar layout and CSS |
-| `~/.config/fuzzel/fuzzel.ini` | Launcher |
-| `~/.config/mako/config` | Notifications |
-| `~/.config/xdg-desktop-portal/hyprland-portals.conf` | Lets sandboxed apps (snaps such as Proton VPN) use the GNOME keyring under Hyprland |
-| `~/.config/alacritty/alacritty.toml` | Terminal |
-| `~/.config/starship.toml` | Prompt |
-| `~/.config/nameplate/` | Your name's artwork, wallpaper, themes, helper scripts |
+Configs are in `~/.config` (`hypr/`, `waybar/`, `alacritty/`, `fuzzel/`, `mako/`), and the
+helpers, themes and artwork are in `~/.config/nameplate/`. Only the lines between `theme:begin` and
+`theme:end` get rewritten when you switch theme, so your other edits stay. To make your own
+theme, copy one from `~/.config/nameplate/themes/` into `~/.config/nameplate/user-themes/`.
 
-Each themed file has a block between `theme:begin` and `theme:end` lines holding its colours.
-Switching theme rewrites only that block, so your other edits to those files stay. To make
-your own theme, copy a file from `~/.config/nameplate/themes/` into
-`~/.config/nameplate/user-themes/`, rename it, change the colours, and it shows up in the picker.
+To change the name later, run `bash install.sh --configs-only --name newname`.
 
-Hyprland 0.57 removed the old `hyprland.conf` format, so this project uses the Lua config.
-Most Hyprland tutorials written before mid-2026 show the old syntax.
+## Help
+
+- **Blank screen in Hyprland:** press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>F3</kbd>, log in, run `pkill Hyprland`, and pick Ubuntu at the login screen.
+- **After an `apt upgrade`:** Hyprland changes its config often, so an update can break the session until the config catches up. GNOME isn't affected.
+- **After a release upgrade:** Ubuntu turns PPAs off, so run the installer again.
+- Tested on a single laptop (HP EliteBook, Intel graphics, Ubuntu 24.04). NVIDIA is untested. Please open an issue when something breaks.
 
 ## Uninstall
 
@@ -180,69 +96,18 @@ Most Hyprland tutorials written before mid-2026 show the old syntax.
 bash uninstall.sh
 ```
 
-This removes the configs this project installed and puts back the ones you had before.
-Other files in those folders and the installer's `.bak-DATE` backups are kept (it prints
-the command to delete the backups). It also prints the commands for removing the packages
-and restoring Ubuntu's own library versions with `ppa-purge`.
+This removes the project's configs, puts back the ones you had before, and keeps the `.bak-DATE`
+backups. It prints the commands for removing the packages and the PPA.
 
-## Testing
-
-```bash
-bash tests/smoke.sh
-```
-
-Checks that every script parses and every theme loads, then installs, reinstalls and
-uninstalls into a throwaway home folder. It installs no packages, and anything that would
-reach your running session (`pkill`, `hyprctl`, `gsettings`, ...) is stubbed out.
-
-## Known limits
-
-- Tested on a single machine.
-- The PPA updates Hyprland with every `apt upgrade`, and Hyprland changes its config API often.
-  An update can break the Hyprland session until the config is adjusted. GNOME is unaffected.
-- A release upgrade (for example 24.04 to 26.04) disables third-party PPAs. Run the installer
-  again afterwards.
-- If Spotify is installed, its launcher entry is copied to `~/.local/share/applications` and set to run natively on
-  Wayland, because under Hyprland it otherwise cuts off its player bar. Re-run the installer if a Spotify update resets it.
-- Floating workspaces do not get Omarchy's titlebars: those come from a Hyprland plugin that is not packaged for Ubuntu, so floating windows keep the frames their apps give them.
-- Dialogs from apps such as RViz or Gazebo get tiled like normal windows; float them with Super + T.
-- The GNOME screensaver is a small script polling the idle time, not a real screensaver API.
-  It does not lock the screen; GNOME's own lock still does that.
-
-## Taking the screenshots
-
-For maintainers: the images above live in `docs/screenshots/`.
-
-```bash
-# anything on the desktop: region, or the whole screen
-Super + Shift + S   /   Super + Shift + P     # saved to ~/Pictures/Screenshots
-
-# things that close when you press a key (launcher, screensaver): use a delay
-sleep 5 && ~/.config/nameplate/bin/screenshot full
-
-# the screensaver as a GIF (sudo apt install wf-recorder ffmpeg)
-~/.config/nameplate/bin/launch-screensaver & sleep 1
-wf-recorder -f /tmp/saver.mp4 & sleep 12; pkill -INT wf-recorder
-ffmpeg -i /tmp/saver.mp4 -vf "fps=15,scale=960:-1" docs/screenshots/screensaver.gif
-```
+Developers can run `bash tests/smoke.sh`. It installs, reinstalls and uninstalls into a throwaway home folder.
 
 ## Credits
 
-- [Omarchy](https://omarchy.org) by DHH and contributors, including the optional wallpaper collection
-  (downloaded from Omarchy's repository by `get-omarchy-wallpapers`, not included here), for the look, the animation timings
-  and the idea of a terminal screensaver. The animation curve and timing values are taken
-  from Omarchy's MIT-licensed config. This project is not affiliated with Omarchy; it is a
-  small independent setup for people who need to stay on Ubuntu.
-- [Hyprland](https://hypr.land), hyprlock and hypridle by the hyprwm team.
-- [cpiber/hyprland-ppa](https://github.com/cpiber/hyprland-ppa) for the Ubuntu packages.
-- [terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects) by ChrisBuilds.
-- The colour themes in `share/themes` are Omarchy's palettes (MIT, from `themes/*/colors.toml`),
-  which in turn adapt Tokyo Night, Catppuccin, Gruvbox, Nord, Rosé Pine, Everforest, Kanagawa and
-  others by their original authors.
-- Waybar, fuzzel, mako, Alacritty, Starship, pyfiglet and the Nerd Fonts project.
-
-If you want the complete Omarchy experience on Ubuntu rather than a small look-alike, see
-[hvpaiva/omarchy-ubuntu](https://github.com/hvpaiva/omarchy-ubuntu).
+[Omarchy](https://omarchy.org) (MIT) for the look, the animation timings, the theme palettes and the
+optional wallpapers, which are downloaded from its repository and not included here. This project isn't
+affiliated with Omarchy. Also [Hyprland](https://hypr.land), [cpiber/hyprland-ppa](https://github.com/cpiber/hyprland-ppa),
+[terminaltexteffects](https://github.com/ChrisBuilds/terminaltexteffects), Waybar, fuzzel, mako, Alacritty,
+Starship and Nerd Fonts. For the full Omarchy on Ubuntu, see [hvpaiva/omarchy-ubuntu](https://github.com/hvpaiva/omarchy-ubuntu).
 
 ## License
 
