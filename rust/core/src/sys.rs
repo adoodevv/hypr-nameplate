@@ -87,7 +87,7 @@ pub fn state_dir() -> PathBuf {
         .join("nameplate")
 }
 
-/// Which panel bin/panel has open: (kind, route).
+/// Which panel is open (`nameplate-shell panel`): (kind, route).
 pub fn open_panel() -> (String, String) {
     let text = read(runtime_dir().join("nameplate-panel-open")).unwrap_or_default();
     let mut words = text.split_whitespace();

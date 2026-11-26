@@ -12,7 +12,7 @@ BASE_PKGS="alacritty pipx curl fontconfig xz-utils"
 CORE_PKGS="hyprland hyprlock hypridle waybar xdg-desktop-portal-hyprland"
 # Building the Rust programs (rust/): the bar items, keys, wallpaper, dock and agents stats
 RUST_DEV_PKGS="cargo pkg-config libgtk-3-dev libgtk-layer-shell-dev"
-EXTRA_PKGS="$RUST_DEV_PKGS hyprsunset hyprpicker tesseract-ocr ffmpeg btop jq zenity fzf python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
+EXTRA_PKGS="$RUST_DEV_PKGS hyprsunset hyprpicker tesseract-ocr ffmpeg btop jq zenity fzf cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
 export PATH="$BIN:$PATH"
 
 NAME="$(cat "$APP/name" 2>/dev/null)"   # the name from the last install, if any
@@ -277,7 +277,7 @@ done
 # Scripts that earlier versions installed and the Rust programs below replaced
 for f in agents wallpaper dock battery-watch bar-status sound-status dnd-status media-status \
          recording-status media-button osd browser keyboard-layout workspace-layout \
-         window-width window-pop window-minimize window-close-all; do
+         window-width window-pop window-minimize window-close-all panel; do
   rm -f "$APP/bin/$f"
 done
 

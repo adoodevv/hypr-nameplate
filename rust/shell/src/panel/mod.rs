@@ -9,19 +9,17 @@
 //! over a socket to the daemon; the daemon keeps GTK loaded so panels appear at
 //! once. Only one panel is open at a time, and asking for the open one again
 //! closes it.
-//!
-//! The panels are moving here from bin/panel (Python) one at a time. Kinds not
-//! in [`KINDS`] are passed on to bin/panel's own daemon (its socket is
-//! nameplate-panel-py.sock); before either side opens a panel it closes the
-//! other's.
 
 mod agents;
 mod apps;
 mod bluetooth;
 mod calendar;
 mod clipboard;
+mod display;
 mod emoji;
 mod media;
+mod menu;
+mod pickers;
 mod power;
 mod sound;
 mod weather;
@@ -40,22 +38,8 @@ use std::process::{Command, Stdio};
 use std::rc::Rc;
 use std::time::Duration;
 
-/// The panels drawn here.
+/// Every panel.
 const KINDS: &[&str] = &[
-    "clipboard",
-    "apps",
-    "calendar",
-    "media",
-    "power",
-    "sound",
-    "wifi",
-    "bluetooth",
-    "emoji",
-    "weather",
-    "agents",
-];
-/// Every panel, for the usage message and to refuse typos before starting anything.
-const ALL: &[&str] = &[
     "calendar",
     "media",
     "sound",
@@ -75,10 +59,6 @@ const ALL: &[&str] = &[
 
 fn sock() -> PathBuf {
     sys::runtime_dir().join("nameplate-panel.sock")
-}
-
-fn py_sock() -> PathBuf {
-    sys::runtime_dir().join("nameplate-panel-py.sock")
 }
 
 /// Which panel is open ("kind route"), for the bar's accent line.
@@ -110,7 +90,7 @@ pub fn cli(args: &[String]) -> Result<(), String> {
             send_to(&sock(), cmd); // nothing running: nothing to do
             Ok(())
         }
-        [kind, rest @ ..] if ALL.contains(kind) => {
+        [kind, rest @ ..] if KINDS.contains(kind) => {
             // Where the click was, so the panel opens on that screen's bar.
             let x = if bar { cursor_x() } else { String::new() };
             let message = format!("open\t{kind}\t{}\t{x}", rest.first().unwrap_or(&""));
@@ -131,7 +111,7 @@ pub fn cli(args: &[String]) -> Result<(), String> {
         }
         _ => Err(format!(
             "usage: nameplate-shell panel {} [ROUTE] [--bar] | daemon | reload | close",
-            ALL.join("|")
+            KINDS.join("|")
         )),
     }
 }
@@ -162,7 +142,6 @@ fn daemon() -> Result<(), String> {
     listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     install_css();
     write_open_file(None); // clears a line left by a crash
-    start_python(); // so its panels open quickly too
 
     let fd = listener.as_raw_fd();
     glib::unix_fd_add_local(fd, glib::IOCondition::IN, move |_, _| {
@@ -196,46 +175,11 @@ fn handle(message: &str) {
                 open(kind, route, x.map(|x| x as i32));
             }
         }
-        ["open", ..] => {
-            if current_kind().is_some() {
-                close_now();
-            }
-            relay(message.to_string());
-        }
-        ["reload"] => {
-            install_css();
-            relay(message.to_string());
-        }
-        ["close"] => {
-            close();
-            let _ = send_to(&py_sock(), "close");
-        }
+        ["reload"] => install_css(),
+        ["close"] => close(),
         // Tests only: click the button with this text or tooltip, in the open panel.
         ["press", text] if std::env::var_os("NAMEPLATE_PANEL_TEST").is_some() => press(text),
         _ => {}
-    }
-}
-
-/// Pass a request to bin/panel, starting it if it isn't running.
-fn relay(message: String) {
-    std::thread::spawn(move || {
-        if send_to(&py_sock(), &message) {
-            return;
-        }
-        start_python();
-        for _ in 0..60 {
-            std::thread::sleep(Duration::from_millis(50));
-            if send_to(&py_sock(), &message) {
-                return;
-            }
-        }
-    });
-}
-
-fn start_python() {
-    let py = sys::bin("panel");
-    if py.exists() {
-        sys::spawn(py, &["daemon"]);
     }
 }
 
@@ -264,7 +208,7 @@ thread_local! {
 }
 
 /// The theme's colours (written by bin/theme), Tokyo Night where it says nothing.
-fn theme_colors() -> Vec<(String, String)> {
+pub fn theme_colors() -> Vec<(String, String)> {
     let mut colors: Vec<(String, String)> = [
         ("mode", "dark"),
         ("background", "#1a1b26"),
@@ -387,10 +331,18 @@ pub trait Panel {
     fn padding(&self) -> u32 {
         12
     }
+    /// No box around it: it floats over the desktop (the pickers).
+    fn bare(&self) -> bool {
+        false
+    }
+    /// An extra style class for the window (the menu's own look).
+    fn window_class(&self) -> Option<&'static str> {
+        None
+    }
     /// Called once the window is on screen (to focus a search line, say).
     fn shown(self: Rc<Self>) {}
     /// A key the window got first; true if the panel used it.
-    fn on_key(&self, _event: &gdk::EventKey) -> bool {
+    fn on_key(self: Rc<Self>, _event: &gdk::EventKey) -> bool {
         false
     }
 }
@@ -429,13 +381,16 @@ fn build(kind: &str, route: Option<&str>) -> Option<Rc<dyn Panel>> {
         "emoji" => emoji::Emoji::new(),
         "weather" => weather::Weather::new(),
         "agents" => agents::Agents::new(),
+        "display" => display::Display::new(route),
+        "wallpapers" => pickers::Picker::wallpapers(),
+        "themes" => pickers::Picker::themes(),
+        "menu" => menu::Menu::new(route),
         _ => return None,
     })
 }
 
 fn open(kind: &str, route: Option<&str>, mark_x: Option<i32>) {
     close_now();
-    let _ = send_to(&py_sock(), "close");
     let Some(panel) = build(kind, route) else {
         return;
     };
@@ -445,8 +400,17 @@ fn open(kind: &str, route: Option<&str>, mark_x: Option<i32>) {
     let win = gtk::Window::new(gtk::WindowType::Toplevel);
     win.style_context().add_class("np-popup");
     win.set_title(&format!("nameplate {kind}"));
+    if let Some(class) = panel.window_class() {
+        win.style_context().add_class(class);
+    }
     let frame = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    frame.set_border_width(panel.padding());
+    if panel.bare() {
+        frame.set_border_width(0);
+        win.style_context().add_class("np-bare");
+        crate::util::transparent(&win);
+    } else {
+        frame.set_border_width(panel.padding());
+    }
     let root = panel.root();
     root.set_size_request(panel.width(), -1);
     frame.add(&root);
@@ -454,7 +418,7 @@ fn open(kind: &str, route: Option<&str>, mark_x: Option<i32>) {
     {
         let panel = panel.clone();
         win.connect_key_press_event(move |_, event| {
-            if panel.on_key(event) {
+            if panel.clone().on_key(event) {
                 return glib::Propagation::Stop;
             }
             if event.keyval() == gdk::keys::constants::Escape {
@@ -537,6 +501,11 @@ fn press(text: &str) {
     }
 }
 
+/// Open another panel (from the menu), once this turn of the main loop is done.
+pub fn switch_to(kind: &'static str) {
+    glib::idle_add_local_once(move || handle(&format!("open\t{kind}\t\t")));
+}
+
 /// The screen at x (the pointer's position across all screens).
 fn monitor_at(x: i32) -> Option<gdk::Monitor> {
     let display = gdk::Display::default()?;
@@ -585,11 +554,7 @@ pub fn close() {
     if close_now() {
         glib::idle_add_local_once(|| {
             if current_kind().is_none() {
-                // Only clear what this side wrote: bin/panel may have one open now.
-                let (kind, _) = sys::open_panel();
-                if kind.is_empty() || KINDS.contains(&kind.as_str()) {
-                    write_open_file(None);
-                }
+                write_open_file(None);
             }
         });
     }

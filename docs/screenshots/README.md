@@ -16,7 +16,7 @@ tray icons and btop show your apps).
 ~/.config/nameplate/bin/theme set tokyo-night --keep-wallpaper
 ~/.config/nameplate/bin/wallpaper set ~/.config/nameplate/wallpaper.png
 grim docs/screenshots/desktop.png                       # the whole screen
-~/.config/nameplate/bin/panel menu; sleep 1.5; grim docs/screenshots/menu.png
+~/.config/nameplate/bin/nameplate-shell panel menu; sleep 1.5; grim docs/screenshots/menu.png
 
 # the screensaver as a GIF (sudo apt install wf-recorder ffmpeg)
 ~/.config/nameplate/bin/launch-screensaver & sleep 1

@@ -285,10 +285,10 @@ impl Surface {
 }
 
 fn open_picker(button: u32) {
-    let panel = sys::bin("panel");
+    let shell = sys::bin("nameplate-shell");
     match button {
-        1 => sys::spawn(&panel, &["wallpapers"]),
-        3 => sys::spawn(&panel, &["themes"]),
+        1 => sys::spawn(&shell, &["panel", "wallpapers"]),
+        3 => sys::spawn(&shell, &["panel", "themes"]),
         _ => {}
     }
 }
@@ -381,7 +381,8 @@ pub fn cli(args: &[String]) -> Result<(), String> {
     }
 }
 
-fn collection() -> Vec<PathBuf> {
+/// The default wallpaper and everything in ~/Pictures/Wallpapers (the picker shows these).
+pub fn collection() -> Vec<PathBuf> {
     let mut images = Vec::new();
     let default = sys::app_dir().join("wallpaper.png");
     if default.exists() {

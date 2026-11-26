@@ -580,7 +580,7 @@ impl Dock {
         }
         let grid = self.slot(self.grid_icon().upcast(), None);
         grid.set_tooltip_text(Some("All apps"));
-        grid.connect_clicked(|_| sys::spawn(sys::bin("panel"), &["apps"]));
+        grid.connect_clicked(|_| sys::spawn(sys::bin("nameplate-shell"), &["panel", "apps"]));
         let me = Rc::downgrade(self);
         grid.connect_button_press_event(move |_, ev| {
             if ev.button() == 3 {

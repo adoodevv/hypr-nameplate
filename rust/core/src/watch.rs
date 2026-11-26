@@ -14,7 +14,7 @@
 //! | awake, nightlight, recording, dnd | `nameplate refresh ITEM` from the script that toggles it |
 //! | battery, bluetooth           | a short tick (sysfs reads cost microseconds)     |
 //!
-//! Every item also follows bin/panel's open-panel file (the accent line under an
+//! Every item also follows the panels' open-panel file (the accent line under an
 //! icon) and refreshes on SIGUSR1, which `nameplate refresh` sends.
 
 use crate::{bar, ffi, sys};
@@ -137,7 +137,7 @@ fn spawn_minute_ticker(tx: Sender<()>) {
     });
 }
 
-/// bin/panel rewrites this small file when a panel opens or closes.
+/// The panels rewrite this small file when one opens or closes.
 fn spawn_open_panel_follower(tx: Sender<()>) {
     thread::spawn(move || {
         let mut last = sys::open_panel();

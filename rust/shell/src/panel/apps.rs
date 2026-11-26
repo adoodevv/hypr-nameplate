@@ -244,7 +244,7 @@ impl Panel for Apps {
         self.refilter();
         self.search.grab_focus();
     }
-    fn on_key(&self, event: &gdk::EventKey) -> bool {
+    fn on_key(self: Rc<Self>, event: &gdk::EventKey) -> bool {
         use gdk::keys::constants as key;
         let k = event.keyval();
         if k == key::Escape && !self.search.text().is_empty() {
