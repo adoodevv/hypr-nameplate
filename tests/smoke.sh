@@ -83,6 +83,8 @@ check "agents stats is JSON" sh -c '"$1" stats | python3 -c "import json,sys; js
 check "nameplate-shell was built" test -x "$B/nameplate-shell"
 check "wallpaper list has the default" sh -c 'HOME="$2" "$1" wallpaper list | grep -q wallpaper.png' _ "$B/nameplate-shell" "$H"
 check "dock pin works" sh -c 'HOME="$2" "$1" dock pin x.desktop && HOME="$2" "$1" dock pinned | grep -qx x.desktop' _ "$B/nameplate-shell" "$H"
+check "panel refuses an unknown kind" not "$B/nameplate-shell" panel nonsense
+check "panel close works with nothing open" "$B/nameplate-shell" panel close
 check "replaced scripts are gone" not test -e "$B/dock" -o -e "$B/wallpaper" -o -e "$B/agents"
 check "Rust unit tests pass" env CARGO_HOME="$H/.cargo" CARGO_TARGET_DIR="$H/.cache/nameplate/rust-target" \
   cargo test --quiet --locked --manifest-path "$SRC/rust/Cargo.toml" -p nameplate -p nameplate-agents

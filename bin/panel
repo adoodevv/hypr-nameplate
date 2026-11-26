@@ -1,12 +1,10 @@
 #!/usr/bin/python3
-"""hypr-nameplate panels: small popups that open under the top bar.
+"""hypr-nameplate panels not yet moved to Rust.
 
-    panel calendar | media | sound | wifi | bluetooth | display | power | menu | ...
-    panel KIND --bar    opened by clicking the bar (the panel opens on that screen)
-    panel daemon        keep running in the background (started at login), so panels
-                        open instantly instead of starting Python and GTK on every click
-    panel reload        pick up a new theme or font
-    panel close         close whatever panel is open (before the screensaver or lock)
+    panel KIND ...      same as `nameplate-shell panel KIND ...`, which opens every panel:
+                        the ones ported to Rust itself, the rest through this program
+    panel daemon        this program's background half, which nameplate-shell's panel
+                        daemon starts and talks to over nameplate-panel-py.sock
 
 Clicking anywhere outside a panel, or pressing Escape, closes it. Clicking the same
 bar icon again closes it too; clicking a different icon switches panels.
@@ -21,14 +19,16 @@ import sys
 import tempfile
 
 RUN = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
-SOCK = os.path.join(RUN, "nameplate-panel.sock")
+SOCK = os.path.join(RUN, "nameplate-panel-py.sock")     # this program's daemon
+FRONT = os.path.join(RUN, "nameplate-panel.sock")       # nameplate-shell's, which opens every panel
+RUST = os.path.expanduser("~/.config/nameplate/bin/nameplate-shell")
 
 
-def send(message):
+def send(message, path=SOCK):
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
             s.settimeout(1)
-            s.connect(SOCK)
+            s.connect(path)
             s.sendall(message.encode())
         return True
     except OSError:
@@ -36,32 +36,9 @@ def send(message):
 
 
 def client():
-    """The quick path: hand the request to the background panel process and exit,
-    before loading GTK. Falls through (returns) to run the panel here if there's none."""
-    args = [a for a in sys.argv[1:] if a != "--bar"]
-    if not args or args[0] == "daemon":
-        return
-    if args[0] in ("reload", "close"):
-        send(args[0])                  # nothing running: nothing to close
-        sys.exit(0)
-    x = ""
-    if "--bar" in sys.argv:          # where the click was, to mark the bar item
-        try:
-            x = subprocess.run(["hyprctl", "cursorpos"], capture_output=True, text=True,
-                               timeout=1).stdout.split(",")[0].strip()
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-    message = "\t".join(["open", args[0], args[1] if len(args) > 1 else "", x])
-    if send(message):
-        sys.exit(0)
-    # No background process yet (first click after an update, or it crashed): start one
-    subprocess.Popen([sys.executable, os.path.abspath(__file__), "daemon"], start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    import time
-    for _ in range(60):
-        time.sleep(0.05)
-        if send(message):
-            sys.exit(0)
+    """Everything but `panel daemon` is nameplate-shell's to handle."""
+    if sys.argv[1:2] != ["daemon"]:
+        os.execv(RUST, [RUST, "panel", *sys.argv[1:]])
 
 
 if __name__ == "__main__":
@@ -90,11 +67,8 @@ try:
 except (ValueError, ImportError):
     GtkLayerShell = None
 
-PIDFILE = os.path.join(RUN, "nameplate-panel.pid")
 OPEN_FILE = os.path.join(RUN, "nameplate-panel-open")      # read by the bar items (nameplate bar)
 BIN = os.path.expanduser("~/.config/nameplate/bin")
-PANELS = ("calendar", "media", "sound", "wifi", "bluetooth", "display", "power", "wallpapers",
-          "clipboard", "emoji", "menu", "themes", "weather", "agents", "apps")
 
 
 def g(code):
@@ -347,7 +321,7 @@ def open_panel(kind, route=None):
     if DAEMON:
         GLib.idle_add(lambda: (DAEMON.open(kind, route), False)[1])
     else:
-        spawn(os.path.join(BIN, "panel"), kind, *([route] if route else []))
+        spawn(RUST, "panel", kind, *([route] if route else []))
 
 
 def label(text="", *classes, xalign=0.0, ellipsize=False, width=None):
@@ -1828,90 +1802,6 @@ def thumbnail(path, w, h):
 
 
 
-class ClipboardPanel(Panel):
-    """Recent copies (SUPER + CTRL + V). Click one to copy it again, then paste as usual."""
-    width = 420
-    anchor = "middle"
-    LIMIT = 60
-
-    def __init__(self, app):
-        super().__init__(app)
-        head = hbox()
-        head.pack_start(label("Clipboard history", "np-title"), True, True, 0)
-        self.box.pack_start(head, False, False, 0)
-        self.search = Gtk.SearchEntry()
-        self.search.get_style_context().add_class("np-search")
-        self.search.set_placeholder_text("Search")
-        self.search.connect("search-changed", lambda *_: self.fill())
-        self.search.connect("activate", lambda *_: self.pick_first())
-        self.box.pack_start(self.search, False, False, 0)
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_min_content_height(360)
-        self.list = vbox(0)
-        scroll.add(self.list)
-        self.box.pack_start(scroll, True, True, 0)
-        self.box.pack_start(Gtk.Separator(), False, False, 0)
-        foot = hbox()
-        foot.pack_start(label("Click to copy, then paste with Ctrl+V", "np-dim"), True, True, 0)
-        foot.pack_end(row(I["trash"], "Clear", on_click=self.clear_all), False, False, 0)
-        self.box.pack_start(foot, False, False, 0)
-        self.entries = []
-        self.load()
-
-    def shown(self):
-        self.search.grab_focus()
-
-    def load(self):
-        rc, text = run("cliphist", "list", timeout=10)
-        # Only cliphist's own lines ("id<TAB>preview"): a warning on stderr isn't an entry.
-        self.entries = [l for l in text.splitlines() if "\t" in l] if rc == 0 else []
-        self.missing = rc == 127
-        self.fill()
-
-    def fill(self):
-        clear(self.list)
-        if self.missing:
-            self.list.pack_start(label("cliphist isn't installed. Run the installer again.", "np-dim"), False, False, 6)
-        query = self.search.get_text().lower()
-        shown = 0
-        for line in self.entries:
-            _, _, preview = line.partition("\t")
-            if query and query not in preview.lower():
-                continue
-            m = re.match(r"\[\[ binary data .*?(\w+) (\d+x\d+) \]\]", preview)
-            text = f"Image  {m.group(2)}  ({m.group(1)})" if m else " ".join(preview.split())
-            icon = I["image"] if m or preview.startswith("[[ binary") else I["clip"]
-            self.list.pack_start(row(icon, text or "(empty)", on_click=lambda l=line: self.pick(l)), False, False, 0)
-            shown += 1
-            if shown >= self.LIMIT:
-                break
-        if not shown and not self.missing:
-            self.list.pack_start(label("Nothing yet. Things you copy show up here." if not query else "No matches.",
-                                       "np-dim"), False, False, 6)
-        self.list.show_all()
-
-    def pick_first(self):
-        query = self.search.get_text().lower()
-        for line in self.entries:
-            if not query or query in line.partition("\t")[2].lower():
-                return self.pick(line)
-
-    def pick(self, line):
-        try:
-            data = subprocess.run(["cliphist", "decode"], input=(line + "\n").encode(),
-                                  capture_output=True, timeout=10).stdout
-            subprocess.run(["wl-copy"], input=data, timeout=10)
-        except (OSError, subprocess.TimeoutExpired):
-            return
-        spawn("notify-send", "-a", "Clipboard", "-t", "1500", "Copied. Paste with Ctrl+V")
-        self.close()
-
-    def clear_all(self):
-        run("cliphist", "wipe", timeout=10)
-        self.load()
-
-
 # Everyday words for emoji whose official Unicode names don't say what people search for
 EMOJI_WORDS = {
     "😂": "laugh lol haha joy tears funny", "🤣": "laugh lol rofl", "😆": "laugh haha", "😄": "happy smile laugh",
@@ -2339,160 +2229,6 @@ def ago(moment):
     if minutes < 48 * 60:
         return "%d h" % (minutes // 60)
     return "%d days" % (minutes // 1440)
-
-
-class AppsPanel(Panel):
-    """App launcher (SUPER + ALT + SPACE), laid out like Omarchy 4's app grid: a big card in
-    the middle of the screen, seven columns of large icons, and a search line on top.
-    Just start typing to search; arrows move, Enter opens, Escape clears or closes."""
-    anchor = "middle"
-    dim_backdrop = True
-    COLUMNS, ROWS = 7, 4
-    ICON, CELL_W, CELL_H = 56, 124, 128
-
-    def __init__(self, app):
-        super().__init__(app)
-        from gi.repository import Gio
-        self.width = self.COLUMNS * self.CELL_W + 16
-        self.box.set_spacing(18)
-        self.box.get_style_context().add_class("np-apps")
-        self.search = Gtk.Entry()
-        self.search.get_style_context().add_class("np-apps-search")
-        self.search.set_placeholder_text("Search apps")
-        self.search.connect("changed", lambda *_: self.refilter())
-        self.search.connect("activate", lambda *_: self.launch(self.selected()))
-        self.box.pack_start(self.search, False, False, 0)
-
-        self.grid = Gtk.FlowBox()
-        self.grid.set_homogeneous(True)
-        self.grid.set_min_children_per_line(self.COLUMNS)
-        self.grid.set_max_children_per_line(self.COLUMNS)
-        self.grid.set_selection_mode(Gtk.SelectionMode.SINGLE)
-        self.grid.set_activate_on_single_click(True)
-        self.grid.set_can_focus(False)
-        self.grid.set_filter_func(self.matches)
-        self.grid.connect("child-activated", lambda _g, child: self.launch(child))
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_size_request(-1, self.ROWS * self.CELL_H)
-        scroll.add(self.grid)
-        self.box.pack_start(scroll, True, True, 0)
-        self.empty = label("No apps match", "np-dim", xalign=0.5)
-        self.empty.set_no_show_all(True)
-        self.box.pack_start(self.empty, False, False, 0)
-
-        theme = Gtk.IconTheme.get_default()
-        apps = [a for a in Gio.AppInfo.get_all() if a.should_show()]
-        apps.sort(key=lambda a: (a.get_display_name() or "").lower())
-        for info in apps:
-            self.grid.add(self.cell(info, theme))
-        self.visible = []
-
-    def cell(self, info, theme):
-        child = Gtk.FlowBoxChild()
-        child.info = info
-        child.words = " ".join(filter(None, (info.get_display_name(), info.get_name(),
-                                             info.get_description() or "",
-                                             " ".join(info.get_keywords() or []) if hasattr(info, "get_keywords") else "",
-                                             info.get_executable() or ""))).lower()
-        child.set_size_request(self.CELL_W, self.CELL_H)
-        child.get_style_context().add_class("np-app")
-        box = vbox(8)
-        box.set_valign(Gtk.Align.START)
-        img = Gtk.Image()
-        icon = info.get_icon()
-        pix = None
-        if icon is not None:
-            try:
-                found = theme.lookup_by_gicon(icon, self.ICON, Gtk.IconLookupFlags.FORCE_SIZE)
-                pix = found.load_icon() if found else None
-            except GLib.Error:
-                pix = None
-        if pix is None:
-            try:
-                pix = theme.load_icon("application-x-executable", self.ICON, Gtk.IconLookupFlags.FORCE_SIZE)
-            except GLib.Error:
-                pix = None
-        if pix is not None:
-            img.set_from_pixbuf(pix)
-        img.set_size_request(self.ICON, self.ICON)
-        box.pack_start(img, False, False, 0)
-        name = label(info.get_display_name() or info.get_name(), "np-app-name", xalign=0.5)
-        name.set_justify(Gtk.Justification.CENTER)
-        name.set_line_wrap(True)
-        name.set_lines(2)
-        from gi.repository import Pango
-        name.set_ellipsize(Pango.EllipsizeMode.END)
-        name.set_max_width_chars(12)
-        name.set_halign(Gtk.Align.CENTER)
-        box.pack_start(name, False, False, 0)
-        events = Gtk.EventBox()
-        events.add(box)
-        events.connect("button-press-event", lambda _w, e, i=info: self.menu(i, e) if e.button == 3 else False)
-        child.add(events)
-        child.set_tooltip_text(info.get_description() or info.get_display_name())
-        return child
-
-    def menu(self, info, event):
-        """Right-click an app: pin it to the dock or take it off, like Omarchy's grid."""
-        pinned = info.get_id() in out(os.path.join(BIN, "nameplate-shell"), "dock", "pinned", timeout=5).split()
-        m = Gtk.Menu()
-        it = Gtk.MenuItem(label="Unpin from dock" if pinned else "Pin to dock")
-        it.connect("activate", lambda *_: run(os.path.join(BIN, "nameplate-shell"), "dock", "unpin" if pinned else "pin",
-                                               info.get_id(), timeout=5))
-        m.append(it)
-        m.show_all()
-        m.attach_to_widget(self.grid, None)
-        m.popup_at_pointer(event)
-        return True
-
-    def matches(self, child):
-        query = self.search.get_text().strip().lower()
-        return all(word in child.words for word in query.split())
-
-    def refilter(self):
-        self.grid.invalidate_filter()
-        self.visible = [c for c in self.grid.get_children() if self.matches(c)]
-        self.empty.set_visible(not self.visible)
-        if self.visible:
-            self.grid.select_child(self.visible[0])
-        else:
-            self.grid.unselect_all()
-
-    def shown(self):
-        self.refilter()
-        self.search.grab_focus()
-
-    def selected(self):
-        chosen = self.grid.get_selected_children()
-        return chosen[0] if chosen else None
-
-    def on_key(self, event):
-        key = event.keyval
-        if key == Gdk.KEY_Escape and self.search.get_text():
-            self.search.set_text("")
-            return True
-        steps = {Gdk.KEY_Left: -1, Gdk.KEY_Right: 1, Gdk.KEY_Up: -self.COLUMNS, Gdk.KEY_Down: self.COLUMNS,
-                 Gdk.KEY_Tab: 1, Gdk.KEY_ISO_Left_Tab: -1}
-        if key in steps and self.visible:
-            now = self.selected()
-            i = self.visible.index(now) if now in self.visible else 0
-            i = max(0, min(len(self.visible) - 1, i + steps[key]))
-            self.grid.select_child(self.visible[i])
-            self.visible[i].grab_focus()
-            self.search.grab_focus_without_selecting()
-            return True
-        return False
-
-    def launch(self, child):
-        if child is None:
-            return
-        info = child.info
-        if shutil.which("gtk-launch") and info.get_id():
-            spawn("gtk-launch", info.get_id())     # a session of its own, not a child of this panel
-        else:
-            info.launch([], None)
-        self.close()
 
 
 class AgentsPanel(Panel):
@@ -3170,9 +2906,9 @@ class MenuPanel(Panel):
 KINDS = {"calendar": CalendarPanel, "media": MediaPanel, "sound": SoundPanel,
          "wifi": WifiPanel, "bluetooth": BluetoothPanel, "display": DisplayPanel,
          "power": PowerPanel, "wallpapers": WallpaperPanel,
-         "clipboard": ClipboardPanel, "emoji": EmojiPanel, "menu": MenuPanel,
+         "emoji": EmojiPanel, "menu": MenuPanel,
          "themes": ThemePanel, "weather": WeatherPanel,
-         "agents": AgentsPanel, "apps": AppsPanel}
+         "agents": AgentsPanel}
 
 
 # --------------------------------------------------------------------- app --
@@ -3300,19 +3036,11 @@ class App:
         self.windows = []
         if DAEMON:
             DAEMON.closed(self)
-            return
-        try:
-            with open(PIDFILE) as f:
-                if f.read().split()[0] == str(os.getpid()):
-                    os.remove(PIDFILE)
-        except (OSError, IndexError):
-            pass
-        Gtk.main_quit()
 
 
 class Daemon:
-    """panel daemon: stays running after login and shows panels on request (bin/panel's
-    client() sends them over a socket), so a bar click doesn't wait for Python and GTK."""
+    """panel daemon: shows this program's panels when nameplate-shell's panel daemon
+    passes a request on (over SOCK), so a bar click doesn't wait for Python and GTK."""
 
     def __init__(self):
         self.app = None
@@ -3358,6 +3086,9 @@ class Daemon:
     def open(self, kind, route=None, mark_x=None):
         if self.app and not self.app.closed:
             self.app.quit()
+        if kind not in KINDS:                  # ported to Rust (opened from a menu here)
+            send(f"open\t{kind}\t{route or ''}\t", FRONT)
+            return
         try:
             self.app = App(kind, route, mark_x)
             self.kind = kind
@@ -3374,7 +3105,13 @@ class Daemon:
 
     def bar_if_idle(self):
         if self.app is None:
-            self.tell_bar(None, None)
+            try:
+                with open(OPEN_FILE) as f:
+                    open_kind = (f.read().split() or [""])[0]
+            except OSError:
+                open_kind = ""
+            if not open_kind or open_kind in KINDS:   # not a Rust panel that has opened since
+                self.tell_bar(None, None)
         return False
 
     @staticmethod
@@ -3397,43 +3134,12 @@ class Daemon:
         Gtk.main_quit()
 
 
-def take_over(kind):
-    """Without the background process: one panel at a time, by pid file."""
-    try:
-        with open(PIDFILE) as f:
-            pid, current = f.read().split()[:2]
-        pid = int(pid)
-        with open(f"/proc/{pid}/cmdline", "rb") as f:
-            alive_ = b"bin/panel" in f.read()
-    except (OSError, ValueError):
-        alive_, current = False, None
-    if alive_:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except OSError:
-            pass
-        if current == kind:
-            return False
-    with open(PIDFILE, "w") as f:
-        f.write(f"{os.getpid()} {kind}\n")
-    return True
-
-
 def main():
     global DAEMON
-    args = [a for a in sys.argv[1:] if a != "--bar"]
-    kind = args[0] if args else ""
-    if kind == "daemon":
-        DAEMON = Daemon()
-        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, DAEMON.stop)
-        Gtk.main()
-        return
-    if kind not in KINDS:
-        sys.exit("usage: panel " + " | ".join(PANELS) + " | daemon | reload | close")
-    if not take_over(kind):
-        return
-    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, Gtk.main_quit)
-    App(kind, args[1] if len(args) > 1 else None)
+    if sys.argv[1:2] != ["daemon"]:
+        sys.exit("usage: panel daemon (panels open with nameplate-shell panel KIND)")
+    DAEMON = Daemon()
+    GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, DAEMON.stop)
     Gtk.main()
 
 

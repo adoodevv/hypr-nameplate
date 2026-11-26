@@ -7,8 +7,8 @@ local bin    = home .. "/.config/nameplate/bin/"
 
 local terminal    = "alacritty"
 local fileManager = "nautilus --new-window"
-local apps        = bin .. "panel apps"   -- Omarchy-style app grid (bin/panel)
-local mainMenu    = bin .. "panel menu"
+local apps        = bin .. "nameplate-shell panel apps"   -- Omarchy-style app grid
+local mainMenu    = bin .. "nameplate-shell panel menu"
 
 -- Colours: this block is rewritten by 'theme set NAME' (SUPER + CTRL + SHIFT + SPACE)
 -- theme:begin colors
@@ -38,7 +38,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd(bin .. "nameplate battery-watch")
   hl.exec_cmd(bin .. "screen-added --init")   -- screens already plugged in at login aren't "new"
   hl.exec_cmd(bin .. "display restore")       -- scale and resolution picked in the display panel
-  hl.exec_cmd(bin .. "panel daemon")          -- keeps the panels ready, so bar clicks open instantly
+  hl.exec_cmd(bin .. "nameplate-shell panel daemon")  -- keeps the panels ready, so bar clicks open instantly
   hl.exec_cmd(bin .. "nameplate-shell dock")  -- app dock along the bottom, tucked away while windows are open
   hl.exec_cmd(bin .. "hardware restore")      -- touchpad / touchscreen left off in the Hardware menu
   hl.exec_cmd("wl-paste --type text --watch cliphist store")    -- clipboard history
@@ -248,35 +248,35 @@ hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd(bin .. "nameplate browser"))
 hl.bind(mod .. " + SHIFT + ALT + B", hl.dsp.exec_cmd(bin .. "nameplate browser --private"))
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd(fileManager))
 hl.bind(mod .. " + K",      hl.dsp.exec_cmd(bin .. "keys"))
-hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(bin .. "panel menu system"))
+hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(bin .. "nameplate-shell panel menu system"))
 hl.bind(mod .. " + CTRL + L", hl.dsp.exec_cmd("loginctl lock-session"))
 hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd(bin .. "launch-screensaver"))
-hl.bind(mod .. " + CTRL + Space", hl.dsp.exec_cmd(bin .. "panel wallpapers"))
-hl.bind(mod .. " + CTRL + W", hl.dsp.exec_cmd(bin .. "panel wallpapers"))
-hl.bind(mod .. " + CTRL + SHIFT + Space", hl.dsp.exec_cmd(bin .. "panel themes"))
-hl.bind(mod .. " + CTRL + T", hl.dsp.exec_cmd(bin .. "panel themes"))
+hl.bind(mod .. " + CTRL + Space", hl.dsp.exec_cmd(bin .. "nameplate-shell panel wallpapers"))
+hl.bind(mod .. " + CTRL + W", hl.dsp.exec_cmd(bin .. "nameplate-shell panel wallpapers"))
+hl.bind(mod .. " + CTRL + SHIFT + Space", hl.dsp.exec_cmd(bin .. "nameplate-shell panel themes"))
+hl.bind(mod .. " + CTRL + T", hl.dsp.exec_cmd(bin .. "nameplate-shell panel themes"))
 hl.bind(mod .. " + SHIFT + Space", hl.dsp.exec_cmd("pkill -SIGUSR1 waybar"))
 
 -- Panels from the keyboard (same as clicking the bar icons)
-hl.bind(mod .. " + CTRL + A", hl.dsp.exec_cmd(bin .. "panel sound"))
-hl.bind(mod .. " + CTRL + B", hl.dsp.exec_cmd(bin .. "panel bluetooth"))
-hl.bind(mod .. " + CTRL + D", hl.dsp.exec_cmd(bin .. "panel display"))
-hl.bind(mod .. " + CTRL + N", hl.dsp.exec_cmd(bin .. "panel wifi"))
-hl.bind(mod .. " + CTRL + P", hl.dsp.exec_cmd(bin .. "panel power"))
-hl.bind(mod .. " + CTRL + V", hl.dsp.exec_cmd(bin .. "panel clipboard"))
-hl.bind(mod .. " + CTRL + E", hl.dsp.exec_cmd(bin .. "panel emoji"))
-hl.bind(mod .. " + CTRL + C", hl.dsp.exec_cmd(bin .. "panel menu trigger/capture"))
-hl.bind(mod .. " + CTRL + O", hl.dsp.exec_cmd(bin .. "panel menu trigger/toggle"))
-hl.bind(mod .. " + CTRL + H", hl.dsp.exec_cmd(bin .. "panel menu setup/hardware"))
+hl.bind(mod .. " + CTRL + A", hl.dsp.exec_cmd(bin .. "nameplate-shell panel sound"))
+hl.bind(mod .. " + CTRL + B", hl.dsp.exec_cmd(bin .. "nameplate-shell panel bluetooth"))
+hl.bind(mod .. " + CTRL + D", hl.dsp.exec_cmd(bin .. "nameplate-shell panel display"))
+hl.bind(mod .. " + CTRL + N", hl.dsp.exec_cmd(bin .. "nameplate-shell panel wifi"))
+hl.bind(mod .. " + CTRL + P", hl.dsp.exec_cmd(bin .. "nameplate-shell panel power"))
+hl.bind(mod .. " + CTRL + V", hl.dsp.exec_cmd(bin .. "nameplate-shell panel clipboard"))
+hl.bind(mod .. " + CTRL + E", hl.dsp.exec_cmd(bin .. "nameplate-shell panel emoji"))
+hl.bind(mod .. " + CTRL + C", hl.dsp.exec_cmd(bin .. "nameplate-shell panel menu trigger/capture"))
+hl.bind(mod .. " + CTRL + O", hl.dsp.exec_cmd(bin .. "nameplate-shell panel menu trigger/toggle"))
+hl.bind(mod .. " + CTRL + H", hl.dsp.exec_cmd(bin .. "nameplate-shell panel menu setup/hardware"))
 hl.bind(mod .. " + CTRL + period", hl.dsp.exec_cmd(bin .. "transcode"))
-hl.bind(mod .. " + CTRL + ALT + D", hl.dsp.exec_cmd(bin .. "panel calendar"))
-hl.bind(mod .. " + CTRL + ALT + E", hl.dsp.exec_cmd(bin .. "panel calendar clock"))
+hl.bind(mod .. " + CTRL + ALT + D", hl.dsp.exec_cmd(bin .. "nameplate-shell panel calendar"))
+hl.bind(mod .. " + CTRL + ALT + E", hl.dsp.exec_cmd(bin .. "nameplate-shell panel calendar clock"))
 hl.bind(mod .. " + SHIFT + T", hl.dsp.exec_cmd("alacritty --class nameplate-float --title Activity -e btop"))
 
 -- SUPER + CTRL + 1..9: the bar's panels, left to right (menu, calendar, weather,
 -- agents, Bluetooth, sound, network, display, power), like Omarchy's
 for i, kind in ipairs({ "menu", "calendar", "weather", "agents", "bluetooth", "sound", "wifi", "display", "power" }) do
-  hl.bind(mod .. " + CTRL + " .. i, hl.dsp.exec_cmd(bin .. "panel " .. kind))
+  hl.bind(mod .. " + CTRL + " .. i, hl.dsp.exec_cmd(bin .. "nameplate-shell panel " .. kind))
 end
 
 -- Notices: the time, battery or weather as a notification (bin/notice)
@@ -297,7 +297,7 @@ hl.bind(mod .. " + comma",               hl.dsp.exec_cmd("makoctl invoke"))
 hl.bind(mod .. " + ALT + comma",         hl.dsp.exec_cmd("makoctl dismiss"))
 hl.bind(mod .. " + SHIFT + comma",       hl.dsp.exec_cmd("makoctl dismiss --all"))
 hl.bind(mod .. " + CTRL + comma",        hl.dsp.exec_cmd("makoctl menu fuzzel --dmenu --prompt 'Action  '"))
-hl.bind(mod .. " + SHIFT + ALT + comma", hl.dsp.exec_cmd(bin .. "panel menu trigger/notifications"))
+hl.bind(mod .. " + SHIFT + ALT + comma", hl.dsp.exec_cmd(bin .. "nameplate-shell panel menu trigger/notifications"))
 hl.bind(mod .. " + CTRL + ALT + comma",  hl.dsp.exec_cmd(bin .. "dnd"))
 
 -- Universal clipboard: SUPER + C / X / V / A copy, cut, paste and select all in

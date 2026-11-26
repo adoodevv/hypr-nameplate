@@ -1,0 +1,123 @@
+/* The panels' look. Colours (@bg, @accent...) come from the theme; the font
+   from ~/.config/nameplate/font. */
+window.np-backdrop { background-color: rgba(0, 0, 0, 0); }
+/* The app grid dims the desktop behind it, like Omarchy's scrim. The main
+   menu and the bar panels stay clear, so the desktop around them is unchanged. */
+window.np-backdrop.np-dimmed { background-color: alpha(@bg, 0.5); }
+window.np-popup {
+  background-color: @bg;
+  border: 2px solid @accent;
+}
+.np-popup * {
+  font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace;
+  font-size: 10pt;
+  color: @fg;
+}
+.np-popup .np-title { font-weight: bold; color: @fg_bright; font-size: 11pt; }
+.np-popup .np-big { font-weight: bold; color: @fg_bright; font-size: 12pt; }
+.np-popup .np-dim, .np-popup .np-dim * { color: @fg_dim; }
+.np-popup .np-accent { color: @accent; }
+.np-popup .np-error { color: @red; }
+.np-popup .np-icon { font-size: 13pt; }
+.np-popup button {
+  background-image: none; background-color: transparent;
+  border: none; border-radius: 0; box-shadow: none; text-shadow: none;
+  padding: 5px 8px; min-height: 0; min-width: 0;
+}
+.np-popup button:hover { background-color: @selection; }
+.np-popup button.np-active label { color: @accent; }
+.np-popup button.np-round { padding: 6px 10px; }
+.np-popup button.np-round label { font-size: 15pt; }
+.np-popup button.np-round.np-main label { font-size: 20pt; color: @accent; }
+.np-popup separator { background-color: @selection; min-height: 1px; margin: 4px 0; }
+.np-popup scale trough { background-color: @muted; min-height: 6px; border: none; border-radius: 3px; }
+.np-popup scale highlight { background-color: @accent; border: none; border-radius: 3px; }
+.np-popup scale slider {
+  background-image: none; background-color: @fg_bright; border: none; box-shadow: none;
+  min-width: 14px; min-height: 14px; border-radius: 7px; margin: -5px;
+}
+.np-popup *:focus, .np-popup *:focus-visible { outline: none; outline-width: 0; outline-color: transparent; box-shadow: none; }
+.np-popup switch { background-image: none; background-color: @muted; border: 1px solid transparent; outline: none; box-shadow: none; border-radius: 12px; }
+.np-popup switch:focus { border-color: transparent; }
+.np-popup switch:checked { background-color: @accent; }
+.np-popup switch image { color: transparent; }
+.np-popup switch slider { background-image: none; background-color: @fg_bright; border: none; box-shadow: none; border-radius: 10px; }
+.np-popup entry {
+  background-image: none; background-color: @selection; color: @fg_bright;
+  border: 1px solid @muted; border-radius: 0; box-shadow: none; padding: 4px 6px;
+}
+.np-popup entry:focus { border-color: @accent; }
+.np-popup calendar {
+  background-color: transparent; border: none; padding: 2px;
+}
+.np-popup calendar:selected { background-color: @accent; color: @bg; border-radius: 3px; }
+.np-popup calendar.header { border: none; background-color: transparent; }
+.np-popup calendar.button { color: @accent; }
+.np-popup calendar:indeterminate { color: @muted; }
+.np-popup scrolledwindow, .np-popup viewport { background-color: transparent; border: none; }
+.np-popup .np-spark { color: @accent; }
+.np-popup .np-huge { font-size: 26pt; font-weight: bold; color: @fg_bright; }
+.np-popup flowbox, .np-popup flowboxchild { background-color: transparent; padding: 0; }
+.np-popup button.np-thumb { padding: 2px; border: 2px solid transparent; }
+.np-popup button.np-thumb:hover { border-color: @muted; background-color: transparent; }
+.np-popup button.np-thumb.np-current { border-color: @accent; }
+/* Main menu, like Omarchy's Walker menu (omarchy-menu --dmenu): a narrow box
+   with a 2px foreground border (Walker's @border is the foreground colour, not
+   the accent) on a 95% background, 20px inside, a plain search line prompted
+   with the menu's name ("Go…", "Appearance…"), then 18px rows with 14px
+   of air. The current row is a faint foreground wash with accent text. There
+   is no title, no back button and no chevron: Escape goes back. */
+window.np-popup.np-menu { background-color: alpha(@bg, 0.95); border-color: @fg; }
+.np-popup entry.np-menu-search {
+  background-image: none; background-color: @bg; color: @fg_bright;
+  border: none; box-shadow: none; padding: 10px; font-size: 18px;
+}
+.np-popup entry.np-menu-search:focus { border: none; }
+.np-popup .np-menu-prompt { font-size: 18px; color: @fg_dim; }
+.np-popup button.np-menu-item { padding: 14px; }
+.np-popup button.np-menu-item:hover { background-color: alpha(@fg, 0.07); }
+.np-popup button.np-menu-item label { font-size: 18px; }
+.np-popup button.np-menu-item label.np-dim { font-size: 10px; }
+.np-popup button.np-menu-item.np-selected { background-color: alpha(@fg, 0.07); }
+.np-popup button.np-menu-item.np-selected label { color: @accent; }
+.np-popup .np-menu-info label { font-size: 12px; }
+.np-popup button.np-emoji { padding: 2px 4px; }
+.np-popup button.np-emoji label { font-family: "Noto Color Emoji", sans-serif; font-size: 18pt; }
+.np-popup entry.np-search { margin-bottom: 4px; }
+.np-popup button.np-selected { background-color: @selection; }
+.np-popup button.np-selected label { color: @fg_bright; }
+/* Wallpaper and theme pickers: a carousel floating over the desktop */
+window.np-popup.np-bare { background-color: transparent; border: none; }
+.np-popup .np-picker-name { font-size: 15pt; font-weight: bold; color: @fg_bright; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+.np-popup .np-picker-hint { font-size: 9pt; color: @fg; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+/* App launcher, like Omarchy 4's app grid */
+.np-popup .np-apps { padding: 6px; }
+.np-popup entry.np-apps-search {
+  background-color: alpha(@fg, 0.06); border: none; padding: 9px 12px;
+  font-size: 13pt; color: @fg_bright;
+}
+.np-popup flowboxchild.np-app { padding: 14px 4px 6px 4px; border-radius: 0; }
+.np-popup flowboxchild.np-app:hover { background-color: alpha(@fg, 0.05); }
+.np-popup flowboxchild.np-app .np-app-name { padding: 2px 8px; }
+.np-popup flowboxchild.np-app:selected { background-color: transparent; }
+.np-popup flowboxchild.np-app:selected .np-app-name { background-color: @selection; color: @fg_bright; }
+/* Agents panel, like Omarchy 4's */
+.np-popup .np-agents-head { padding: 6px 0 18px 0; }
+.np-popup button.np-chip { background-color: alpha(@fg, 0.06); padding: 6px 4px; }
+.np-popup button.np-chip:hover { background-color: @selection; }
+.np-popup button.np-chip.np-current { background-color: @selection; }
+.np-popup button.np-chip.np-current label { color: @accent; font-weight: bold; }
+.np-popup scale marks mark indicator { color: @muted; min-height: 4px; min-width: 1px; }
+.np-popup .np-agents-mark { font-size: 26pt; color: @fg; }
+.np-popup .np-agents-title { font-size: 13pt; font-weight: bold; color: @fg; }
+.np-popup .np-agents-phrase { font-size: 9pt; letter-spacing: 2px; color: @fg_dim; }
+.np-popup button.np-agents-add { background-color: @selection; padding: 10px 16px; }
+.np-popup button.np-agents-add label { font-size: 13pt; color: @accent; }
+.np-popup button.np-agents-add:hover { background-color: @muted; }
+.np-popup .np-agent { padding: 16px 0; }
+.np-popup .np-agent-name { font-size: 11pt; font-weight: bold; color: @fg; }
+.np-popup button.np-agent-btn { padding: 2px 6px; }
+.np-popup button.np-agent-btn label { font-size: 12pt; color: @fg; }
+.np-popup progressbar.np-meter trough { background-color: @selection; min-height: 6px; border: none; border-radius: 3px; }
+.np-popup progressbar.np-meter progress { background-color: @fg; min-height: 6px; border: none; border-radius: 3px; }
+.np-popup progressbar.np-meter text { font-size: 0; }

@@ -176,7 +176,7 @@ def system_monospace(family):
 def reload():
     quiet("pkill", "-SIGUSR2", "-x", "waybar")
     quiet("makoctl", "reload")
-    quiet(os.path.join(APP, "bin", "panel"), "reload")
+    quiet(os.path.join(APP, "bin", "nameplate-shell"), "panel", "reload")
 
 
 def main():

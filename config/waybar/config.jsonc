@@ -61,7 +61,7 @@
     "return-type": "json",
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel display --bar"
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel display --bar"
   },
   "custom/logo": {
     "exec": "exec ~/.config/nameplate/bin/nameplate bar logo",
@@ -70,8 +70,8 @@
     "signal": 12,
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel menu --bar",
-    "on-click-right": "~/.config/nameplate/bin/panel apps"
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel menu --bar",
+    "on-click-right": "~/.config/nameplate/bin/nameplate-shell panel apps"
   },
   "hyprland/workspaces": {
     "format": "{icon}",
@@ -91,7 +91,7 @@
     "return-type": "json",
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel calendar --bar"
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel calendar --bar"
   },
   // 15px icons 12px apart: each sits on the same 27px pitch as the other bar icons
   "tray": {
@@ -103,7 +103,7 @@
     "return-type": "json",
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel bluetooth --bar",
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel bluetooth --bar",
     "on-click-right": "XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth"
   },
   "custom/network": {
@@ -111,7 +111,7 @@
     "return-type": "json",
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel wifi --bar",
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel wifi --bar",
     "on-click-right": "alacritty --class nameplate-float --title Network -e ~/.config/nameplate/bin/wifi edit"
   },
   "custom/battery": {
@@ -119,7 +119,7 @@
     "return-type": "json",
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel power --bar"
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel power --bar"
   },
   "custom/media": {
     "exec": "exec ~/.config/nameplate/bin/nameplate bar media --watch",
@@ -128,7 +128,7 @@
     "escape": true,
     "max-length": 4,
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel calendar --bar",
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel calendar --bar",
     "on-click-right": "playerctl play-pause"
   },
   "custom/sound": {
@@ -136,7 +136,7 @@
     "return-type": "json",
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel sound --bar",
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel sound --bar",
     "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle; pkill -RTMIN+9 waybar",
     "on-click-middle": "pavucontrol",
     "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+; pkill -RTMIN+9 waybar",
@@ -180,7 +180,7 @@
     "signal": 16,
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel weather --bar"
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel weather --bar"
   },
   "custom/updates": {
     "exec": "exec ~/.config/nameplate/bin/nameplate bar updates",
@@ -204,7 +204,7 @@
     "signal": 12,
     "format": "{}",
     "tooltip": false,
-    "on-click": "~/.config/nameplate/bin/panel agents --bar"
+    "on-click": "~/.config/nameplate/bin/nameplate-shell panel agents --bar"
   },
   // Omarchy's keyboard-layout item: only appears once a second layout is set;
   // a short label ("us"), click to cycle (nameplate keyboard cycle)

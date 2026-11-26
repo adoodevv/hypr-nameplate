@@ -34,7 +34,7 @@ echo "and the installer's backups (*.bak-DATE), are kept."
 ask "Continue?" || exit 0
 
 pkill -f "[b]in/idle-watch" 2>/dev/null
-pkill -f "nameplate/bin/panel daemon" 2>/dev/null
+pkill -f "nameplate/bin/(panel|nameplate-shell panel) daemon" 2>/dev/null
 pkill -f "nameplate/bin/(dock|nameplate-shell dock)$" 2>/dev/null
 pkill -f "nameplate/bin/(wallpaper|nameplate-shell wallpaper)$" 2>/dev/null
 pkill -f "nameplate/bin/(battery-watch|nameplate battery-watch)" 2>/dev/null

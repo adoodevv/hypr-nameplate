@@ -375,7 +375,7 @@ fi
 
 # The panels run in the background from login; stop the old copy so the next click
 # starts the new one
-pkill -f "nameplate/bin/panel daemon" 2>/dev/null || true
+pkill -f "nameplate/bin/(panel|nameplate-shell panel) daemon" 2>/dev/null || true
 # The dock: restart it with the new version (inside Hyprland)
 pkill -f "nameplate/bin/(dock|nameplate-shell dock)$" 2>/dev/null || true
 # Same for the wallpaper: it only starts at login, so a new copy would

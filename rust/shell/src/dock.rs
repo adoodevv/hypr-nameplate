@@ -1381,7 +1381,7 @@ const USAGE: &str = "usage: nameplate-shell dock [pinned | pin APP | unpin APP |
 /// Needs no display.
 pub fn cli(args: &[String]) -> Result<(), String> {
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    let pins = || load_pins().unwrap_or_else(|| default_pins(&Apps::load()));
+    let pins = pinned;
     match args.as_slice() {
         ["pinned"] => {
             for p in pins() {
@@ -1412,6 +1412,17 @@ pub fn cli(args: &[String]) -> Result<(), String> {
         _ => return Err(USAGE.into()),
     }
     Ok(())
+}
+
+/// The pinned apps' .desktop names, in dock order (the app grid's menu uses this).
+pub fn pinned() -> Vec<String> {
+    load_pins().unwrap_or_else(|| default_pins(&Apps::load()))
+}
+
+/// Pin an app to the dock or take it off.
+pub fn set_pinned(app: &str, pin: bool) {
+    let verb = if pin { "pin" } else { "unpin" };
+    let _ = cli(&[verb.to_string(), app.to_string()]);
 }
 
 fn poke(signal: i32) {

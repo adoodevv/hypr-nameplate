@@ -1,3 +1,3 @@
 #!/bin/bash
 # Power options: the System part of the main menu (SUPER + Escape)
-exec "$HOME/.config/nameplate/bin/panel" menu system
+exec "$HOME/.config/nameplate/bin/nameplate-shell" panel menu system

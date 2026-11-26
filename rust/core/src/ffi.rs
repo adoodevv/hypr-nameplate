@@ -46,6 +46,7 @@ extern "C" {
     fn __libc_current_sigrtmin() -> c_int;
 }
 
+pub const SIGKILL: i32 = 9;
 pub const SIGUSR1: i32 = 10;
 pub const SIGUSR2: i32 = 12;
 pub const SIGTERM: i32 = 15;

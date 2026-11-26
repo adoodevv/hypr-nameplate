@@ -6,8 +6,11 @@
 //!   nameplate-shell wallpaper lock         refresh the lock screen's copy
 //!   nameplate-shell dock                   the app dock (started at login)
 //!   nameplate-shell dock pinned|pin APP|unpin APP|autohide [on|off]
+//!   nameplate-shell panel KIND [ROUTE] [--bar]   open a panel (see panel/mod.rs)
+//!   nameplate-shell panel daemon|reload|close
 
 mod dock;
+mod panel;
 mod util;
 mod wallpaper;
 
@@ -20,7 +23,8 @@ fn main() -> ExitCode {
         let result = match args[0].as_str() {
             "wallpaper" => wallpaper::cli(&args[1..]),
             "dock" => dock::cli(&args[1..]),
-            _ => Err("usage: nameplate-shell wallpaper|dock [...]".into()),
+            "panel" => panel::cli(&args[1..]),
+            _ => Err("usage: nameplate-shell wallpaper|dock|panel [...]".into()),
         };
         return match result {
             Ok(()) => ExitCode::SUCCESS,
@@ -34,7 +38,7 @@ fn main() -> ExitCode {
         Some("wallpaper") => wallpaper::run,
         Some("dock") => dock::run,
         _ => {
-            eprintln!("usage: nameplate-shell wallpaper|dock [...]");
+            eprintln!("usage: nameplate-shell wallpaper|dock|panel [...]");
             return ExitCode::from(2);
         }
     };
