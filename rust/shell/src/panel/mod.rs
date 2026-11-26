@@ -16,7 +16,10 @@
 //! other's.
 
 mod apps;
+mod calendar;
 mod clipboard;
+mod media;
+mod power;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
@@ -32,7 +35,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 /// The panels drawn here.
-const KINDS: &[&str] = &["clipboard", "apps"];
+const KINDS: &[&str] = &["clipboard", "apps", "calendar", "media", "power"];
 /// Every panel, for the usage message and to refuse typos before starting anything.
 const ALL: &[&str] = &[
     "calendar",
@@ -189,6 +192,8 @@ fn handle(message: &str) {
             close();
             let _ = send_to(&py_sock(), "close");
         }
+        // Tests only: click the button with this text or tooltip, in the open panel.
+        ["press", text] if std::env::var_os("NAMEPLATE_PANEL_TEST").is_some() => press(text),
         _ => {}
     }
 }
@@ -342,6 +347,8 @@ fn install_css() {
 pub enum Anchor {
     /// Under the bar, at the right (the bar's panels).
     Right,
+    /// Under the bar, in the middle (the calendar, under the clock).
+    Top,
     /// In the middle of the screen (app grid, clipboard, menus).
     Middle,
 }
@@ -363,7 +370,7 @@ pub trait Panel {
         12
     }
     /// Called once the window is on screen (to focus a search line, say).
-    fn shown(&self) {}
+    fn shown(self: Rc<Self>) {}
     /// A key the window got first; true if the panel used it.
     fn on_key(&self, _event: &gdk::EventKey) -> bool {
         false
@@ -392,10 +399,12 @@ fn generation() -> u64 {
 }
 
 fn build(kind: &str, route: Option<&str>) -> Option<Rc<dyn Panel>> {
-    let _ = route;
     Some(match kind {
         "clipboard" => clipboard::Clipboard::new(),
         "apps" => apps::Apps::new(),
+        "calendar" => calendar::Calendar::new(route == Some("clock")),
+        "media" => media::Media::new(false),
+        "power" => power::Power::new(),
         _ => return None,
     })
 }
@@ -437,9 +446,11 @@ fn open(kind: &str, route: Option<&str>, mark_x: Option<i32>) {
     if let Some(m) = &monitor {
         win.set_monitor(m);
     }
-    if panel.anchor() == Anchor::Right {
+    if panel.anchor() != Anchor::Middle {
         win.set_anchor(Edge::Top, true);
         win.set_layer_shell_margin(Edge::Top, 6);
+    }
+    if panel.anchor() == Anchor::Right {
         win.set_anchor(Edge::Right, true);
         win.set_layer_shell_margin(Edge::Right, 10);
     }
@@ -465,6 +476,41 @@ fn open(kind: &str, route: Option<&str>, mark_x: Option<i32>) {
     });
     write_open_file(Some((kind, route)));
     panel.shown();
+}
+
+fn press(text: &str) {
+    fn find(w: &gtk::Widget, text: &str) -> Option<gtk::Button> {
+        if let Some(b) = w.downcast_ref::<gtk::Button>() {
+            let mut labels = Vec::new();
+            collect_labels(b.upcast_ref(), &mut labels);
+            if labels.iter().any(|l| l == text) || b.tooltip_text().is_some_and(|t| t == text) {
+                return Some(b.clone());
+            }
+        }
+        w.downcast_ref::<gtk::Container>()?
+            .children()
+            .iter()
+            .find_map(|c| find(c, text))
+    }
+    fn collect_labels(w: &gtk::Widget, out: &mut Vec<String>) {
+        if let Some(l) = w.downcast_ref::<gtk::Label>() {
+            out.push(l.text().to_string());
+        }
+        if let Some(c) = w.downcast_ref::<gtk::Container>() {
+            for child in c.children() {
+                collect_labels(&child, out);
+            }
+        }
+    }
+    let windows = CURRENT.with(|c| c.borrow().as_ref().map(|h| h.windows.clone()));
+    let button = windows
+        .unwrap_or_default()
+        .iter()
+        .find_map(|w| find(w.upcast_ref(), text));
+    match button {
+        Some(b) => b.clicked(),
+        None => eprintln!("nameplate-shell panel: no button {text:?}"),
+    }
 }
 
 /// The screen at x (the pointer's position across all screens).
@@ -559,7 +605,6 @@ pub fn background<T: Send + 'static>(
 pub enum Ran {
     Ok(Vec<u8>),
     /// Its output and errors, for a panel to show.
-    #[allow(dead_code)] // the bar panels still to come show these
     Failed(Vec<u8>),
     Missing,
     TimedOut,
@@ -637,6 +682,71 @@ pub fn row(icon: &str, text: &str, right: &str, on_click: impl Fn() + 'static) -
     b
 }
 
+/// A round icon button (media controls).
+pub fn icon_button(
+    glyph: &str,
+    classes: &[&str],
+    tooltip: &str,
+    on_click: impl Fn() + 'static,
+) -> gtk::Button {
+    let b = gtk::Button::with_label(glyph);
+    b.style_context().add_class("np-round");
+    for c in classes {
+        b.style_context().add_class(c);
+    }
+    if !tooltip.is_empty() {
+        b.set_tooltip_text(Some(tooltip));
+    }
+    b.connect_clicked(move |_| on_click());
+    b
+}
+
+pub fn separator() -> gtk::Separator {
+    gtk::Separator::new(gtk::Orientation::Horizontal)
+}
+
+/// Every `ms` milliseconds while `target` (a panel) is alive, call `tick` with it.
+pub fn every<T: 'static>(ms: u64, target: &Rc<T>, tick: impl Fn(&Rc<T>) + 'static) {
+    let weak = Rc::downgrade(target);
+    glib::timeout_add_local(Duration::from_millis(ms), move || match weak.upgrade() {
+        Some(t) => {
+            tick(&t);
+            glib::ControlFlow::Continue
+        }
+        None => glib::ControlFlow::Break,
+    });
+}
+
+/// Once, after `ms` milliseconds, if `target` is still alive.
+pub fn later<T: 'static>(ms: u64, target: &Rc<T>, then: impl FnOnce(&Rc<T>) + 'static) {
+    let weak = Rc::downgrade(target);
+    glib::timeout_add_local_once(Duration::from_millis(ms), move || {
+        if let Some(t) = weak.upgrade() {
+            then(&t);
+        }
+    });
+}
+
+/// Python's str.capitalize: "spotify" -> "Spotify", "VLC" -> "Vlc".
+pub fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first
+            .to_uppercase()
+            .chain(chars.flat_map(char::to_lowercase))
+            .collect(),
+        None => String::new(),
+    }
+}
+
+/// Text output of a command that succeeded, empty otherwise.
+pub fn out(program: &str, args: &[&str]) -> String {
+    match run(program, args, None, Duration::from_secs(5)) {
+        Ran::Ok(o) => String::from_utf8_lossy(&o).trim().to_string(),
+        _ => String::new(),
+    }
+}
+
 pub fn clear(container: &gtk::Box) {
     for child in container.children() {
         container.remove(&child);
@@ -649,6 +759,32 @@ pub fn notify(title: &str, body: &str) {
 
 /// Nerd Font icons the panels use.
 pub mod icon {
+    pub const CHECK: &str = "\u{f012c}";
+    pub const REFRESH: &str = "\u{f0450}";
+    pub const COG: &str = "\u{f0493}";
+    pub const PREV: &str = "\u{f04ae}";
+    pub const NEXT: &str = "\u{f04ad}";
+    pub const PLAY: &str = "\u{f040a}";
+    pub const PAUSE: &str = "\u{f03e4}";
+    pub const MUSIC: &str = "\u{f075a}";
+    pub const CHARGING: &str = "\u{f0084}";
+    pub const LEAF: &str = "\u{f032a}";
+    pub const BALANCE: &str = "\u{f05d1}";
+    pub const ROCKET: &str = "\u{f0463}";
+    /// Battery from empty to full, in tenths.
+    pub const BATTERY: [&str; 11] = [
+        "\u{f008e}",
+        "\u{f007a}",
+        "\u{f007b}",
+        "\u{f007c}",
+        "\u{f007d}",
+        "\u{f007e}",
+        "\u{f007f}",
+        "\u{f0080}",
+        "\u{f0081}",
+        "\u{f0082}",
+        "\u{f0079}",
+    ];
     pub const CLIP: &str = "\u{f0147}";
     pub const IMAGE: &str = "\u{f02e9}";
     pub const TRASH: &str = "\u{f0a7a}";

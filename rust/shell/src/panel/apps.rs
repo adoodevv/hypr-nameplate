@@ -240,7 +240,7 @@ impl Panel for Apps {
     fn dim_backdrop(&self) -> bool {
         true
     }
-    fn shown(&self) {
+    fn shown(self: Rc<Self>) {
         self.refilter();
         self.search.grab_focus();
     }

@@ -242,7 +242,7 @@ impl Panel for Clipboard {
     fn anchor(&self) -> Anchor {
         Anchor::Middle
     }
-    fn shown(&self) {
+    fn shown(self: Rc<Self>) {
         self.search.grab_focus();
     }
 }
