@@ -277,7 +277,8 @@ done
 # Scripts that earlier versions installed and the Rust programs below replaced
 for f in agents wallpaper dock battery-watch bar-status sound-status dnd-status media-status \
          recording-status media-button osd browser keyboard-layout workspace-layout \
-         window-width window-pop window-minimize window-close-all panel; do
+         window-width window-pop window-minimize window-close-all panel \
+         audio-menu bluetooth-menu display-menu power-menu wifi-menu; do
   rm -f "$APP/bin/$f"
 done
 

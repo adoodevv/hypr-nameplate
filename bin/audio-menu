@@ -1,3 +1,0 @@
-#!/bin/bash
-# Kept for older bindings: the dropdown is now a panel (nameplate-shell panel).
-exec "$HOME/.config/nameplate/bin/nameplate-shell" panel sound
