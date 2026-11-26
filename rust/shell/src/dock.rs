@@ -26,7 +26,7 @@ use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use nameplate::json::{self, Value};
 use nameplate::{ffi, sys};
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -84,15 +84,15 @@ fn config_path() -> PathBuf {
     sys::app_dir().join("dock.json")
 }
 
-fn load_config() -> BTreeMap<String, Value> {
+fn load_config() -> json::Map {
     match sys::read(config_path()).and_then(|t| json::parse(&t)) {
         Some(Value::Object(map)) => map,
-        _ => BTreeMap::new(),
+        _ => json::Map::default(),
     }
 }
 
 /// Change some keys of dock.json, keeping the rest.
-fn save_config(update: impl FnOnce(&mut BTreeMap<String, Value>)) {
+fn save_config(update: impl FnOnce(&mut json::Map)) {
     let mut map = load_config();
     update(&mut map);
     let _ = sys::write_atomic(config_path(), &format!("{}\n", Value::Object(map)));

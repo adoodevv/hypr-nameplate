@@ -15,13 +15,16 @@
 //! nameplate-panel-py.sock); before either side opens a panel it closes the
 //! other's.
 
+mod agents;
 mod apps;
 mod bluetooth;
 mod calendar;
 mod clipboard;
+mod emoji;
 mod media;
 mod power;
 mod sound;
+mod weather;
 mod wifi;
 
 use gtk::prelude::*;
@@ -47,6 +50,9 @@ const KINDS: &[&str] = &[
     "sound",
     "wifi",
     "bluetooth",
+    "emoji",
+    "weather",
+    "agents",
 ];
 /// Every panel, for the usage message and to refuse typos before starting anything.
 const ALL: &[&str] = &[
@@ -420,6 +426,9 @@ fn build(kind: &str, route: Option<&str>) -> Option<Rc<dyn Panel>> {
         "sound" => sound::Sound::new(),
         "wifi" => wifi::Wifi::new(),
         "bluetooth" => bluetooth::Bluetooth::new(),
+        "emoji" => emoji::Emoji::new(),
+        "weather" => weather::Weather::new(),
+        "agents" => agents::Agents::new(),
         _ => return None,
     })
 }

@@ -5,7 +5,37 @@
 //! is for. The parser below is a "recursive descent" parser: one small function per
 //! kind of value, each calling the others for whatever is nested inside.
 
-use std::collections::BTreeMap;
+/// A JSON object: its keys in the order they were written (as Python's dict
+/// keeps them), so lists that come as objects keep their order. Objects here are
+/// small, so a list of pairs is all it takes.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Map(Vec<(String, Value)>);
+
+impl Map {
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        // The last one wins, as in most JSON readers, if a key comes twice.
+        self.0.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v)
+    }
+    /// Set a key, keeping its place if it's already there.
+    pub fn insert(&mut self, key: String, value: Value) {
+        match self.0.iter_mut().find(|(k, _)| *k == key) {
+            Some(entry) => entry.1 = value,
+            None => self.0.push((key, value)),
+        }
+    }
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Value)> {
+        self.0.iter().map(|(k, v)| (k, v))
+    }
+    pub fn values(&self) -> impl Iterator<Item = &Value> {
+        self.0.iter().map(|(_, v)| v)
+    }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -14,7 +44,7 @@ pub enum Value {
     Number(f64),
     Str(String),
     Array(Vec<Value>),
-    Object(BTreeMap<String, Value>),
+    Object(Map),
 }
 
 impl Value {
@@ -61,7 +91,7 @@ impl Value {
 }
 
 impl std::fmt::Display for Value {
-    /// Compact JSON. Object keys come out sorted (the map is a BTreeMap).
+    /// Compact JSON, object keys in their order.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Null => f.write_str("null"),
@@ -148,7 +178,7 @@ impl<'a> Parser<'a> {
 
     fn object(&mut self) -> Option<Value> {
         self.pos += 1; // the '{'
-        let mut map = BTreeMap::new();
+        let mut map = Map::default();
         self.skip_space();
         if self.peek() == Some(b'}') {
             self.pos += 1;
@@ -319,15 +349,37 @@ mod tests {
         let text = r#"{"autohide": true, "pinned": ["a.desktop", "b \"c\""], "n": 3, "x": 1.5}"#;
         let v = parse(text).unwrap();
         assert_eq!(parse(&v.to_string()).unwrap(), v);
-        assert_eq!(
-            v.to_string(),
-            r#"{"autohide": true, "n": 3, "pinned": ["a.desktop", "b \"c\""], "x": 1.5}"#
-        );
+        // Keys come back in the order they were written.
+        assert_eq!(v.to_string(), text);
     }
 
     #[test]
     fn quotes() {
         assert_eq!(quote("a\"b\\c\n"), r#""a\"b\\c\n""#);
         assert_eq!(quote("󰤨"), "\"󰤨\"");
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::*;
+
+    #[test]
+    fn objects_keep_their_order() {
+        let v = parse(r#"{"zeta": 1, "alpha": 2, "mid": {"b": 1, "a": 2}, "alpha": 3}"#).unwrap();
+        let Value::Object(map) = &v else { panic!() };
+        let keys: Vec<&str> = map.iter().map(|(k, _)| k.as_str()).collect();
+        // A repeated key keeps its first place and its last value, like a Python dict.
+        assert_eq!(keys, ["zeta", "alpha", "mid"]);
+        assert_eq!(v.get("alpha").and_then(Value::as_f64), Some(3.0));
+        assert_eq!(
+            v.to_string(),
+            r#"{"zeta": 1, "alpha": 3, "mid": {"b": 1, "a": 2}}"#
+        );
+        let mut m = Map::default();
+        m.insert("b".into(), Value::Null);
+        m.insert("a".into(), Value::Bool(true));
+        m.insert("b".into(), Value::Bool(false));
+        assert_eq!(Value::Object(m).to_string(), r#"{"b": false, "a": true}"#);
     }
 }
