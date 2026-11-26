@@ -10,7 +10,9 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 PPA="ppa:cppiber/hyprland"
 BASE_PKGS="alacritty pipx curl fontconfig xz-utils"
 CORE_PKGS="hyprland hyprlock hypridle waybar xdg-desktop-portal-hyprland"
-EXTRA_PKGS="hyprsunset hyprpicker tesseract-ocr ffmpeg btop jq zenity fzf python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
+# Building the Rust programs (rust/): the bar items, keys, wallpaper, dock and agents stats
+RUST_DEV_PKGS="cargo pkg-config libgtk-3-dev libgtk-layer-shell-dev"
+EXTRA_PKGS="$RUST_DEV_PKGS hyprsunset hyprpicker tesseract-ocr ffmpeg btop jq zenity fzf python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 cliphist wf-recorder fonts-noto-color-emoji webp-pixbuf-loader power-profiles-daemon upower hyprpolkitagent fuzzel mako-notifier swaybg brightnessctl playerctl grim slurp wl-clipboard pavucontrol libnotify-bin"
 export PATH="$BIN:$PATH"
 
 NAME="$(cat "$APP/name" 2>/dev/null)"   # the name from the last install, if any
@@ -272,59 +274,40 @@ for f in "$SRC"/bin/*; do
   install -m 755 "$f" "$APP/bin/$(basename "$f")"
 done
 
-# The Rust programs (rust/): `nameplate` (bar items, media keys, battery warnings,
-# window and layout keys), `nameplate-agents` (the agents panel's stats) and
-# `nameplate-shell` (the wallpaper and the dock). Until they're built, the
-# Python and bash versions in bin/ do the same jobs.
-RUST_DEV_PKGS="cargo pkg-config libgtk-3-dev libgtk-layer-shell-dev"
+# Scripts that earlier versions installed and the Rust programs below replaced
+for f in agents wallpaper dock battery-watch bar-status sound-status dnd-status media-status \
+         recording-status media-button osd browser keyboard-layout workspace-layout \
+         window-width window-pop window-minimize window-close-all; do
+  rm -f "$APP/bin/$f"
+done
+
+# The Rust programs (rust/): `nameplate` (bar items, media, window and layout keys,
+# battery warnings), `nameplate-agents` (the agents panel's stats) and
+# `nameplate-shell` (the wallpaper and the dock, and their commands).
 build_rust() {
   local cargo
   cargo=$(command -v cargo || true)
   [[ -z $cargo && -x $HOME/.cargo/bin/cargo ]] && cargo=$HOME/.cargo/bin/cargo
-  local missing=()
-  [[ -z $cargo ]] && missing+=(cargo)
-  pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null || missing+=(libgtk-3-dev libgtk-layer-shell-dev)
-  if (( ${#missing[@]} )) && (( ! CONFIGS_ONLY )); then
-    echo "The bar items, media keys, wallpaper and dock have faster versions written in Rust,"
-    echo "which use less memory than the Python and bash ones and start nothing every few seconds."
-    if ask "Install what building them needs (Rust's cargo and GTK headers, about 400 MB)?"; then
-      sudo apt-get install -y $RUST_DEV_PKGS && cargo=$(command -v cargo || true)
-    fi
+  if [[ -z $cargo ]] || ! pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null; then
+    (( CONFIGS_ONLY )) && die "Building the desktop needs: sudo apt install $RUST_DEV_PKGS"
+    sudo apt-get install -y $RUST_DEV_PKGS || die "Could not install $RUST_DEV_PKGS"
+    cargo=$(command -v cargo) || die "cargo is missing after installing it"
   fi
-  if [[ -z $cargo ]]; then
-    echo "using the Python and bash versions (for the Rust ones: sudo apt install $RUST_DEV_PKGS, then run this again)"
-    return
-  fi
-  local target="$HOME/.cache/nameplate/rust-target" manifest="$SRC/rust/Cargo.toml"
-  if CARGO_TARGET_DIR="$target" "$cargo" build --release --locked --quiet --manifest-path "$manifest" -p nameplate; then
-    install -m 755 "$target/release/nameplate" "$APP/bin/nameplate"
-    echo "nameplate: built"
-  else
-    warn "nameplate didn't build; using the bash version."
-  fi
-  if CARGO_TARGET_DIR="$target" "$cargo" build --release --locked --quiet --manifest-path "$manifest" -p nameplate-agents; then
-    install -m 755 "$target/release/nameplate-agents" "$APP/bin/nameplate-agents"
-    echo "nameplate-agents: built"
-  else
-    warn "nameplate-agents didn't build; using the Python agents stats."
-  fi
-  if ! pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null; then
-    echo "nameplate-shell: skipped (needs: sudo apt install libgtk-3-dev libgtk-layer-shell-dev)"
-  elif CARGO_TARGET_DIR="$target" "$cargo" build --release --locked --quiet --manifest-path "$manifest" -p nameplate-shell; then
-    install -m 755 "$target/release/nameplate-shell" "$APP/bin/nameplate-shell"
-    echo "nameplate-shell: built (wallpaper and dock)"
-  else
-    rm -f "$APP/bin/nameplate-shell"
-    warn "nameplate-shell didn't build; using the Python wallpaper and dock."
-  fi
+  local target="$HOME/.cache/nameplate/rust-target" pkg
+  echo "building (the first time takes a few minutes)..."
+  for pkg in nameplate nameplate-agents nameplate-shell; do
+    CARGO_TARGET_DIR="$target" "$cargo" build --release --locked --quiet \
+      --manifest-path "$SRC/rust/Cargo.toml" -p "$pkg" || die "$pkg didn't build; see the output above."
+    install -m 755 "$target/release/$pkg" "$APP/bin/$pkg"
+    echo "ok   $pkg"
+  done
 }
 if (( ! TERMINAL_ONLY )); then
   step "Rust programs"
-  rm -f "$APP/bin/nameplate-shell" "$APP/bin/nameplate-agents"   # rebuilt below, or the Python versions take over
   build_rust
 fi
 rm -rf "$BRAND"
-"$APP/bin/wallpaper" lock 2>/dev/null || true   # lock screen background
+[[ -x $APP/bin/nameplate-shell ]] && "$APP/bin/nameplate-shell" wallpaper lock 2>/dev/null || true   # lock screen background
 
 if (( ! TERMINAL_ONLY )); then
   put    "$SRC/config/hypr/hyprland.lua"    "$CFG/hypr/hyprland.lua"
@@ -398,12 +381,12 @@ pkill -f "nameplate/bin/(dock|nameplate-shell dock)$" 2>/dev/null || true
 # Same for the wallpaper: it only starts at login, so a new copy would
 # otherwise wait for the next one before clicks and transitions update
 pkill -f "nameplate/bin/(wallpaper|nameplate-shell wallpaper)$" 2>/dev/null || true
-# And the low-battery watcher, which may have become the Rust one
+# And the low-battery watcher
 pkill -f "nameplate/bin/(battery-watch|nameplate battery-watch)" 2>/dev/null || true
 if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  sleep 0.3; setsid -f "$APP/bin/dock" >/dev/null 2>&1
-  setsid -f "$APP/bin/wallpaper" >/dev/null 2>&1
-  setsid -f "$APP/bin/battery-watch" >/dev/null 2>&1
+  sleep 0.3; setsid -f "$APP/bin/nameplate-shell" dock >/dev/null 2>&1
+  setsid -f "$APP/bin/nameplate-shell" wallpaper >/dev/null 2>&1
+  setsid -f "$APP/bin/nameplate" battery-watch >/dev/null 2>&1
 fi
 # hypridle reads its config only when it starts: restart it inside Hyprland
 if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && pgrep -x hypridle >/dev/null; then

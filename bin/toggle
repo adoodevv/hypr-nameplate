@@ -36,7 +36,7 @@ case "${1:-}" in
       pkill -f "nameplate/bin/(dock|nameplate-shell dock)$"
       notify-send -a Dock -t 2000 "Dock off"
     else
-      setsid -f "$(dirname "$0")/dock" >/dev/null 2>&1
+      setsid -f "$(dirname "$0")/nameplate-shell" dock >/dev/null 2>&1
       notify-send -a Dock -t 2000 "Dock on" "It shows on floating workspaces (SUPER + L)"
     fi ;;
   animations)

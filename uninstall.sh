@@ -36,6 +36,7 @@ ask "Continue?" || exit 0
 pkill -f "[b]in/idle-watch" 2>/dev/null
 pkill -f "nameplate/bin/panel daemon" 2>/dev/null
 pkill -f "nameplate/bin/(dock|nameplate-shell dock)$" 2>/dev/null
+pkill -f "nameplate/bin/(wallpaper|nameplate-shell wallpaper)$" 2>/dev/null
 pkill -f "nameplate/bin/(battery-watch|nameplate battery-watch)" 2>/dev/null
 # Put GNOME's fixed-width font back and drop the "monospace" override (bin/font)
 if [[ -f $APP/monospace-before ]] && command -v gsettings >/dev/null; then

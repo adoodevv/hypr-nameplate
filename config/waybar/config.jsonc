@@ -198,7 +198,7 @@
     "on-click-right": "pavucontrol --tab=4"
   },
   "custom/agents": {
-    "exec": "~/.config/nameplate/bin/agents",
+    "exec": "~/.config/nameplate/bin/nameplate-agents",
     "return-type": "json",
     "interval": 300,
     "signal": 12,
@@ -207,7 +207,7 @@
     "on-click": "~/.config/nameplate/bin/panel agents --bar"
   },
   // Omarchy's keyboard-layout item: only appears once a second layout is set;
-  // a short label ("us"), click to cycle (bin/keyboard-layout)
+  // a short label ("us"), click to cycle (nameplate keyboard cycle)
   "custom/keyboard-layout": {
     "exec": "exec ~/.config/nameplate/bin/nameplate bar keyboard --watch",
     "return-type": "json",

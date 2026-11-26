@@ -238,7 +238,7 @@ fn apply_layout(ws: i64, mode: &str) -> bool {
     }
     if let Some(pid) = sys::pidfile_owner(
         &sys::runtime_dir().join("nameplate-dock.pid"),
-        &["bin/dock", "nameplate-shell dock"],
+        &["nameplate-shell dock"],
     ) {
         crate::ffi::send_signal(pid, crate::ffi::SIGUSR2);
     }

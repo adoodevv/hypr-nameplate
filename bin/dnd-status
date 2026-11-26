@@ -1,5 +1,0 @@
-#!/bin/bash
-# Bell icon in the bar while do-not-disturb is on (signal 11 refreshes it)
-makoctl mode 2>/dev/null | grep -qx do-not-disturb &&
-  printf '{"text": "󰂛", "tooltip": "Do not disturb is on. Click to turn it off", "class": "dnd"}\n'
-exit 0

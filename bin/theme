@@ -341,7 +341,7 @@ def apply(name, keep_wallpaper=False, announce=True):
     if not keep_wallpaper:
         image = theme_wallpaper(name)
         if image:
-            quiet(os.path.join(APP, "bin", "wallpaper"), "set", image)
+            quiet(os.path.join(APP, "bin", "nameplate-shell"), "wallpaper", "set", image)
     if skipped:
         print("Not themed (older copies, run the installer again to fix): " + ", ".join(skipped),
               file=sys.stderr)

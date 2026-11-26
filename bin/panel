@@ -91,7 +91,7 @@ except (ValueError, ImportError):
     GtkLayerShell = None
 
 PIDFILE = os.path.join(RUN, "nameplate-panel.pid")
-OPEN_FILE = os.path.join(RUN, "nameplate-panel-open")      # read by bin/bar-status
+OPEN_FILE = os.path.join(RUN, "nameplate-panel-open")      # read by the bar items (nameplate bar)
 BIN = os.path.expanduser("~/.config/nameplate/bin")
 PANELS = ("calendar", "media", "sound", "wifi", "bluetooth", "display", "power", "wallpapers",
           "clipboard", "emoji", "menu", "themes", "weather", "agents", "apps")
@@ -1778,7 +1778,7 @@ class WallpaperPanel(PickerPanel):
 
     def __init__(self, app):
         super().__init__(app)
-        images = out(f"{BIN}/wallpaper", "list", timeout=10).splitlines()
+        images = out(f"{BIN}/nameplate-shell", "wallpaper", "list", timeout=10).splitlines()
         current = read(os.path.expanduser("~/.config/nameplate/wallpaper-current")) or \
             os.path.expanduser("~/.config/nameplate/wallpaper.png")
         if current not in images and os.path.exists(current):
@@ -1797,7 +1797,7 @@ class WallpaperPanel(PickerPanel):
 
     def apply(self, i):
         path = self.items[i][0]
-        in_background(lambda: run(f"{BIN}/wallpaper", "set", path, timeout=10))
+        in_background(lambda: run(f"{BIN}/nameplate-shell", "wallpaper", "set", path, timeout=10))
         self.close()
 
 
@@ -2435,10 +2435,10 @@ class AppsPanel(Panel):
 
     def menu(self, info, event):
         """Right-click an app: pin it to the dock or take it off, like Omarchy's grid."""
-        pinned = info.get_id() in out(os.path.join(BIN, "dock"), "pinned", timeout=5).split()
+        pinned = info.get_id() in out(os.path.join(BIN, "nameplate-shell"), "dock", "pinned", timeout=5).split()
         m = Gtk.Menu()
         it = Gtk.MenuItem(label="Unpin from dock" if pinned else "Pin to dock")
-        it.connect("activate", lambda *_: run(os.path.join(BIN, "dock"), "unpin" if pinned else "pin",
+        it.connect("activate", lambda *_: run(os.path.join(BIN, "nameplate-shell"), "dock", "unpin" if pinned else "pin",
                                                info.get_id(), timeout=5))
         m.append(it)
         m.show_all()
@@ -2533,7 +2533,7 @@ class AgentsPanel(Panel):
     # -- data
     def load(self):
         def work():
-            rc, text = run(os.path.join(BIN, "agents"), "stats", timeout=120)
+            rc, text = run(os.path.join(BIN, "nameplate-agents"), "stats", timeout=120)
             try:
                 return json.loads(text) if rc == 0 else None
             except ValueError:
@@ -2952,7 +2952,7 @@ class MenuPanel(Panel):
             {"icon": g(0xF0E0C), "label": "Theme", **panel("themes")},
             {"icon": g(0xE659), "label": "Font", "sub": font_items},
             {"icon": g(0xF03E), "label": "Background", **panel("wallpapers")},
-            {"icon": I["next"], "label": "Next background", "stay": True, **run_(B + "wallpaper", "next")},
+            {"icon": I["next"], "label": "Next background", "stay": True, **run_(B + "nameplate-shell", "wallpaper", "next")},
             {"icon": g(0xF0E79), "label": "Gaps", "right": "off" if flag("no-gaps") == "on" else "on",
              **run_(B + "toggle", "gaps")},
             {"icon": g(0xF0A27), "label": "Square window", "right": flag("square"),
@@ -3379,7 +3379,7 @@ class Daemon:
 
     @staticmethod
     def tell_bar(kind, route):
-        """Which panel is open, so its bar item draws the accent line (bin/bar-status)."""
+        """Which panel is open, so its bar item draws the accent line (nameplate bar)."""
         try:
             with open(OPEN_FILE, "w") as f:
                 f.write(f"{kind} {route or ''}".strip() + "\n" if kind else "")

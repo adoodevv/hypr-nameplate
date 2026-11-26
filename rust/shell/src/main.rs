@@ -1,10 +1,11 @@
 //! `nameplate-shell`: hypr-nameplate's GTK desktop pieces.
 //!
-//!   nameplate-shell wallpaper    the desktop background (started at login)
-//!   nameplate-shell dock         the app dock (started at login)
-//!
-//! Their command-line halves stay in bin/wallpaper and bin/dock, which talk to
-//! these through the same pidfiles and signals as before.
+//!   nameplate-shell wallpaper              the desktop background (started at login)
+//!   nameplate-shell wallpaper set IMAGE    switch to an image
+//!   nameplate-shell wallpaper next|list    next image in the collection / print it
+//!   nameplate-shell wallpaper lock         refresh the lock screen's copy
+//!   nameplate-shell dock                   the app dock (started at login)
+//!   nameplate-shell dock pinned|pin APP|unpin APP|autohide [on|off]
 
 mod dock;
 mod util;
@@ -14,11 +15,26 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // With more arguments it's a command, done without a display.
+    if args.len() > 1 {
+        let result = match args[0].as_str() {
+            "wallpaper" => wallpaper::cli(&args[1..]),
+            "dock" => dock::cli(&args[1..]),
+            _ => Err("usage: nameplate-shell wallpaper|dock [...]".into()),
+        };
+        return match result {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let run: fn() -> Result<(), String> = match args.first().map(String::as_str) {
         Some("wallpaper") => wallpaper::run,
         Some("dock") => dock::run,
         _ => {
-            eprintln!("usage: nameplate-shell wallpaper|dock");
+            eprintln!("usage: nameplate-shell wallpaper|dock [...]");
             return ExitCode::from(2);
         }
     };
@@ -27,8 +43,6 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     if !gtk_layer_shell::is_supported() {
-        // Not a layer-shell desktop: let the Python version and its fallbacks
-        // (swaybg for the wallpaper) handle it.
         eprintln!("nameplate-shell: this desktop doesn't support layer-shell");
         return ExitCode::from(3);
     }

@@ -31,15 +31,15 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 
 hl.on("hyprland.start", function()
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
-  hl.exec_cmd(bin .. "wallpaper")      -- double-click the desktop to change it
+  hl.exec_cmd(bin .. "nameplate-shell wallpaper")  -- double-click the desktop to change it
   hl.exec_cmd("waybar")
   hl.exec_cmd("mako")
   hl.exec_cmd("hypridle")
-  hl.exec_cmd(bin .. "battery-watch")
+  hl.exec_cmd(bin .. "nameplate battery-watch")
   hl.exec_cmd(bin .. "screen-added --init")   -- screens already plugged in at login aren't "new"
   hl.exec_cmd(bin .. "display restore")       -- scale and resolution picked in the display panel
   hl.exec_cmd(bin .. "panel daemon")          -- keeps the panels ready, so bar clicks open instantly
-  hl.exec_cmd(bin .. "dock")                  -- app dock along the bottom, tucked away while windows are open
+  hl.exec_cmd(bin .. "nameplate-shell dock")  -- app dock along the bottom, tucked away while windows are open
   hl.exec_cmd(bin .. "hardware restore")      -- touchpad / touchscreen left off in the Hardware menu
   hl.exec_cmd("wl-paste --type text --watch cliphist store")    -- clipboard history
   hl.exec_cmd("wl-paste --type image --watch cliphist store")
@@ -380,7 +380,7 @@ hl.bind(mod .. " + CTRL + Tab",  hl.dsp.focus({ workspace = "previous_per_monito
 hl.bind(mod .. " + mouse_down",  hl.dsp.focus({ workspace = "m+1" }))
 hl.bind(mod .. " + mouse_up",    hl.dsp.focus({ workspace = "m-1" }))
 
--- Workspace layout: dwindle -> scrolling -> floating (bin/workspace-layout).
+-- Workspace layout: dwindle -> scrolling -> floating (nameplate layout).
 -- Floating workspaces are where the dock lives, like Omarchy's.
 hl.bind(mod .. " + L",       hl.dsp.exec_cmd(bin .. "nameplate layout"))
 hl.bind(mod .. " + ALT + L", hl.dsp.exec_cmd(bin .. "nameplate layout back"))
@@ -412,7 +412,7 @@ hl.bind(mod .. " + Print",        hl.dsp.exec_cmd(bin .. "colour-picker"))
 hl.bind(mod .. " + CTRL + Print", hl.dsp.exec_cmd(bin .. "ocr"))
 
 -- Volume, brightness and media keys (these also work on the lock screen).
--- bin/nameplate (rust/src/keys.rs) steps them the way Omarchy does: volume 5% a press
+-- nameplate (rust/core/src/keys.rs) steps them the way Omarchy does: volume 5% a press
 -- between 0 and 100% (unmuting), brightness 5% a press but 1% at a time at 5% and
 -- below, never fully black. Each shows a small level indicator.
 local np = bin .. "nameplate "
@@ -535,7 +535,7 @@ hl.layer_rule({ name = "notify-blur",   match = { namespace = "notifications" },
 ---- FLOATING WORKSPACES -------
 --------------------------------
 -- SUPER + L cycles a workspace through dwindle, scrolling and floating
--- (bin/workspace-layout keeps the choice under ~/.local/state/nameplate).
+-- (nameplate layout keeps the choice under ~/.local/state/nameplate).
 -- Hyprland has no floating layout of its own, so floating is applied to the
 -- windows: the ones the mode floated are tagged, and only those are tiled
 -- again when the mode ends. Windows on a floating workspace carry a second
@@ -732,7 +732,7 @@ local function layout_setup()
   })
 end
 
--- Called by bin/workspace-layout (SUPER + L) through `hyprctl eval`.
+-- Called by nameplate layout (SUPER + L) through `hyprctl eval`.
 function _G.np_workspace_mode(id, mode)
   id = tonumber(id)
   if not id or id < 1 then return end

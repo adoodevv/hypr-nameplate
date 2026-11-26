@@ -121,15 +121,15 @@ Developers can run `bash tests/smoke.sh`. It installs, reinstalls and uninstalls
   layout, browser), and the low-battery watcher. Each bar item waits for something to change (PipeWire, the
   kernel's network and power files, Hyprland's event socket) instead of the bar starting a
   script every few seconds. Scripts that toggle something call `nameplate refresh ITEM`.
-- `nameplate-shell` (`rust/shell`, GTK 3 and gtk-layer-shell): the wallpaper and the dock.
-  `bin/wallpaper` and `bin/dock` stay as their command lines and hand over to it.
+- `nameplate-shell` (`rust/shell`, GTK 3 and gtk-layer-shell): the wallpaper and the dock,
+  with their commands (`nameplate-shell wallpaper set|next|list|lock`,
+  `nameplate-shell dock pinned|pin|unpin|autohide`).
 - `nameplate-agents` (`rust/agents`, serde and a bundled SQLite): the agents panel's usage
-  stats from Claude Code, Grok, Muse and OpenCode history. `bin/agents` hands over to it.
+  stats from Claude Code, Grok, Muse and OpenCode history.
 
-The installer builds them when Ubuntu's `cargo` and the GTK headers are installed
-(`sudo apt install cargo pkg-config libgtk-3-dev libgtk-layer-shell-dev`); until then the Python
-and bash versions in `bin/` do the same jobs. `Cargo.lock` is resolved for Ubuntu 24.04's Rust 1.75,
-so keep building with `--locked`. Run the tests with `cargo test --manifest-path rust/Cargo.toml`.
+The installer installs what building them needs (`cargo pkg-config libgtk-3-dev
+libgtk-layer-shell-dev`) and builds them into `~/.config/nameplate/bin`; the desktop needs them.
+`Cargo.lock` is resolved for Ubuntu 24.04's Rust 1.75, so keep building with `--locked`. Run the tests with `cargo test --manifest-path rust/Cargo.toml`.
 
 ## Credits
 

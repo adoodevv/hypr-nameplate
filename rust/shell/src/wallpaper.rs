@@ -3,9 +3,12 @@
 //! 840 ms reveal), and double-click to open the pickers (left: wallpapers,
 //! right: themes).
 //!
-//! bin/wallpaper stays the command line (`set`, `next`, `list`, `lock`): it
-//! records the choice in ~/.config/nameplate/wallpaper-current and sends this
-//! process SIGUSR1 through the shared pidfile.
+//! The command line (`set`, `next`, `list`, `lock`) records the choice in
+//! ~/.config/nameplate/wallpaper-current and sends the running wallpaper
+//! SIGUSR1 through its pidfile.
+//!
+//! The collection is the default wallpaper plus every image under
+//! ~/Pictures/Wallpapers, sub-folders included, in name order.
 
 use crate::util;
 use gtk::prelude::*;
@@ -13,13 +16,17 @@ use gtk::{gdk, gdk_pixbuf::Pixbuf, glib};
 use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use nameplate::sys;
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 const WIPE: Duration = Duration::from_millis(840);
 const SLANT: f64 = -0.18;
 const DOUBLE_CLICK: Duration = Duration::from_millis(400);
+
+const PIDFILE: &str = "nameplate-wallpaper.pid";
+const MARKERS: &[&str] = &["nameplate-shell wallpaper"];
+const EXTS: &[&str] = &["png", "jpg", "jpeg", "webp"];
 
 fn current() -> PathBuf {
     let default = sys::app_dir().join("wallpaper.png");
@@ -287,16 +294,13 @@ fn open_picker(button: u32) {
 }
 
 pub fn run() -> Result<(), String> {
-    let pidfile = sys::runtime_dir().join("nameplate-wallpaper.pid");
-    if !sys::claim_pidfile(&pidfile, &["bin/wallpaper", "nameplate-shell wallpaper"]) {
+    let pidfile = sys::runtime_dir().join(PIDFILE);
+    if !sys::claim_pidfile(&pidfile, MARKERS) {
         return Ok(());
     }
-    // The lock screen copy (bin/wallpaper lock) follows the wallpaper; make sure
-    // it exists after a fresh install or a change made while this wasn't running.
-    let lock_src = sys::read(sys::app_dir().join("lock-source")).map(PathBuf::from);
-    if lock_src.as_ref() != Some(&current()) || !sys::app_dir().join("lock.png").exists() {
-        sys::spawn(sys::bin("wallpaper"), &["lock"]);
-    }
+    // The lock screen copy follows the wallpaper; make sure it exists after a
+    // fresh install or a change made while this wasn't running.
+    refresh_lock_in_background();
 
     util::add_css(&format!(
         "window.np-wallpaper {{ background-color: {}; }}",
@@ -346,4 +350,134 @@ pub fn run() -> Result<(), String> {
     });
     gtk::main();
     Ok(())
+}
+
+// ------------------------------------------------------------ command line --
+
+/// `nameplate-shell wallpaper set IMAGE | next | list | lock`. Needs no display.
+pub fn cli(args: &[String]) -> Result<(), String> {
+    match args {
+        [cmd, image] if cmd == "set" => set(Path::new(image)),
+        [cmd] if cmd == "next" => {
+            let images = collection();
+            if images.is_empty() {
+                return Ok(());
+            }
+            let now = current();
+            let next = match images.iter().position(|p| *p == now) {
+                Some(i) => (i + 1) % images.len(),
+                None => 0,
+            };
+            set(&images[next])
+        }
+        [cmd] if cmd == "list" => {
+            for p in collection() {
+                println!("{}", p.display());
+            }
+            Ok(())
+        }
+        [cmd] if cmd == "lock" => lock_image(),
+        _ => Err("usage: nameplate-shell wallpaper [set IMAGE | next | list | lock]".into()),
+    }
+}
+
+fn collection() -> Vec<PathBuf> {
+    let mut images = Vec::new();
+    let default = sys::app_dir().join("wallpaper.png");
+    if default.exists() {
+        images.push(default);
+    }
+    walk(
+        &sys::home().join("Pictures").join("Wallpapers"),
+        &mut images,
+    );
+    images
+}
+
+/// Images in `dir` in name order, then each sub-folder's (symlinked folders
+/// are listed but not entered, so a loop can't trap it).
+fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let (mut dirs, mut files) = (Vec::new(), Vec::new());
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if !entry.file_type().is_ok_and(|t| t.is_symlink()) {
+                dirs.push(path);
+            }
+        } else if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| EXTS.contains(&e.to_ascii_lowercase().as_str()))
+        {
+            files.push(path);
+        }
+    }
+    files.sort();
+    dirs.sort();
+    out.extend(files);
+    for d in dirs {
+        walk(&d, out);
+    }
+}
+
+fn set(image: &Path) -> Result<(), String> {
+    let path = if image.is_absolute() {
+        image.to_path_buf()
+    } else if let Ok(rest) = image.strip_prefix("~") {
+        sys::home().join(rest)
+    } else {
+        std::env::current_dir()
+            .map_err(|e| e.to_string())?
+            .join(image)
+    };
+    if !path.exists() {
+        return Err(format!("no such image: {}", path.display()));
+    }
+    sys::write_atomic(
+        sys::app_dir().join("wallpaper-current"),
+        &format!("{}\n", path.display()),
+    )
+    .map_err(|e| e.to_string())?;
+    if let Some(pid) = sys::pidfile_owner(&sys::runtime_dir().join(PIDFILE), MARKERS) {
+        nameplate::ffi::send_signal(pid, nameplate::ffi::SIGUSR1);
+    }
+    // The lock screen copy follows in the background: the desktop switches at
+    // once instead of waiting on a 4K decode and a PNG save.
+    refresh_lock_in_background();
+    Ok(())
+}
+
+fn refresh_lock_in_background() {
+    let lock_src = sys::read(sys::app_dir().join("lock-source")).map(PathBuf::from);
+    if lock_src.as_ref() == Some(&current()) && sys::app_dir().join("lock.png").exists() {
+        return;
+    }
+    if let Ok(me) = std::env::current_exe() {
+        sys::spawn(me, &["wallpaper", "lock"]);
+    }
+}
+
+/// Save the current wallpaper as a PNG for hyprlock, which reads one fixed path
+/// (~/.config/nameplate/lock.png) and blurs it itself.
+fn lock_image() -> Result<(), String> {
+    let path = current();
+    let mut pix = Pixbuf::from_file(&path).map_err(|e| format!("lock image: {e}"))?;
+    let (w, h) = (pix.width(), pix.height());
+    if w > 2560 {
+        // Plenty for a blurred background, and quick for hyprlock to load.
+        let scaled_h = (f64::from(h) * 2560.0 / f64::from(w)).round() as i32;
+        pix = pix
+            .scale_simple(2560, scaled_h, gtk::gdk_pixbuf::InterpType::Bilinear)
+            .ok_or("lock image: out of memory")?;
+    }
+    let dir = sys::app_dir();
+    let tmp = dir.join("lock.png.tmp");
+    pix.savev(&tmp, "png", &[])
+        .map_err(|e| format!("lock image: {e}"))?;
+    std::fs::rename(&tmp, dir.join("lock.png")).map_err(|e| e.to_string())?;
+    sys::write_atomic(dir.join("lock-source"), &format!("{}\n", path.display()))
+        .map_err(|e| e.to_string())
 }

@@ -8,8 +8,8 @@
 //! (~/.claude/projects, ~/.grok/sessions, ~/.local/share/muse,
 //! ~/.local/share/opencode). Nothing is sent anywhere and no sign-in details
 //! are read. Results are cached in ~/.cache/nameplate/agents-rs.json and only
-//! changed files are read again. This replaces bin/agents (Python), whose
-//! output it matches; bin/agents hands over to it when it's installed.
+//! changed files are read again. It replaced a Python version, whose
+//! output it matches.
 
 mod collect;
 mod model;

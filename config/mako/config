@@ -23,7 +23,7 @@ border-color=#f7768e
 # theme:end
 default-timeout=0
 
-# Volume / brightness level indicator (bin/osd)
+# Volume / brightness level indicator (nameplate osd)
 [app-name=nameplate-osd]
 default-timeout=1500
 width=260

@@ -8,8 +8,8 @@
 //! reorder, right-click for new window / pin / quit. Minimized windows
 //! (SUPER + M) wait here too.
 //!
-//! bin/dock stays the command line (`pin`, `unpin`, `pinned`, `autohide`). It
-//! edits ~/.config/nameplate/dock.json and pokes this process through the
+//! The command line (`pin`, `unpin`, `pinned`, `autohide`) edits
+//! ~/.config/nameplate/dock.json and pokes the running dock through its
 //! pidfile: SIGUSR1 to re-read pins and apps, SIGUSR2 for layout/autohide.
 //!
 //! Hyprland is read over its socket on a worker thread, because it can stall
@@ -77,6 +77,9 @@ fn with_dock(f: impl FnOnce(&Rc<Dock>)) {
 
 // ------------------------------------------------------------------ config --
 
+const PIDFILE: &str = "nameplate-dock.pid";
+const MARKERS: &[&str] = &["nameplate-shell dock"];
+
 fn config_path() -> PathBuf {
     sys::app_dir().join("dock.json")
 }
@@ -88,7 +91,7 @@ fn load_config() -> BTreeMap<String, Value> {
     }
 }
 
-/// Change some keys of dock.json, keeping the rest (bin/dock writes it too).
+/// Change some keys of dock.json, keeping the rest.
 fn save_config(update: impl FnOnce(&mut BTreeMap<String, Value>)) {
     let mut map = load_config();
     update(&mut map);
@@ -264,7 +267,7 @@ fn read_hyprland() -> Reading {
     }
 }
 
-/// The active workspace's layout, from bin/workspace-layout's state files,
+/// The active workspace's layout, from `nameplate layout`'s state files,
 /// falling back to the tiled layout Hyprland reports.
 fn workspace_mode(ws: &Value) -> String {
     let id = ws.get("id").and_then(Value::as_f64).map(|n| n as i64);
@@ -1241,7 +1244,7 @@ impl Dock {
         self.popup(menu, ev);
     }
 
-    // -- signals from bin/dock and bin/workspace-layout
+    // -- signals from `dock pin`/`autohide` and `nameplate layout`
 
     fn reload(&self) {
         self.st.borrow_mut().pins = load_pins().unwrap_or_default();
@@ -1337,8 +1340,8 @@ pub fn run() -> Result<(), String> {
     if sys::state_dir().join("no-dock").exists() {
         return Ok(()); // turned off in Menu -> Appearance (bin/toggle dock)
     }
-    let pidfile = sys::runtime_dir().join("nameplate-dock.pid");
-    if !sys::claim_pidfile(&pidfile, &["bin/dock", "nameplate-shell dock"]) {
+    let pidfile = sys::runtime_dir().join(PIDFILE);
+    if !sys::claim_pidfile(&pidfile, MARKERS) {
         return Ok(());
     }
     let dock = Dock::new();
@@ -1367,4 +1370,52 @@ pub fn run() -> Result<(), String> {
     gtk::main();
     drop(monitor);
     Ok(())
+}
+
+// ------------------------------------------------------------ command line --
+
+const USAGE: &str = "usage: nameplate-shell dock [pinned | pin APP | unpin APP | autohide [on|off]]
+  APP is the app's .desktop name, e.g. firefox_firefox.desktop";
+
+/// `nameplate-shell dock pinned | pin APP | unpin APP | autohide [on|off]`.
+/// Needs no display.
+pub fn cli(args: &[String]) -> Result<(), String> {
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let pins = || load_pins().unwrap_or_else(|| default_pins(&Apps::load()));
+    match args.as_slice() {
+        ["pinned"] => {
+            for p in pins() {
+                println!("{p}");
+            }
+        }
+        ["autohide"] => println!("{}", if load_autohide() { "on" } else { "off" }),
+        ["autohide", v @ ("on" | "off")] => {
+            let on = *v == "on";
+            save_config(|m| {
+                m.insert("autohide".into(), Value::Bool(on));
+            });
+            poke(nameplate::ffi::SIGUSR2);
+        }
+        [cmd @ ("pin" | "unpin"), app] => {
+            let app = if app.ends_with(".desktop") {
+                app.to_string()
+            } else {
+                format!("{app}.desktop")
+            };
+            let mut list: Vec<String> = pins().into_iter().filter(|p| *p != app).collect();
+            if *cmd == "pin" {
+                list.push(app);
+            }
+            save_pins(&list);
+            poke(nameplate::ffi::SIGUSR1);
+        }
+        _ => return Err(USAGE.into()),
+    }
+    Ok(())
+}
+
+fn poke(signal: i32) {
+    if let Some(pid) = sys::pidfile_owner(&sys::runtime_dir().join(PIDFILE), MARKERS) {
+        nameplate::ffi::send_signal(pid, signal);
+    }
 }

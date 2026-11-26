@@ -1,6 +1,6 @@
 //! One reader per agent, each turning that agent's own local history into
-//! [`Part`]s. Formats and counting rules match bin/agents (the Python version)
-//! exactly; its comments explain where each rule comes from.
+//! [`Part`]s. Formats and counting rules match the earlier Python version
+//! exactly.
 
 use crate::model::{chars, first, number, text, truthy, Part};
 use crate::time::{self, local_day};

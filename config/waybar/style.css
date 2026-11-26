@@ -116,7 +116,7 @@ box:hover > #custom-keyboard-layout, box:hover > #custom-tray-chevron { backgrou
 #datetime box:hover > #custom-media, #datetime box:hover > #custom-clock { background-color: transparent; }
 
 /* The item whose panel is open gets a short accent line under it, like Omarchy.
-   bin/panel tells the bar which one; see bin/bar-status. */
+   bin/panel tells the bar which one; see `nameplate bar`. */
 #custom-clock.open, #custom-network.open, #custom-bluetooth.open,
 #custom-sound.open, #custom-battery.open, #custom-monitor.open, #custom-weather.open,
 #custom-agents.open {
