@@ -16,7 +16,30 @@ mod wallpaper;
 
 use std::process::ExitCode;
 
+/// Keep the reason when something goes wrong: the dock, the wallpaper and the
+/// panels run in the background, where nobody sees their error output.
+fn log_panics() {
+    std::panic::set_hook(Box::new(|info| {
+        let what = std::env::args().skip(1).collect::<Vec<_>>().join(" ");
+        let line = format!("nameplate-shell {what}: {info}\n");
+        eprint!("{line}");
+        let path = nameplate::sys::home().join(".cache/nameplate/nameplate-shell.log");
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+        {
+            let _ = f.write_all(line.as_bytes());
+        }
+    }));
+}
+
 fn main() -> ExitCode {
+    log_panics();
     let args: Vec<String> = std::env::args().skip(1).collect();
     // With more arguments it's a command, done without a display.
     if args.len() > 1 {

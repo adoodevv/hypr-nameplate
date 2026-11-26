@@ -295,7 +295,9 @@ fn words(info: &gio::AppInfo) -> String {
     if let Some(desktop) = info.downcast_ref::<gio::DesktopAppInfo>() {
         parts.extend(desktop.keywords().iter().map(|k| k.to_string()));
     }
-    parts.push(info.executable().to_string_lossy().into_owned());
+    if let Some(exe) = crate::util::executable(info) {
+        parts.push(exe.to_string_lossy().into_owned());
+    }
     parts
         .into_iter()
         .filter(|p| !p.is_empty())

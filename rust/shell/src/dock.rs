@@ -151,7 +151,7 @@ impl Apps {
             {
                 keys.push(wm.to_lowercase());
             }
-            if let Some(name) = app.executable().file_name() {
+            if let Some(name) = util::executable(app).as_deref().and_then(|e| e.file_name()) {
                 keys.push(name.to_string_lossy().to_lowercase());
             }
             for key in keys.into_iter().filter(|k| !k.is_empty()) {
