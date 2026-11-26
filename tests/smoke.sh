@@ -68,6 +68,23 @@ run "$H" "$SRC/install.sh" --configs-only
 check "your own edit is backed up" test "$(find "$H/.config/hypr" -name 'hyprland.lua.bak-*' | wc -l)" -eq 1
 check "scripts get no backups" test "$(find "$H/.config/nameplate/bin" -name '*.bak-*' | wc -l)" -eq 0
 
+# ------------------------------------------------------- bar items (Rust) --
+NP="$H/.config/nameplate/bin/nameplate"
+check "nameplate is installed" test -x "$NP"
+check "nameplate prints a bar item" sh -c '"$1" bar logo | grep -q "\"class\""' _ "$NP"
+check "nameplate refuses an unknown item" not "$NP" bar nonsense
+check "nameplate refresh accepts items" "$NP" refresh sound dnd
+if command -v cargo >/dev/null; then
+  check "the Rust program was built" not grep -q '^#!' <(head -c2 "$NP")
+  check "nameplate-agents was built" test -x "$H/.config/nameplate/bin/nameplate-agents"
+  check "agents stats is JSON" sh -c '"$1" stats | python3 -c "import json,sys; json.load(sys.stdin)"' _ "$H/.config/nameplate/bin/agents"
+  if pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null; then
+    check "nameplate-shell was built" test -x "$H/.config/nameplate/bin/nameplate-shell"
+  fi
+  check "Rust unit tests pass" env CARGO_HOME="$H/.cargo" CARGO_TARGET_DIR="$H/.cache/nameplate/rust-target" \
+    cargo test --quiet --locked --manifest-path "$SRC/rust/Cargo.toml" -p nameplate -p nameplate-agents
+fi
+
 # ------------------------------------------------------------ appearance --
 check "lock blur file created" grep -qx '$np_blur = 3' "$H/.config/nameplate/lock-blur.conf"
 run "$H" "$H/.config/nameplate/bin/toggle" lock-blur light

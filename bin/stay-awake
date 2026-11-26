@@ -11,4 +11,4 @@ else
     sleep infinity >/dev/null 2>&1
   notify-send -a "Stay awake" -t 3000 "Staying awake" "No screensaver, lock or screen-off until you click the cup in the bar"
 fi
-pkill -RTMIN+14 -x waybar
+"$HOME/.config/nameplate/bin/nameplate" refresh awake

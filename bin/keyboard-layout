@@ -5,6 +5,7 @@
     keyboard-layout cycle  switch every keyboard on the same layout list
 """
 import json
+import os
 import subprocess
 import sys
 
@@ -64,7 +65,8 @@ def cycle():
         if (other.get("layout") or "") == mine and other.get("name"):
             subprocess.run(["hyprctl", "switchxkblayout", other["name"], str(nxt)],
                            capture_output=True, timeout=5)
-    subprocess.run(["pkill", "-RTMIN+12", "waybar"], capture_output=True)
+    subprocess.run([os.path.join(os.path.dirname(os.path.abspath(__file__)), "nameplate"), "refresh", "keyboard"],
+                   capture_output=True)
 
 
 if __name__ == "__main__":

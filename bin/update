@@ -14,5 +14,5 @@ exec alacritty --class nameplate-float --title "Updates" -e bash -c '
   fi
   sudo apt update && sudo apt full-upgrade
   command -v snap >/dev/null && sudo snap refresh
-  pkill -RTMIN+15 -x waybar
+  "$HOME/.config/nameplate/bin/nameplate" refresh updates
   echo; read -n 1 -s -r -p "Done. Press any key to close."'

@@ -1,0 +1,91 @@
+#!/bin/bash
+# Stand-in for the Rust program in rust/ (same commands, same output), used until
+# it's built. install.sh builds it when Rust's cargo is installed and puts the real
+# one here in place of this script:
+#   sudo apt install cargo   then   bash install.sh --configs-only
+#
+#   nameplate bar ITEM [--watch]
+#   nameplate volume raise|lower|mute|+N|-N
+#   nameplate mic mute
+#   nameplate brightness raise|lower|max|min|+N|-N
+#   nameplate osd volume|mic|brightness
+#   nameplate refresh ITEM...
+#   nameplate battery-watch
+#   nameplate window minimize|pop|close-all|width save|width restore
+#   nameplate layout [back | current [WORKSPACE] | set MODE]
+#   nameplate keyboard cycle
+#   nameplate browser [--private]
+bin="$(dirname "$0")"
+sink=@DEFAULT_AUDIO_SINK@
+
+signal_for() {   # the Waybar signal each item listens on in this mode
+  case $1 in
+    sound) echo 9 ;; recording) echo 10 ;; dnd) echo 11 ;; mic) echo 13 ;;
+    awake|nightlight) echo 14 ;; updates) echo 15 ;; weather) echo 16 ;; *) echo 12 ;;
+  esac
+}
+
+once() {
+  case $1 in
+    sound) "$bin/sound-status" ;;
+    recording) "$bin/recording-status" ;;
+    *) "$bin/bar-status" "$1" ;;
+  esac
+}
+
+case $1 in
+  bar)
+    item=$2
+    if [[ $3 == --watch ]]; then
+      [[ $item == clock ]] && exec "$bin/bar-status" clock    # already a loop
+      [[ $item == media ]] && exec "$bin/media-status"        # follows playerctl itself
+      last="--"
+      while :; do                       # the old way: ask again every few seconds
+        line=$(once "$item")
+        if [[ $line != "$last" ]]; then
+          printf '%s\n' "$line" || exit 0
+          last=$line
+        fi
+        sleep 3
+      done
+    fi
+    once "$item"
+    ;;
+  volume)
+    case $2 in
+      raise) wpctl set-mute $sink 0; wpctl set-volume -l 1 $sink 5%+ ;;
+      lower) wpctl set-mute $sink 0; wpctl set-volume $sink 5%- ;;
+      mute)  wpctl set-mute $sink toggle ;;
+      +*)    wpctl set-mute $sink 0; wpctl set-volume -l 1 $sink "${2#+}%+" ;;
+      -*)    wpctl set-mute $sink 0; wpctl set-volume $sink "${2#-}%-" ;;
+    esac
+    "$bin/osd" volume ;;
+  mic)
+    wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; "$bin/osd" mic ;;
+  brightness)
+    case $2 in
+      raise) brightnessctl -q -n2 set 5%+ ;;
+      lower) brightnessctl -q -n2 set 5%- ;;
+      max)   brightnessctl -q set 100% ;;
+      min)   brightnessctl -q -n2 set 1% ;;
+      +*)    brightnessctl -q -n2 set "${2#+}%+" ;;
+      -*)    brightnessctl -q -n2 set "${2#-}%-" ;;
+    esac
+    "$bin/osd" brightness ;;
+  osd) "$bin/osd" "$2" ;;
+  refresh)
+    shift
+    for item; do pkill -RTMIN+"$(signal_for "$item")" -x waybar; done ;;
+  battery-watch) exec "$bin/battery-watch" --bash ;;
+  window)
+    case $2 in
+      minimize)  exec "$bin/window-minimize" ;;
+      pop)       exec "$bin/window-pop" ;;
+      close-all) exec "$bin/window-close-all" ;;
+      width)     exec "$bin/window-width" "$3" ;;
+    esac ;;
+  layout)   shift; exec "$bin/workspace-layout" "$@" ;;
+  keyboard) exec "$bin/keyboard-layout" cycle ;;
+  browser)  shift; exec "$bin/browser" "$@" ;;
+  *) sed -n '7,17p' "$0" >&2; exit 1 ;;
+esac

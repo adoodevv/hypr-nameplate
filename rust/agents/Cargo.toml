@@ -1,0 +1,15 @@
+[package]
+name = "nameplate-agents"
+description = "Usage stats for the AI coding agents panel, from local history"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+nameplate = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+# preserve_order: the panel shows agents in the order they're written
+serde_json = { version = "1", features = ["preserve_order"] }
+# bundled: SQLite is compiled in, so there's no libsqlite3-dev to install
+rusqlite = { version = "0.31", features = ["bundled"] }

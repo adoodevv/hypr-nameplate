@@ -10,13 +10,20 @@ sign-in details are read, so plan limits aren't shown: use /usage inside the
 app for those. Results are cached in ~/.cache/nameplate/agents.json and only
 changed history files are read again, so it stays quick as history grows.
 """
+import os
+import sys
+
+# The Rust version (rust/agents) reads the same history, faster, with the same
+# output; this one remains for machines where it isn't built.
+_RUST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nameplate-agents")
+if os.access(_RUST, os.X_OK) and not os.environ.get("NAMEPLATE_PYTHON"):
+    os.execv(_RUST, [_RUST, *sys.argv[1:]])
+
 import datetime
 import json
-import os
 import re
 import shutil
 import sqlite3
-import sys
 from pathlib import Path
 
 HOME = Path.home()

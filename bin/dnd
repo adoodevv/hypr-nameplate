@@ -7,4 +7,4 @@ if makoctl mode | grep -qx do-not-disturb; then
 else
   makoctl mode -a do-not-disturb >/dev/null
 fi
-pkill -RTMIN+11 waybar
+"$HOME/.config/nameplate/bin/nameplate" refresh dnd

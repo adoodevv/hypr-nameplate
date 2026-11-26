@@ -1,0 +1,16 @@
+[package]
+name = "nameplate"
+description = "Bar items, media keys and background watchers for hypr-nameplate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+# Deliberately dependency-free: it builds offline in seconds, and the shell
+# crate reuses its library (Hyprland IPC, JSON, theme colours).
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nameplate"
+path = "src/main.rs"

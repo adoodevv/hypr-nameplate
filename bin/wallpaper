@@ -137,11 +137,18 @@ def serve():
     if not GtkLayerShell.is_supported():
         return fallback()
 
+    # The Rust version (rust/shell/src/wallpaper.rs) draws the same wallpaper on
+    # less memory; this one remains for machines where it isn't built.
+    shell = os.path.join(CONF, "bin", "nameplate-shell")
+    if os.access(shell, os.X_OK) and not os.environ.get("NAMEPLATE_PYTHON"):
+        os.execv(shell, [shell, "wallpaper"])
+
     try:   # already running?
         with open(PIDFILE) as f:
             pid = int(f.read().strip())
         with open(f"/proc/{pid}/cmdline", "rb") as f:
-            if b"bin/wallpaper" in f.read() and pid != os.getpid():
+            cmdline = f.read()
+            if (b"bin/wallpaper" in cmdline or b"nameplate-shell\0wallpaper" in cmdline) and pid != os.getpid():
                 return
     except (OSError, ValueError):
         pass

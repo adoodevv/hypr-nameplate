@@ -1,0 +1,14 @@
+[package]
+name = "nameplate-shell"
+description = "GTK desktop pieces for hypr-nameplate: wallpaper and dock"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+nameplate = { path = "../core" }
+# GTK 3, because that's what gtk-layer-shell supports on Ubuntu 24.04 (the GTK 4
+# version arrives in 24.10). Move to gtk4 + gtk4-layer-shell after upgrading.
+gtk = "0.18"
+gtk-layer-shell = { version = "0.8", features = ["v0_6"] }

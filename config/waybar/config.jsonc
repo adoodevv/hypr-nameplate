@@ -57,16 +57,14 @@
     "tooltip": false
   },
   "custom/monitor": {
-    "exec": "~/.config/nameplate/bin/bar-status monitor",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar monitor --watch",
     "return-type": "json",
-    "interval": 30,
-    "signal": 12,
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel display --bar"
   },
   "custom/logo": {
-    "exec": "~/.config/nameplate/bin/bar-status logo",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar logo",
     "return-type": "json",
     "interval": "once",
     "signal": 12,
@@ -89,7 +87,7 @@
     }
   },
   "custom/clock": {
-    "exec": "~/.config/nameplate/bin/bar-status clock",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar clock --watch",
     "return-type": "json",
     "format": "{}",
     "tooltip": false,
@@ -101,36 +99,30 @@
     "spacing": 12
   },
   "custom/bluetooth": {
-    "exec": "~/.config/nameplate/bin/bar-status bluetooth",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar bluetooth --watch",
     "return-type": "json",
-    "interval": 10,
-    "signal": 12,
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel bluetooth --bar",
     "on-click-right": "XDG_CURRENT_DESKTOP=GNOME gnome-control-center bluetooth"
   },
   "custom/network": {
-    "exec": "~/.config/nameplate/bin/bar-status network",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar network --watch",
     "return-type": "json",
-    "interval": 5,
-    "signal": 12,
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel wifi --bar",
     "on-click-right": "alacritty --class nameplate-float --title Network -e ~/.config/nameplate/bin/wifi edit"
   },
   "custom/battery": {
-    "exec": "~/.config/nameplate/bin/bar-status battery",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar battery --watch",
     "return-type": "json",
-    "interval": 30,
-    "signal": 12,
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel power --bar"
   },
   "custom/media": {
-    "exec": "~/.config/nameplate/bin/media-status",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar media --watch",
     "return-type": "json",
     "format": "{}",
     "escape": true,
@@ -140,10 +132,8 @@
     "on-click-right": "playerctl play-pause"
   },
   "custom/sound": {
-    "exec": "~/.config/nameplate/bin/sound-status",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar sound --watch",
     "return-type": "json",
-    "interval": 5,
-    "signal": 9,
     "format": "{}",
     "tooltip": false,
     "on-click": "~/.config/nameplate/bin/panel sound --bar",
@@ -160,34 +150,26 @@
     ]
   },
   "custom/recording": {
-    "exec": "~/.config/nameplate/bin/recording-status",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar recording --watch",
     "return-type": "json",
-    "interval": 2,
-    "signal": 10,
     "format": "{}",
     "on-click": "~/.config/nameplate/bin/screenrecord"
   },
   "custom/dnd": {
-    "exec": "~/.config/nameplate/bin/bar-status dnd",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar dnd --watch",
     "return-type": "json",
-    "interval": 5,
-    "signal": 11,
     "format": "{}",
     "on-click": "~/.config/nameplate/bin/dnd"
   },
   "custom/awake": {
-    "exec": "~/.config/nameplate/bin/bar-status awake",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar awake --watch",
     "return-type": "json",
-    "interval": 10,
-    "signal": 14,
     "format": "{}",
     "on-click": "~/.config/nameplate/bin/stay-awake"
   },
   "custom/nightlight": {
-    "exec": "~/.config/nameplate/bin/bar-status nightlight",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar nightlight --watch",
     "return-type": "json",
-    "interval": 10,
-    "signal": 14,
     "format": "{}",
     "on-click": "~/.config/nameplate/bin/nightlight"
   },
@@ -201,7 +183,7 @@
     "on-click": "~/.config/nameplate/bin/panel weather --bar"
   },
   "custom/updates": {
-    "exec": "~/.config/nameplate/bin/bar-status updates",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar updates",
     "return-type": "json",
     "interval": 1800,
     "signal": 15,
@@ -209,10 +191,8 @@
     "on-click": "~/.config/nameplate/bin/update"
   },
   "custom/mic": {
-    "exec": "~/.config/nameplate/bin/bar-status mic",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar mic --watch",
     "return-type": "json",
-    "interval": 5,
-    "signal": 13,
     "format": "{}",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; pkill -RTMIN+13 waybar",
     "on-click-right": "pavucontrol --tab=4"
@@ -229,12 +209,10 @@
   // Omarchy's keyboard-layout item: only appears once a second layout is set;
   // a short label ("us"), click to cycle (bin/keyboard-layout)
   "custom/keyboard-layout": {
-    "exec": "~/.config/nameplate/bin/keyboard-layout",
+    "exec": "exec ~/.config/nameplate/bin/nameplate bar keyboard --watch",
     "return-type": "json",
-    "interval": 5,
-    "signal": 12,
     "format": "{}",
     "tooltip": true,
-    "on-click": "~/.config/nameplate/bin/keyboard-layout cycle"
+    "on-click": "~/.config/nameplate/bin/nameplate keyboard cycle"
   }
 }

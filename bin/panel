@@ -289,8 +289,10 @@ def themed_css():
 def run(*args, timeout=25, env=None):
     """Run a command, return (exit code, combined output)."""
     try:
-        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout,
-                           env={**os.environ, **(env or {})})
+        # errors="replace": output that isn't valid UTF-8 (cliphist previews cut
+        # mid-character, odd file names) must not take a whole panel down.
+        p = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout, env={**os.environ, **(env or {})})
         return p.returncode, (p.stdout + p.stderr).strip()
     except FileNotFoundError:
         return 127, f"{args[0]} is not installed"
@@ -1862,7 +1864,8 @@ class ClipboardPanel(Panel):
 
     def load(self):
         rc, text = run("cliphist", "list", timeout=10)
-        self.entries = text.splitlines() if rc == 0 else []
+        # Only cliphist's own lines ("id<TAB>preview"): a warning on stderr isn't an entry.
+        self.entries = [l for l in text.splitlines() if "\t" in l] if rc == 0 else []
         self.missing = rc == 127
         self.fill()
 

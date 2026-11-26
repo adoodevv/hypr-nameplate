@@ -35,7 +35,8 @@ ask "Continue?" || exit 0
 
 pkill -f "[b]in/idle-watch" 2>/dev/null
 pkill -f "nameplate/bin/panel daemon" 2>/dev/null
-pkill -f "nameplate/bin/dock$" 2>/dev/null
+pkill -f "nameplate/bin/(dock|nameplate-shell dock)$" 2>/dev/null
+pkill -f "nameplate/bin/(battery-watch|nameplate battery-watch)" 2>/dev/null
 # Put GNOME's fixed-width font back and drop the "monospace" override (bin/font)
 if [[ -f $APP/monospace-before ]] && command -v gsettings >/dev/null; then
   gsettings set org.gnome.desktop.interface monospace-font-name "$(cat "$APP/monospace-before")"
@@ -78,6 +79,7 @@ if [[ -f /etc/apt/apt.conf.d/99-hypr-nameplate-proton-tray ]]; then
 fi
 
 rm -rf "$APP"
+rm -rf "$HOME/.cache/nameplate/rust-target"   # where install.sh built the Rust program
 rm -f "$CFG/autostart/nameplate-screensaver.desktop"
 for d in hypr waybar fuzzel mako alacritty xdg-desktop-portal; do
   rmdir "$CFG/$d" 2>/dev/null   # only if nothing else is left in it

@@ -47,5 +47,5 @@ case "$action $source" in
     flatpak uninstall "${chosen[@]}" ;;
   *) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
-pkill -RTMIN+15 -x waybar 2>/dev/null   # the updates item in the bar
+"$HOME/.config/nameplate/bin/nameplate" refresh updates 2>/dev/null   # the updates item in the bar
 pause

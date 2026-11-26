@@ -1,0 +1,20 @@
+# hypr-nameplate's Rust programs.
+#   core   `nameplate`        bar items, media keys, small background watchers (no dependencies)
+#   shell  `nameplate-shell`  the GTK desktop pieces: wallpaper and dock
+[workspace]
+members = ["core", "shell", "agents"]
+resolver = "2"
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+# Ubuntu 24.04's own cargo is 1.75, and Cargo.lock is resolved to match it.
+rust-version = "1.75"
+license = "MIT"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -271,6 +271,58 @@ rm -f "$APP"/bin/*.bak-*
 for f in "$SRC"/bin/*; do
   install -m 755 "$f" "$APP/bin/$(basename "$f")"
 done
+
+# The Rust programs (rust/): `nameplate` (bar items, media keys, battery warnings,
+# window and layout keys), `nameplate-agents` (the agents panel's stats) and
+# `nameplate-shell` (the wallpaper and the dock). Until they're built, the
+# Python and bash versions in bin/ do the same jobs.
+RUST_DEV_PKGS="cargo pkg-config libgtk-3-dev libgtk-layer-shell-dev"
+build_rust() {
+  local cargo
+  cargo=$(command -v cargo || true)
+  [[ -z $cargo && -x $HOME/.cargo/bin/cargo ]] && cargo=$HOME/.cargo/bin/cargo
+  local missing=()
+  [[ -z $cargo ]] && missing+=(cargo)
+  pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null || missing+=(libgtk-3-dev libgtk-layer-shell-dev)
+  if (( ${#missing[@]} )) && (( ! CONFIGS_ONLY )); then
+    echo "The bar items, media keys, wallpaper and dock have faster versions written in Rust,"
+    echo "which use less memory than the Python and bash ones and start nothing every few seconds."
+    if ask "Install what building them needs (Rust's cargo and GTK headers, about 400 MB)?"; then
+      sudo apt-get install -y $RUST_DEV_PKGS && cargo=$(command -v cargo || true)
+    fi
+  fi
+  if [[ -z $cargo ]]; then
+    echo "using the Python and bash versions (for the Rust ones: sudo apt install $RUST_DEV_PKGS, then run this again)"
+    return
+  fi
+  local target="$HOME/.cache/nameplate/rust-target" manifest="$SRC/rust/Cargo.toml"
+  if CARGO_TARGET_DIR="$target" "$cargo" build --release --locked --quiet --manifest-path "$manifest" -p nameplate; then
+    install -m 755 "$target/release/nameplate" "$APP/bin/nameplate"
+    echo "nameplate: built"
+  else
+    warn "nameplate didn't build; using the bash version."
+  fi
+  if CARGO_TARGET_DIR="$target" "$cargo" build --release --locked --quiet --manifest-path "$manifest" -p nameplate-agents; then
+    install -m 755 "$target/release/nameplate-agents" "$APP/bin/nameplate-agents"
+    echo "nameplate-agents: built"
+  else
+    warn "nameplate-agents didn't build; using the Python agents stats."
+  fi
+  if ! pkg-config --exists gtk+-3.0 gtk-layer-shell-0 2>/dev/null; then
+    echo "nameplate-shell: skipped (needs: sudo apt install libgtk-3-dev libgtk-layer-shell-dev)"
+  elif CARGO_TARGET_DIR="$target" "$cargo" build --release --locked --quiet --manifest-path "$manifest" -p nameplate-shell; then
+    install -m 755 "$target/release/nameplate-shell" "$APP/bin/nameplate-shell"
+    echo "nameplate-shell: built (wallpaper and dock)"
+  else
+    rm -f "$APP/bin/nameplate-shell"
+    warn "nameplate-shell didn't build; using the Python wallpaper and dock."
+  fi
+}
+if (( ! TERMINAL_ONLY )); then
+  step "Rust programs"
+  rm -f "$APP/bin/nameplate-shell" "$APP/bin/nameplate-agents"   # rebuilt below, or the Python versions take over
+  build_rust
+fi
 rm -rf "$BRAND"
 "$APP/bin/wallpaper" lock 2>/dev/null || true   # lock screen background
 
@@ -342,13 +394,16 @@ fi
 # starts the new one
 pkill -f "nameplate/bin/panel daemon" 2>/dev/null || true
 # The dock: restart it with the new version (inside Hyprland)
-pkill -f "nameplate/bin/dock$" 2>/dev/null || true
+pkill -f "nameplate/bin/(dock|nameplate-shell dock)$" 2>/dev/null || true
 # Same for the wallpaper: it only starts at login, so a new copy would
 # otherwise wait for the next one before clicks and transitions update
-pkill -f "nameplate/bin/wallpaper$" 2>/dev/null || true
+pkill -f "nameplate/bin/(wallpaper|nameplate-shell wallpaper)$" 2>/dev/null || true
+# And the low-battery watcher, which may have become the Rust one
+pkill -f "nameplate/bin/(battery-watch|nameplate battery-watch)" 2>/dev/null || true
 if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   sleep 0.3; setsid -f "$APP/bin/dock" >/dev/null 2>&1
   setsid -f "$APP/bin/wallpaper" >/dev/null 2>&1
+  setsid -f "$APP/bin/battery-watch" >/dev/null 2>&1
 fi
 # hypridle reads its config only when it starts: restart it inside Hyprland
 if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && pgrep -x hypridle >/dev/null; then

@@ -9,7 +9,7 @@ dir="$HOME/Videos/Screencasts"
 if pgrep -x wf-recorder >/dev/null; then
   pkill -INT -x wf-recorder
   for _ in $(seq 50); do pgrep -x wf-recorder >/dev/null || break; sleep 0.1; done
-  pkill -RTMIN+10 waybar
+  "$HOME/.config/nameplate/bin/nameplate" refresh recording
   last=$(ls -t "$dir"/*.mp4 2>/dev/null | head -1)
   notify-send -a "Screen recording" "Recording saved" "${last:-$dir}"
   exit 0
@@ -29,7 +29,7 @@ fi
 setsid -f wf-recorder "${args[@]}" >/dev/null 2>&1 </dev/null
 sleep 0.5
 if pgrep -x wf-recorder >/dev/null; then
-  pkill -RTMIN+10 waybar
+  "$HOME/.config/nameplate/bin/nameplate" refresh recording
   notify-send -a "Screen recording" -t 2500 "Recording" "Press the same keys again, or click the red dot, to stop"
 else
   notify-send -a "Screen recording" "Couldn't start recording"

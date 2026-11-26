@@ -243,9 +243,9 @@ local mod = "SUPER"
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd(terminal))
 hl.bind(mod .. " + Space",  hl.dsp.exec_cmd(mainMenu))
 hl.bind(mod .. " + ALT + Space", hl.dsp.exec_cmd(apps))
-hl.bind(mod .. " + SHIFT + Return", hl.dsp.exec_cmd(bin .. "browser"))
-hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd(bin .. "browser"))
-hl.bind(mod .. " + SHIFT + ALT + B", hl.dsp.exec_cmd(bin .. "browser --private"))
+hl.bind(mod .. " + SHIFT + Return", hl.dsp.exec_cmd(bin .. "nameplate browser"))
+hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd(bin .. "nameplate browser"))
+hl.bind(mod .. " + SHIFT + ALT + B", hl.dsp.exec_cmd(bin .. "nameplate browser --private"))
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd(fileManager))
 hl.bind(mod .. " + K",      hl.dsp.exec_cmd(bin .. "keys"))
 hl.bind(mod .. " + Escape", hl.dsp.exec_cmd(bin .. "panel menu system"))
@@ -289,7 +289,7 @@ hl.bind(mod .. " + CTRL + R",         hl.dsp.exec_cmd(bin .. "reminder set"))
 hl.bind(mod .. " + CTRL + ALT + R",   hl.dsp.exec_cmd(bin .. "reminder list"))
 hl.bind(mod .. " + CTRL + SHIFT + R", hl.dsp.exec_cmd(bin .. "reminder clear"))
 hl.bind(mod .. " + CTRL + I", hl.dsp.exec_cmd(bin .. "stay-awake"))      -- no screensaver/lock (Omarchy's key)
-hl.bind(mod .. " + CTRL + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle; pkill -RTMIN+13 waybar"))
+hl.bind(mod .. " + CTRL + M", hl.dsp.exec_cmd(bin .. "nameplate mic mute"))
 
 -- Notifications, on Omarchy 4.5's keys: act on the newest (opens its link or app),
 -- pick one of its actions from the keyboard, dismiss, history, silence
@@ -333,8 +333,8 @@ hl.bind(mod .. " + T",       hl.dsp.window.float({ action = "toggle" }))
 hl.bind(mod .. " + J",       hl.dsp.layout("togglesplit"))
 hl.bind(mod .. " + P",       hl.dsp.window.pseudo())
 hl.bind(mod .. " + ALT + P", hl.dsp.window.pseudo())
-hl.bind(mod .. " + O",       hl.dsp.exec_cmd(bin .. "window-pop"))
-hl.bind(mod .. " + M",       hl.dsp.exec_cmd(bin .. "window-minimize"))
+hl.bind(mod .. " + O",       hl.dsp.exec_cmd(bin .. "nameplate window pop"))
+hl.bind(mod .. " + M",       hl.dsp.exec_cmd(bin .. "nameplate window minimize"))
 hl.bind(mod .. " + G",       hl.dsp.group.toggle())
 hl.bind(mod .. " + ALT + G", hl.dsp.window.move({ out_of_group = true }))
 hl.bind(mod .. " + CTRL + Left",  hl.dsp.group.prev())
@@ -343,9 +343,9 @@ hl.bind(mod .. " + ALT + Tab",    hl.dsp.group.next())
 for i = 1, 5 do
   hl.bind(mod .. " + ALT + " .. i, hl.dsp.group.active({ index = i }))
 end
-hl.bind("CTRL + ALT + Delete",    hl.dsp.exec_cmd(bin .. "window-close-all"))
-hl.bind(mod .. " + ALT + Home",   hl.dsp.exec_cmd(bin .. "window-width save"))
-hl.bind(mod .. " + Home",         hl.dsp.exec_cmd(bin .. "window-width restore"))
+hl.bind("CTRL + ALT + Delete",    hl.dsp.exec_cmd(bin .. "nameplate window close-all"))
+hl.bind(mod .. " + ALT + Home",   hl.dsp.exec_cmd(bin .. "nameplate window width save"))
+hl.bind(mod .. " + Home",         hl.dsp.exec_cmd(bin .. "nameplate window width restore"))
 hl.bind("ALT + Tab",         hl.dsp.window.cycle_next())
 hl.bind("ALT + Tab",         hl.dsp.window.bring_to_top())
 hl.bind("ALT + SHIFT + Tab", hl.dsp.window.cycle_next({ next = false }))
@@ -382,9 +382,9 @@ hl.bind(mod .. " + mouse_up",    hl.dsp.focus({ workspace = "m-1" }))
 
 -- Workspace layout: dwindle -> scrolling -> floating (bin/workspace-layout).
 -- Floating workspaces are where the dock lives, like Omarchy's.
-hl.bind(mod .. " + L",       hl.dsp.exec_cmd(bin .. "workspace-layout"))
-hl.bind(mod .. " + ALT + L", hl.dsp.exec_cmd(bin .. "workspace-layout back"))
-hl.bind("XF86Display",       hl.dsp.exec_cmd(bin .. "workspace-layout"))
+hl.bind(mod .. " + L",       hl.dsp.exec_cmd(bin .. "nameplate layout"))
+hl.bind(mod .. " + ALT + L", hl.dsp.exec_cmd(bin .. "nameplate layout back"))
+hl.bind("XF86Display",       hl.dsp.exec_cmd(bin .. "nameplate layout"))
 
 -- Scratchpad: a hidden workspace you can pop over anything
 hl.bind(mod .. " + S",       hl.dsp.workspace.toggle_special("scratchpad"))
@@ -411,23 +411,25 @@ hl.bind(mod .. " + CTRL + ALT + C", hl.dsp.exec_cmd(bin .. "screenshot region"))
 hl.bind(mod .. " + Print",        hl.dsp.exec_cmd(bin .. "colour-picker"))
 hl.bind(mod .. " + CTRL + Print", hl.dsp.exec_cmd(bin .. "ocr"))
 
--- Volume, brightness and media keys (these also work on the lock screen)
--- Each shows a small level indicator afterwards (bin/osd)
-local osd = " && " .. bin .. "osd "
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+" .. osd .. "volume"), { locked = true, repeating = true })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-" .. osd .. "volume"),      { locked = true, repeating = true })
-hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" .. osd .. "volume"),     { locked = true })
-hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" .. osd .. "mic"),      { locked = true })
-hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+" .. osd .. "brightness"), { locked = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-" .. osd .. "brightness"), { locked = true, repeating = true })
+-- Volume, brightness and media keys (these also work on the lock screen).
+-- bin/nameplate (rust/src/keys.rs) steps them the way Omarchy does: volume 5% a press
+-- between 0 and 100% (unmuting), brightness 5% a press but 1% at a time at 5% and
+-- below, never fully black. Each shows a small level indicator.
+local np = bin .. "nameplate "
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(np .. "volume raise"), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(np .. "volume lower"), { locked = true, repeating = true })
+hl.bind("XF86AudioMute",        hl.dsp.exec_cmd(np .. "volume mute"),  { locked = true })
+hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd(np .. "mic mute"),     { locked = true })
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(np .. "brightness raise"), { locked = true, repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(np .. "brightness lower"), { locked = true, repeating = true })
 -- Finer and coarser steps, like Omarchy: ALT for 1%, SHIFT + brightness for max / min,
 -- SHIFT + mute for the next sound output, ALT (+ SHIFT) + play for next (previous) track
-hl.bind("ALT + XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 1%+" .. osd .. "volume"), { locked = true, repeating = true })
-hl.bind("ALT + XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 1%-" .. osd .. "volume"),      { locked = true, repeating = true })
-hl.bind("ALT + XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl -n2 set 1%+" .. osd .. "brightness"), { locked = true, repeating = true })
-hl.bind("ALT + XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -n2 set 1%-" .. osd .. "brightness"), { locked = true, repeating = true })
-hl.bind("SHIFT + XF86MonBrightnessUp",   hl.dsp.exec_cmd("brightnessctl set 100%" .. osd .. "brightness"), { locked = true })
-hl.bind("SHIFT + XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -n2 set 1%" .. osd .. "brightness"), { locked = true })
+hl.bind("ALT + XF86AudioRaiseVolume", hl.dsp.exec_cmd(np .. "volume +1"), { locked = true, repeating = true })
+hl.bind("ALT + XF86AudioLowerVolume", hl.dsp.exec_cmd(np .. "volume -1"), { locked = true, repeating = true })
+hl.bind("ALT + XF86MonBrightnessUp",   hl.dsp.exec_cmd(np .. "brightness +1"), { locked = true, repeating = true })
+hl.bind("ALT + XF86MonBrightnessDown", hl.dsp.exec_cmd(np .. "brightness -1"), { locked = true, repeating = true })
+hl.bind("SHIFT + XF86MonBrightnessUp",   hl.dsp.exec_cmd(np .. "brightness max"), { locked = true })
+hl.bind("SHIFT + XF86MonBrightnessDown", hl.dsp.exec_cmd(np .. "brightness min"), { locked = true })
 hl.bind("SHIFT + XF86AudioMute", hl.dsp.exec_cmd(bin .. "audio-next"), { locked = true })
 hl.bind("ALT + XF86AudioPlay",         hl.dsp.exec_cmd("playerctl next"),     { locked = true })
 hl.bind("ALT + SHIFT + XF86AudioPlay", hl.dsp.exec_cmd("playerctl previous"), { locked = true })

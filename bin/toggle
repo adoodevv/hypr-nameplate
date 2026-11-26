@@ -33,7 +33,7 @@ case "${1:-}" in
     fi ;;
   dock)
     if [[ $(flip no-dock) == on ]]; then
-      pkill -f "nameplate/bin/dock$"
+      pkill -f "nameplate/bin/(dock|nameplate-shell dock)$"
       notify-send -a Dock -t 2000 "Dock off"
     else
       setsid -f "$(dirname "$0")/dock" >/dev/null 2>&1

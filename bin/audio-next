@@ -9,4 +9,4 @@ for i in "${!sinks[@]}"; do
 done
 pactl set-default-sink "${next%%$'\t'*}"
 notify-send -a Sound -t 2000 "Sound output" "${next#*$'\t'}"
-pkill -RTMIN+9 waybar
+"$HOME/.config/nameplate/bin/nameplate" refresh sound

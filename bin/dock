@@ -944,11 +944,17 @@ def main():
         sys.exit(0)
     if not GtkLayerShell.is_supported():
         sys.exit("dock: needs a layer-shell desktop (Hyprland)")
+    # The Rust version (rust/shell/src/dock.rs) is the same dock on less memory;
+    # this one remains for machines where it isn't built.
+    shell = os.path.join(BIN, "nameplate-shell")
+    if os.access(shell, os.X_OK) and not os.environ.get("NAMEPLATE_PYTHON"):
+        os.execv(shell, [shell, "dock"])
     try:                                   # one dock at a time
         with open(PIDFILE) as f:
             other = int(f.read().strip())
         with open("/proc/%d/cmdline" % other, "rb") as f:
-            running = b"bin/dock" in f.read()
+            cmdline = f.read()
+            running = b"bin/dock" in cmdline or b"nameplate-shell\0dock" in cmdline
         if other != os.getpid() and running:
             sys.exit(0)
     except (OSError, ValueError):
