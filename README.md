@@ -125,7 +125,8 @@ Developers can run `bash tests/smoke.sh`. It installs, reinstalls and uninstalls
   with their commands (`nameplate-shell wallpaper set|next|list|lock`,
   `nameplate-shell dock pinned|pin|unpin|autohide`).
 - The panels (`nameplate-shell panel KIND`, `rust/shell/src/panel`): moving over from
-  `bin/panel` one at a time: the clipboard, app grid, calendar, media and power are done.
+  `bin/panel` one at a time: the clipboard, app grid, calendar, media, power, sound,
+  Wi-Fi and Bluetooth are done.
   The Rust side opens every panel, passing the ones not yet ported to `bin/panel`'s
   background half.
 - `nameplate-agents` (`rust/agents`, serde and a bundled SQLite): the agents panel's usage

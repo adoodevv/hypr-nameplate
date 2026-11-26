@@ -16,10 +16,13 @@
 //! other's.
 
 mod apps;
+mod bluetooth;
 mod calendar;
 mod clipboard;
 mod media;
 mod power;
+mod sound;
+mod wifi;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
@@ -35,7 +38,16 @@ use std::rc::Rc;
 use std::time::Duration;
 
 /// The panels drawn here.
-const KINDS: &[&str] = &["clipboard", "apps", "calendar", "media", "power"];
+const KINDS: &[&str] = &[
+    "clipboard",
+    "apps",
+    "calendar",
+    "media",
+    "power",
+    "sound",
+    "wifi",
+    "bluetooth",
+];
 /// Every panel, for the usage message and to refuse typos before starting anything.
 const ALL: &[&str] = &[
     "calendar",
@@ -405,6 +417,9 @@ fn build(kind: &str, route: Option<&str>) -> Option<Rc<dyn Panel>> {
         "calendar" => calendar::Calendar::new(route == Some("clock")),
         "media" => media::Media::new(false),
         "power" => power::Power::new(),
+        "sound" => sound::Sound::new(),
+        "wifi" => wifi::Wifi::new(),
+        "bluetooth" => bluetooth::Bluetooth::new(),
         _ => return None,
     })
 }
@@ -739,6 +754,17 @@ pub fn capitalize(s: &str) -> String {
     }
 }
 
+/// Whether a command succeeded, and everything it printed (or why it couldn't
+/// run), trimmed: what a panel shows when something fails.
+pub fn run_text(program: &str, args: &[&str], timeout: Duration) -> (bool, String) {
+    match run(program, args, None, timeout) {
+        Ran::Ok(o) => (true, String::from_utf8_lossy(&o).trim().to_string()),
+        Ran::Failed(o) => (false, String::from_utf8_lossy(&o).trim().to_string()),
+        Ran::Missing => (false, format!("{program} is not installed")),
+        Ran::TimedOut => (false, "timed out".into()),
+    }
+}
+
 /// Text output of a command that succeeded, empty otherwise.
 pub fn out(program: &str, args: &[&str]) -> String {
     match run(program, args, None, Duration::from_secs(5)) {
@@ -760,6 +786,25 @@ pub fn notify(title: &str, body: &str) {
 /// Nerd Font icons the panels use.
 pub mod icon {
     pub const CHECK: &str = "\u{f012c}";
+    /// Wi-Fi signal from none to full.
+    pub const WIFI: [&str; 5] = [
+        "\u{f092f}",
+        "\u{f091f}",
+        "\u{f0922}",
+        "\u{f0925}",
+        "\u{f0928}",
+    ];
+    pub const LOCK: &str = "\u{f033e}";
+    pub const BLUETOOTH: &str = "\u{f00af}";
+    pub const BLUETOOTH_CONNECTED: &str = "\u{f00b1}";
+    pub const PLUS: &str = "\u{f0415}";
+    pub const UNLINK: &str = "\u{f0338}";
+    /// Volume low, medium, high.
+    pub const VOLUME: [&str; 3] = ["\u{f057f}", "\u{f0580}", "\u{f057e}"];
+    pub const MUTE: &str = "\u{f0581}";
+    pub const SPEAKER: &str = "\u{f04c3}";
+    pub const HEADPHONES: &str = "\u{f02cb}";
+    pub const MIXER: &str = "\u{f066a}";
     pub const REFRESH: &str = "\u{f0450}";
     pub const COG: &str = "\u{f0493}";
     pub const PREV: &str = "\u{f04ae}";
